@@ -43,6 +43,7 @@ internal class DesktopOverlays {
     var accounts by mutableStateOf(false)
     var signIn by mutableStateOf(false)
     var shortcuts by mutableStateOf(false)
+    var quickSearch by mutableStateOf(false)
 
     /** The column beside the page with the lyrics or the queue in it, or none. */
     var sidePanel by mutableStateOf<DesktopSidePanel?>(null)
