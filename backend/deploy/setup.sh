@@ -91,6 +91,15 @@ SYSCTL
 echo nf_conntrack > /etc/modules-load.d/nf_conntrack.conf
 sysctl --system >/dev/null 2>&1 || true
 
+echo "== swap"
+# 1 GB of RAM and no swap meant a connection spike could get Caddy OOM-killed.
+if ! swapon --show --noheadings | grep -q .; then
+  fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
+  grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+echo 'vm.swappiness = 10' > /etc/sysctl.d/91-bitchord-swap.conf
+sysctl -q -p /etc/sysctl.d/91-bitchord-swap.conf || true
+
 echo "== firewall"
 # Oracle's Ubuntu images ship an iptables REJECT rule that blocks everything
 # but SSH, independent of the VCN security list. Open 80/443 above it.
