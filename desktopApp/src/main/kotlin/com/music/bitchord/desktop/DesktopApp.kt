@@ -551,6 +551,7 @@ fun BitChordDesktopApp() {
     val quickSearchFocusRequester = remember { FocusRequester() }
     var quickSearchRestorePending by remember { mutableStateOf(false) }
     val shortcutWindowInfo = LocalWindowInfo.current
+    var shortcutWindowWasFocused by remember { mutableStateOf(shortcutWindowInfo.isWindowFocused) }
     LaunchedEffect(shortcutWindowInfo.isWindowFocused) {
         if (!shortcutWindowInfo.isWindowFocused) {
             shortcutDispatcher.reset()
@@ -2907,9 +2908,38 @@ fun BitChordDesktopApp() {
         overlays.listenTogether || overlays.audioOutput || overlays.pipeline || playerMenuOpen ||
         availableUpdate != null
 
+    // Focusable Compose popups/dropdowns may temporarily move native window focus away from the
+    // main scene without being represented by DesktopOverlays (context menus and DropdownMenu are
+    // examples). When the main window comes back, repair keyboard ownership after the popup has
+    // actually disappeared. Waiting a frame also lets a Search editor restore itself first.
+    LaunchedEffect(shortcutWindowInfo.isWindowFocused) {
+        val wasFocused = shortcutWindowWasFocused
+        shortcutWindowWasFocused = shortcutWindowInfo.isWindowFocused
+        if (!wasFocused && shortcutWindowInfo.isWindowFocused) {
+            androidx.compose.runtime.withFrameNanos { }
+            yield()
+            shortcutDispatcher.reset()
+            quickSearchKeys.reset()
+            if (overlays.quickSearch) {
+                runCatching { quickSearchFocusRequester.requestFocus() }
+            } else if (!shortcutEditorFocused && !shortcutBlockedByModal) {
+                repeat(3) {
+                    if (shortcutEditorFocused || overlays.quickSearch || shortcutBlockedByModal) {
+                        return@LaunchedEffect
+                    }
+                    if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) {
+                        return@LaunchedEffect
+                    }
+                    androidx.compose.runtime.withFrameNanos { }
+                }
+            }
+        }
+    }
+
     // Rows/buttons inside these overlays can own Compose focus. When the overlay is removed, Compose
     // does not always hand focus back to the page automatically, leaving the root shortcut handler
-    // with no focused descendant. Restore it once the final blocking overlay has actually disposed.
+    // with no focused descendant. Retry for a few frames: requestFocus can legally return false
+    // while the disappearing popup still owns the focus transaction.
     var shortcutModalWasBlocking by remember { mutableStateOf(shortcutBlockedByModal) }
     LaunchedEffect(shortcutBlockedByModal) {
         val wasBlocking = shortcutModalWasBlocking
@@ -2917,8 +2947,15 @@ fun BitChordDesktopApp() {
         if (wasBlocking && !shortcutBlockedByModal) {
             yield()
             shortcutDispatcher.reset()
-            if (!shortcutEditorFocused && !overlays.shortcuts && !overlays.quickSearch) {
-                runCatching { shortcutRootFocusRequester.requestFocus() }
+            quickSearchKeys.reset()
+            repeat(3) {
+                if (shortcutEditorFocused || overlays.quickSearch || overlays.shortcuts || shortcutBlockedByModal) {
+                    return@LaunchedEffect
+                }
+                if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) {
+                    return@LaunchedEffect
+                }
+                androidx.compose.runtime.withFrameNanos { }
             }
         }
     }
@@ -2927,8 +2964,21 @@ fun BitChordDesktopApp() {
     // defer restoration rather than stealing its focus. The old Search query is never modified.
     LaunchedEffect(quickSearchRestorePending, overlays.quickSearch, shortcutBlockedByModal, overlays.shortcuts) {
         if (quickSearchRestorePending && !overlays.quickSearch && !shortcutBlockedByModal && !overlays.shortcuts) {
-            androidx.compose.runtime.withFrameNanos { }
-            releaseShortcutTextFocus()
+            focusManager.clearFocus()
+            shortcutEditorFocused = false
+            shortcutDispatcher.reset()
+            quickSearchKeys.reset()
+            repeat(3) {
+                androidx.compose.runtime.withFrameNanos { }
+                if (shortcutEditorFocused || overlays.quickSearch || shortcutBlockedByModal || overlays.shortcuts) {
+                    return@LaunchedEffect
+                }
+                if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) {
+                    quickSearchRestorePending = false
+                    return@LaunchedEffect
+                }
+            }
+            // Do not leave the flag permanently armed if this window is being hidden/closed.
             quickSearchRestorePending = false
         }
     }
