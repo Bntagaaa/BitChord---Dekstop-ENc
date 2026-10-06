@@ -224,6 +224,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.onKeyEvent
@@ -545,9 +546,16 @@ fun BitChordDesktopApp() {
     var searchFocusRequested by remember { mutableStateOf(false) }
     var shortcutEditorFocused by remember { mutableStateOf(false) }
     val shortcutDispatcher = remember { DesktopShortcutDispatcher() }
+    val quickSearchState = remember { DesktopQuickSearchState<Song> { it.videoId } }
+    val quickSearchKeys = remember { DesktopQuickSearchKeys() }
+    val quickSearchFocusRequester = remember { FocusRequester() }
+    var quickSearchRestorePending by remember { mutableStateOf(false) }
     val shortcutWindowInfo = LocalWindowInfo.current
     LaunchedEffect(shortcutWindowInfo.isWindowFocused) {
-        if (!shortcutWindowInfo.isWindowFocused) shortcutDispatcher.reset()
+        if (!shortcutWindowInfo.isWindowFocused) {
+            shortcutDispatcher.reset()
+            quickSearchKeys.reset()
+        }
     }
     var searchSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
     // Playable rows for the half-typed query, shown under the text completions.
@@ -2137,6 +2145,33 @@ fun BitChordDesktopApp() {
         runCatching { shortcutRootFocusRequester.requestFocus() }
     }
 
+    fun openQuickSearch() {
+        if (overlays.quickSearch) return
+        searchFocusRequested = false
+        releaseShortcutTextFocus()
+        quickSearchState.reset()
+        quickSearchRestorePending = false
+        overlays.quickSearch = true
+    }
+
+    fun dismissQuickSearch() {
+        if (!overlays.quickSearch) return
+        overlays.quickSearch = false
+        quickSearchState.reset()
+        quickSearchRestorePending = true
+    }
+
+    fun playQuickSearchSong(song: Song) {
+        if (!overlays.quickSearch || !quickSearchState.canPlay(song)) return
+        if (partyTrackChangeBlocked()) {
+            quickSearchState.playbackError("Only the party host can change playback")
+            return
+        }
+        recordSongSearch(song)
+        playSong(song, source = DesktopQueueSource(DesktopStrings["search", "Search"], PlaybackSourceType.SEARCH))
+        dismissQuickSearch()
+    }
+
     fun selectDestination(next: DesktopDestination) {
         if (next != DesktopDestination.SEARCH) {
             releaseShortcutTextFocus()
@@ -2882,9 +2917,19 @@ fun BitChordDesktopApp() {
         if (wasBlocking && !shortcutBlockedByModal) {
             yield()
             shortcutDispatcher.reset()
-            if (!shortcutEditorFocused && !overlays.shortcuts) {
+            if (!shortcutEditorFocused && !overlays.shortcuts && !overlays.quickSearch) {
                 runCatching { shortcutRootFocusRequester.requestFocus() }
             }
+        }
+    }
+
+    // Wait for the overlay's focused field to leave composition. If another dialog took over,
+    // defer restoration rather than stealing its focus. The old Search query is never modified.
+    LaunchedEffect(quickSearchRestorePending, overlays.quickSearch, shortcutBlockedByModal, overlays.shortcuts) {
+        if (quickSearchRestorePending && !overlays.quickSearch && !shortcutBlockedByModal && !overlays.shortcuts) {
+            androidx.compose.runtime.withFrameNanos { }
+            releaseShortcutTextFocus()
+            quickSearchRestorePending = false
         }
     }
 
@@ -2896,7 +2941,7 @@ fun BitChordDesktopApp() {
             LocalContentColor provides Color.White,
             LocalNowPlaying provides selectedSong,
             LocalDesktopShortcutTextFocus provides { shortcutEditorFocused = it },
-            LocalDesktopShortcutModalVisible provides { overlays.shortcuts },
+            LocalDesktopShortcutModalVisible provides { overlays.shortcuts || overlays.quickSearch },
         ) {
             DesktopFrame(
                 // The phone's page is black, not the near-black of its cards.
@@ -2928,6 +2973,38 @@ fun BitChordDesktopApp() {
                             shift = event.isShiftPressed,
                             pressed = pressed,
                         )
+
+                        // Quick Search owns navigation and play/dismiss keys, while ordinary
+                        // editing goes to its field. Its pending releases are drained even after a
+                        // mouse dismissal, before the page/player behind it can see those events.
+                        val quickAction = quickSearchKeys.handle(
+                            keyCode = shortcutKey.keyCode,
+                            pressed = pressed,
+                            active = overlays.quickSearch,
+                            ctrl = shortcutKey.ctrl,
+                            alt = shortcutKey.alt,
+                            shift = shortcutKey.shift,
+                            meta = event.isMetaPressed,
+                            globalShortcut = DesktopShortcut.matching(
+                                shortcutKey.keyCode, shortcutKey.ctrl, shortcutKey.alt, shortcutKey.shift,
+                            ) != null,
+                        )
+                        if (quickAction != DesktopQuickSearchKeyAction.PASS) {
+                            if (!pressed) shortcutDispatcher.release(shortcutKey.keyCode)
+                            when (quickAction) {
+                                DesktopQuickSearchKeyAction.PREVIOUS -> quickSearchState.move(-1)
+                                DesktopQuickSearchKeyAction.NEXT -> quickSearchState.move(1)
+                                DesktopQuickSearchKeyAction.PLAY -> quickSearchState.selected()?.let(::playQuickSearchSong)
+                                DesktopQuickSearchKeyAction.DISMISS -> dismissQuickSearch()
+                                DesktopQuickSearchKeyAction.FOCUS_QUERY -> runCatching { quickSearchFocusRequester.requestFocus() }
+                                else -> Unit
+                            }
+                            return@onPreviewKeyEvent true
+                        }
+                        if (overlays.quickSearch) {
+                            // The opening Ctrl+K was captured by the normal dispatcher.
+                            return@onPreviewKeyEvent !pressed && shortcutDispatcher.release(shortcutKey.keyCode)
+                        }
 
                         // Release bookkeeping before looking at the current focus/modal state.
                         // Focus can move between key-down and key-up (Ctrl+K is the obvious case).
@@ -2995,7 +3072,7 @@ fun BitChordDesktopApp() {
                         ) ?: return@onPreviewKeyEvent false
 
                         when (shortcut) {
-                            DesktopShortcut.QUICK_SEARCH,
+                            DesktopShortcut.QUICK_SEARCH -> openQuickSearch()
                             DesktopShortcut.SEARCH_PAGE -> selectDestination(DesktopDestination.SEARCH)
                             DesktopShortcut.SHOW_SHORTCUTS -> overlays.shortcuts = !overlays.shortcuts
                             DesktopShortcut.PLAY_PAUSE -> if (selectedSong != null) togglePlayPauseFromUser()
@@ -3464,6 +3541,14 @@ fun BitChordDesktopApp() {
                     }
                     if (overlays.shortcuts) {
                         DesktopKeyboardShortcutsModal(onDismiss = { overlays.shortcuts = false })
+                    }
+                    if (overlays.quickSearch) {
+                        DesktopQuickSearch(
+                            controller = quickSearchState,
+                            focusRequester = quickSearchFocusRequester,
+                            onPlay = ::playQuickSearchSong,
+                            onDismiss = ::dismissQuickSearch,
+                        )
                     }
                 },
             ) { contentPadding ->

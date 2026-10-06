@@ -89,7 +89,9 @@ internal class DesktopShortcutDispatcher {
         val shortcut = DesktopShortcut.matching(key.keyCode, key.ctrl, key.alt, key.shift) ?: return null
         if (shortcutsModalOpen && shortcut != DesktopShortcut.SHOW_SHORTCUTS) return null
         if (anotherModalOpen) return null
-        if (editableFocused && shortcut != DesktopShortcut.SHOW_SHORTCUTS) return null
+        if (editableFocused && shortcut != DesktopShortcut.SHOW_SHORTCUTS &&
+            shortcut != DesktopShortcut.QUICK_SEARCH
+        ) return null
         if (!heldKeys.add(key.keyCode)) return null
         return shortcut
     }
