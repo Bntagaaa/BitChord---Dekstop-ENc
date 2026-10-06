@@ -87,6 +87,8 @@ cat > /etc/sysctl.d/90-bitchord.conf <<'SYSCTL'
 net.netfilter.nf_conntrack_max = 65536
 net.netfilter.nf_conntrack_tcp_timeout_established = 3600
 SYSCTL
+# Load the module at boot, or systemd-sysctl runs before it exists and the limit is lost.
+echo nf_conntrack > /etc/modules-load.d/nf_conntrack.conf
 sysctl --system >/dev/null 2>&1 || true
 
 echo "== firewall"
