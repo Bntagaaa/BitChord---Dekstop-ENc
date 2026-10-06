@@ -1,3 +1,15 @@
+{
+	servers {
+		timeouts {
+			# Thousands of idle app connections used to pile up here, one per
+			# install that had the app open. Close a connection that has sent no
+			# request for this long; clients simply open a new one when they next
+			# need it. Upgraded WebSockets are unaffected (the server idles those).
+			idle 30s
+		}
+	}
+}
+
 {$DOMAIN} {
 	encode gzip
 	reverse_proxy 127.0.0.1:8000

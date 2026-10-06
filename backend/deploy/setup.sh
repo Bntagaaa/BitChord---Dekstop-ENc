@@ -79,6 +79,16 @@ if [ -n "${DEPLOY_PUBKEY:-}" ]; then
   chmod 440 /etc/sudoers.d/bitchord-deploy && visudo -cf /etc/sudoers.d/bitchord-deploy
 fi
 
+echo "== kernel network limits"
+# The micro VM's default conntrack table is tiny (7680) and keeps an idle
+# established TCP flow for five days, which is how a crowd of phones that
+# vanish without a FIN would fill it. Give it room and a one-hour memory.
+cat > /etc/sysctl.d/90-bitchord.conf <<'SYSCTL'
+net.netfilter.nf_conntrack_max = 65536
+net.netfilter.nf_conntrack_tcp_timeout_established = 3600
+SYSCTL
+sysctl --system >/dev/null 2>&1 || true
+
 echo "== firewall"
 # Oracle's Ubuntu images ship an iptables REJECT rule that blocks everything
 # but SSH, independent of the VCN security list. Open 80/443 above it.
