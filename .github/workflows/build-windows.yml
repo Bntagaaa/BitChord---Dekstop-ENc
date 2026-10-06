@@ -1,0 +1,121 @@
+name: Build Test Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version (without leading v)"
+        required: false
+        default: "1.8.0-test"
+      run_tests:
+        description: "Run desktop tests before packaging"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Build EXE, MSI and portable
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up WiX Toolset 3
+        shell: pwsh
+        run: |
+          $url = "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip"
+          Invoke-WebRequest -Uri $url -OutFile wix.zip
+          Expand-Archive wix.zip -DestinationPath "$env:RUNNER_TEMP\wix"
+          "$env:RUNNER_TEMP\wix" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Show native build tools
+        shell: pwsh
+        run: |
+          java -version
+          cmake --version
+          ninja --version
+          g++ --version
+          candle.exe -?
+        continue-on-error: true
+
+      - name: Write local.properties
+        shell: bash
+        run: |
+          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
+          echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+
+      - name: Run desktop tests
+        if: ${{ inputs.run_tests }}
+        shell: pwsh
+        run: .\gradlew.bat :shared:jvmTest :desktopApp:test "-Pbitchord.version=${{ inputs.version }}"
+
+      - name: Build Windows packages
+        shell: pwsh
+        run: |
+          .\gradlew.bat `
+            :desktopApp:packageMsi `
+            :desktopApp:packageExe `
+            :desktopApp:createDistributable `
+            "-Pbitchord.version=${{ inputs.version }}"
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          $v = "${{ inputs.version }}"
+          New-Item -ItemType Directory -Force dist | Out-Null
+
+          $msi = Get-ChildItem "desktopApp/build/compose/binaries/main/msi/*.msi" | Select-Object -First 1
+          $exe = Get-ChildItem "desktopApp/build/compose/binaries/main/exe/*.exe" | Select-Object -First 1
+
+          if (-not $msi) { throw "No MSI package found" }
+          if (-not $exe) { throw "No EXE installer found" }
+
+          Copy-Item $msi.FullName "dist/BitChord-$v-windows-x64.msi"
+          Copy-Item $exe.FullName "dist/BitChord-$v-windows-x64-setup.exe"
+
+          7z a -tzip -mx=5 "dist/BitChord-$v-windows-x64-portable.zip" `
+            "desktopApp/build/compose/binaries/main/app/BitChord/*" | Out-Null
+
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: BitChord-EXE-${{ inputs.version }}
+          path: dist/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: BitChord-MSI-${{ inputs.version }}
+          path: dist/*.msi
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: BitChord-Windows-Portable-${{ inputs.version }}
+          path: dist/*-portable.zip
+          if-no-files-found: error
+          retention-days: 14
