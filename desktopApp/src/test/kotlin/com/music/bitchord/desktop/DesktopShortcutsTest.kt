@@ -61,4 +61,29 @@ class DesktopShortcutsTest {
         assertNull(dispatcher.dispatch(DesktopShortcutKey(KeyEvent.VK_SPACE), false, true, false))
         assertEquals(DesktopShortcut.SHOW_SHORTCUTS, dispatcher.dispatch(slash, false, true, false))
     }
+
+    @Test
+    fun capturedShortcutReleaseIsConsumedExactlyOnce() {
+        val dispatcher = DesktopShortcutDispatcher()
+        assertEquals(
+            DesktopShortcut.PLAY_PAUSE,
+            dispatcher.dispatch(DesktopShortcutKey(KeyEvent.VK_SPACE), false, false, false),
+        )
+        assertEquals(true, dispatcher.release(KeyEvent.VK_SPACE))
+        assertEquals(false, dispatcher.release(KeyEvent.VK_SPACE))
+        assertEquals(
+            DesktopShortcut.PLAY_PAUSE,
+            dispatcher.dispatch(DesktopShortcutKey(KeyEvent.VK_SPACE), false, false, false),
+        )
+    }
+
+    @Test
+    fun resetClearsHeldKeysAfterWindowFocusLoss() {
+        val dispatcher = DesktopShortcutDispatcher()
+        val key = DesktopShortcutKey(KeyEvent.VK_SPACE)
+        assertEquals(DesktopShortcut.PLAY_PAUSE, dispatcher.dispatch(key, false, false, false))
+        assertNull(dispatcher.dispatch(key, false, false, false))
+        dispatcher.reset()
+        assertEquals(DesktopShortcut.PLAY_PAUSE, dispatcher.dispatch(key, false, false, false))
+    }
 }
