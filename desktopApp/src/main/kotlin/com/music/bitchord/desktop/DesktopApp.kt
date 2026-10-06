@@ -2872,6 +2872,22 @@ fun BitChordDesktopApp() {
         overlays.listenTogether || overlays.audioOutput || overlays.pipeline || playerMenuOpen ||
         availableUpdate != null
 
+    // Rows/buttons inside these overlays can own Compose focus. When the overlay is removed, Compose
+    // does not always hand focus back to the page automatically, leaving the root shortcut handler
+    // with no focused descendant. Restore it once the final blocking overlay has actually disposed.
+    var shortcutModalWasBlocking by remember { mutableStateOf(shortcutBlockedByModal) }
+    LaunchedEffect(shortcutBlockedByModal) {
+        val wasBlocking = shortcutModalWasBlocking
+        shortcutModalWasBlocking = shortcutBlockedByModal
+        if (wasBlocking && !shortcutBlockedByModal) {
+            yield()
+            shortcutDispatcher.reset()
+            if (!shortcutEditorFocused && !overlays.shortcuts) {
+                runCatching { shortcutRootFocusRequester.requestFocus() }
+            }
+        }
+    }
+
     MaterialTheme(
         colorScheme = desktopColorScheme(),
         typography = desktopTypography(),
