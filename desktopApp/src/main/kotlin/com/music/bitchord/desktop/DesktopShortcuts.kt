@@ -73,6 +73,9 @@ internal class DesktopShortcutDispatcher {
         heldKeys.clear()
     }
 
+    /** Returns true only when this key-down was previously captured as a global shortcut. */
+    fun release(keyCode: Int): Boolean = heldKeys.remove(keyCode)
+
     fun dispatch(
         key: DesktopShortcutKey,
         editableFocused: Boolean,
@@ -80,7 +83,7 @@ internal class DesktopShortcutDispatcher {
         anotherModalOpen: Boolean,
     ): DesktopShortcut? {
         if (!key.pressed) {
-            heldKeys.remove(key.keyCode)
+            release(key.keyCode)
             return null
         }
         val shortcut = DesktopShortcut.matching(key.keyCode, key.ctrl, key.alt, key.shift) ?: return null
