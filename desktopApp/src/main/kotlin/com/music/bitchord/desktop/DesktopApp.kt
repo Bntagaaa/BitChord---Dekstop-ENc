@@ -2916,12 +2916,9 @@ fun BitChordDesktopApp() {
                         // Release bookkeeping before looking at the current focus/modal state.
                         // Focus can move between key-down and key-up (Ctrl+K is the obvious case).
                         if (!pressed) {
-                            shortcutDispatcher.dispatch(
-                                shortcutKey,
-                                editableFocused = shortcutEditorFocused,
-                                shortcutsModalOpen = overlays.shortcuts,
-                                anotherModalOpen = shortcutBlockedByModal,
-                            )
+                            val capturedShortcut = shortcutDispatcher.release(shortcutKey.keyCode)
+
+                            if (capturedShortcut) return@onPreviewKeyEvent true
 
                             return@onPreviewKeyEvent when (event.key) {
                                 Key.MediaPlayPause -> {
