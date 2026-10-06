@@ -49,10 +49,10 @@ jobs:
 
       - name: Run desktop tests
         if: ${{ inputs.run_tests }}
-        run: ./gradlew :desktopApp:test -Pbitchord.version=${{ inputs.version }}
+        run: ./gradlew :desktopApp:test "-Pbitchord.version=${{ inputs.version }}"
 
       - name: Build DEB
-        run: ./gradlew :desktopApp:packageDeb -Pbitchord.version=${{ inputs.version }}
+        run: ./gradlew :desktopApp:packageDeb "-Pbitchord.version=${{ inputs.version }}"
 
       - name: Collect package
         shell: bash
