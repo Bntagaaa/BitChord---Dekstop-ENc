@@ -68,6 +68,11 @@ internal data class DesktopShortcutKey(
 internal class DesktopShortcutDispatcher {
     private val heldKeys = mutableSetOf<Int>()
 
+    /** A key-up can be lost when the native window itself loses focus. */
+    fun reset() {
+        heldKeys.clear()
+    }
+
     fun dispatch(
         key: DesktopShortcutKey,
         editableFocused: Boolean,
