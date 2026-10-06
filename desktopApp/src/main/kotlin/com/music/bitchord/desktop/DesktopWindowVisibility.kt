@@ -11,6 +11,16 @@ internal object DesktopWindowVisibility {
     /** What the window's own `visible` is driven from. */
     val visible: StateFlow<Boolean> = _visible
 
+    private val _raiseRequest = MutableStateFlow(0L)
+
+    /**
+     * Monotonic request id for "show and focus the main window".
+     *
+     * MPRIS invokes Raise from its D-Bus worker thread, while the native AWT window is owned by
+     * Compose on the UI thread. Publishing a request here keeps those two concerns separated.
+     */
+    val raiseRequest: StateFlow<Long> = _raiseRequest
+
     /** Whether a close should hide rather than quit. */
     @Volatile
     var keepRunningWhenClosed: Boolean = false
@@ -18,6 +28,15 @@ internal object DesktopWindowVisibility {
     /** Brings the window back — from the tray menu, or the icon itself. */
     fun show() {
         _visible.value = true
+    }
+
+    /**
+     * Brings the app back and asks the native window to become the active foreground window.
+     * Main.kt performs the actual AWT focus operation after Compose has made the window visible.
+     */
+    fun raise() {
+        _visible.value = true
+        _raiseRequest.value = _raiseRequest.value + 1L
     }
 
     /**

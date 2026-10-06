@@ -60,6 +60,7 @@ private fun desktopMain() = application {
     // Closing puts the window away rather than ending the process, while there is a tray icon to
     // bring it back from — see [DesktopWindowVisibility].
     val visible by DesktopWindowVisibility.visible.collectAsState()
+    val raiseRequest by DesktopWindowVisibility.raiseRequest.collectAsState()
     // Hoisted so the player can fill the screen and the caption buttons can maximize — see
     // [DesktopWindowMode].
     val placement by DesktopWindowMode.placement.collectAsState()
@@ -86,6 +87,19 @@ private fun desktopMain() = application {
         resizable = true,
     ) {
         val composeWindow = window
+        LaunchedEffect(raiseRequest) {
+            if (raiseRequest == 0L) return@LaunchedEffect
+
+            // MPRIS Raise is also what desktop-shell media widgets use for "open player".
+            // Restore a minimized/hidden BitChord first, then defer the foreground request by one
+            // AWT turn so the compositor sees a mapped window before toFront/requestFocus.
+            state.isMinimized = false
+            composeWindow.isVisible = true
+            java.awt.EventQueue.invokeLater {
+                composeWindow.toFront()
+                composeWindow.requestFocus()
+            }
+        }
         val openingSize = remember { state.size }
         LaunchedEffect(composeWindow) {
             // AWT's default is white, and it is what shows for the frame or two a moved or resized
