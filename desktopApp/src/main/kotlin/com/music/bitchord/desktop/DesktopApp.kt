@@ -58,6 +58,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -222,12 +223,17 @@ import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.nativeKeyCode
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
@@ -490,6 +496,9 @@ private enum class DesktopRepeatMode {
 @Composable
 fun BitChordDesktopApp() {
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
+    val shortcutRootFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { shortcutRootFocusRequester.requestFocus() }
     // Filled once the audio engine exists. Local playback helpers use this single hook so every
     // transport and queue gesture reaches Listen Together without duplicating protocol logic.
     val partySyncHolder = remember { arrayOfNulls<DesktopPartySync>(1) }
@@ -534,6 +543,8 @@ fun BitChordDesktopApp() {
     var searchCommitted by remember { mutableStateOf(false) }
     var searchScrollReset by remember { mutableStateOf(0) }
     var searchFocusRequested by remember { mutableStateOf(false) }
+    var shortcutEditorFocused by remember { mutableStateOf(false) }
+    val shortcutDispatcher = remember { DesktopShortcutDispatcher() }
     var searchSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
     // Playable rows for the half-typed query, shown under the text completions.
     var searchTypeahead by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
@@ -2117,6 +2128,10 @@ fun BitChordDesktopApp() {
     }
 
     fun selectDestination(next: DesktopDestination) {
+        if (next != DesktopDestination.SEARCH) {
+            focusManager.clearFocus()
+            shortcutRootFocusRequester.requestFocus()
+        }
         if (next == DesktopDestination.LIBRARY && libraryStale) {
             libraryStale = false
             reloadLibrary()
@@ -2839,6 +2854,12 @@ fun BitChordDesktopApp() {
         partySyncHolder[0]?.onLocalIntent()
     }
 
+    val shortcutBlockedByModal = overlays.accounts || overlays.signIn || overlays.playlistDialog ||
+        playlistTarget != null || overlays.rename || overlays.delete || overlays.downloadManager ||
+        overlays.lastfmLogin || overlays.listenBrainzToken || overlays.discordToken ||
+        overlays.listenTogether || overlays.audioOutput || overlays.pipeline || playerMenuOpen ||
+        availableUpdate != null
+
     MaterialTheme(
         colorScheme = desktopColorScheme(),
         typography = desktopTypography(),
@@ -2846,6 +2867,8 @@ fun BitChordDesktopApp() {
         CompositionLocalProvider(
             LocalContentColor provides Color.White,
             LocalNowPlaying provides selectedSong,
+            LocalDesktopShortcutTextFocus provides { shortcutEditorFocused = it },
+            LocalDesktopShortcutModalVisible provides { overlays.shortcuts },
         ) {
             DesktopFrame(
                 // The phone's page is black, not the near-black of its cards.
@@ -2858,7 +2881,29 @@ fun BitChordDesktopApp() {
                         transparentBase = transparentBase,
                     )
                 },
-                modifier = Modifier.onPreviewKeyEvent { event ->
+                modifier = Modifier.focusRequester(shortcutRootFocusRequester).onPreviewKeyEvent { event ->
+                    val slash = event.key.nativeKeyCode == java.awt.event.KeyEvent.VK_SLASH
+                    if (slash && event.type == KeyEventType.KeyUp) {
+                        shortcutDispatcher.dispatch(
+                            DesktopShortcutKey(java.awt.event.KeyEvent.VK_SLASH, pressed = false),
+                            editableFocused = false,
+                            shortcutsModalOpen = overlays.shortcuts,
+                            anotherModalOpen = false,
+                        )
+                    }
+                    if (slash && event.type == KeyEventType.KeyDown && event.isCtrlPressed &&
+                        !event.isAltPressed && !event.isShiftPressed
+                    ) {
+                        if (shortcutBlockedByModal && !overlays.shortcuts) return@onPreviewKeyEvent false
+                        val shortcut = shortcutDispatcher.dispatch(
+                            DesktopShortcutKey(java.awt.event.KeyEvent.VK_SLASH, ctrl = true),
+                            editableFocused = shortcutEditorFocused,
+                            shortcutsModalOpen = overlays.shortcuts,
+                            anotherModalOpen = shortcutBlockedByModal,
+                        )
+                        if (shortcut == DesktopShortcut.SHOW_SHORTCUTS) overlays.shortcuts = !overlays.shortcuts
+                        return@onPreviewKeyEvent true
+                    }
                     if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
                     when (event.key) {
                         Key.MediaPlayPause -> {
@@ -2882,6 +2927,10 @@ fun BitChordDesktopApp() {
                         // One layer at a time, innermost first: the player's own side panel, then
                         // the player.
                         Key.Escape -> when {
+                            overlays.shortcuts -> {
+                                overlays.shortcuts = false
+                                true
+                            }
                             // The player's own layers first — the lyrics, the queue, a
                             // drawer — in the order Android's back reaches them.
                             overlays.nowPlaying && PlayerBack.dispatch() -> true
@@ -2904,7 +2953,49 @@ fun BitChordDesktopApp() {
                         }
                         else -> false
                     }
-                },
+                }.onKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown && event.type != KeyEventType.KeyUp) {
+                        return@onKeyEvent false
+                    }
+                    val shortcut = shortcutDispatcher.dispatch(
+                        DesktopShortcutKey(
+                            keyCode = event.key.nativeKeyCode,
+                            ctrl = event.isCtrlPressed,
+                            alt = event.isAltPressed,
+                            shift = event.isShiftPressed,
+                            pressed = event.type == KeyEventType.KeyDown,
+                        ),
+                        editableFocused = shortcutEditorFocused,
+                        shortcutsModalOpen = overlays.shortcuts,
+                        anotherModalOpen = shortcutBlockedByModal,
+                    ) ?: return@onKeyEvent false
+                    when (shortcut) {
+                        DesktopShortcut.QUICK_SEARCH,
+                        DesktopShortcut.SEARCH_PAGE -> selectDestination(DesktopDestination.SEARCH)
+                        DesktopShortcut.SHOW_SHORTCUTS -> overlays.shortcuts = !overlays.shortcuts
+                        DesktopShortcut.PLAY_PAUSE -> if (selectedSong != null) togglePlayPauseFromUser()
+                        DesktopShortcut.PREVIOUS -> playPrevious()
+                        DesktopShortcut.NEXT -> playNext()
+                        DesktopShortcut.SEEK_BACKWARD -> if (selectedSong != null) seekPlayer(playback.positionMs - 5_000L)
+                        DesktopShortcut.SEEK_FORWARD -> if (selectedSong != null) seekPlayer(playback.positionMs + 5_000L)
+                        DesktopShortcut.VOLUME_UP -> {
+                            volume = (volume + 0.05f).coerceIn(0f, 1f)
+                            persistence.saveString("volume", volume.toString())
+                        }
+                        DesktopShortcut.VOLUME_DOWN -> {
+                            volume = (volume - 0.05f).coerceIn(0f, 1f)
+                            persistence.saveString("volume", volume.toString())
+                        }
+                        DesktopShortcut.SHUFFLE -> setShuffle(!shuffle)
+                        DesktopShortcut.REPEAT -> if (!DesktopListenTogether.state.value.controlsLocked) {
+                            repeatMode = repeatMode.next()
+                            persistence.saveString("repeat_mode", repeatMode.name)
+                        }
+                        DesktopShortcut.HOME -> selectDestination(DesktopDestination.LISTEN_NOW)
+                        DesktopShortcut.LYRICS -> overlays.toggleSidePanel(DesktopSidePanel.LYRICS)
+                    }
+                    true
+                }.focusable(),
                 topBar = { compact ->
                     DesktopTopBar(
                         compact = compact,
@@ -3330,6 +3421,9 @@ fun BitChordDesktopApp() {
                             pipeline = playbackEngine.pipeline(),
                             onDismiss = { overlays.pipeline = false },
                         )
+                    }
+                    if (overlays.shortcuts) {
+                        DesktopKeyboardShortcutsModal(onDismiss = { overlays.shortcuts = false })
                     }
                 },
             ) { contentPadding ->
@@ -4538,6 +4632,8 @@ internal fun DesktopSearchField(
     placeholder: String = "Search",
 ) {
     val searchShape = RoundedCornerShape(7.dp)
+    val onShortcutFocusChanged = LocalDesktopShortcutTextFocus.current
+    val shortcutModalVisible = LocalDesktopShortcutModalVisible.current
     Box(
         modifier
             .fillMaxWidth()
@@ -4551,11 +4647,16 @@ internal fun DesktopSearchField(
     ) {
         BasicTextField(
             value = query,
-            onValueChange = onQueryChange,
+            onValueChange = { value ->
+                if (shortcutModalVisible?.invoke() != true) onQueryChange(value)
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
-                .onFocusChanged { onFocusChanged(it.isFocused) }
+                .onFocusChanged {
+                    onFocusChanged(it.isFocused)
+                    onShortcutFocusChanged?.invoke(it.isFocused)
+                }
                 .onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
                         onSearch()
