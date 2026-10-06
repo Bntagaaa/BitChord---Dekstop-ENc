@@ -545,6 +545,10 @@ fun BitChordDesktopApp() {
     var searchFocusRequested by remember { mutableStateOf(false) }
     var shortcutEditorFocused by remember { mutableStateOf(false) }
     val shortcutDispatcher = remember { DesktopShortcutDispatcher() }
+    val shortcutWindowInfo = LocalWindowInfo.current
+    LaunchedEffect(shortcutWindowInfo.isWindowFocused) {
+        if (!shortcutWindowInfo.isWindowFocused) shortcutDispatcher.reset()
+    }
     var searchSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
     // Playable rows for the half-typed query, shown under the text completions.
     var searchTypeahead by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
@@ -2127,10 +2131,15 @@ fun BitChordDesktopApp() {
         search()
     }
 
+    fun releaseShortcutTextFocus() {
+        focusManager.clearFocus()
+        shortcutEditorFocused = false
+        runCatching { shortcutRootFocusRequester.requestFocus() }
+    }
+
     fun selectDestination(next: DesktopDestination) {
         if (next != DesktopDestination.SEARCH) {
-            focusManager.clearFocus()
-            shortcutRootFocusRequester.requestFocus()
+            releaseShortcutTextFocus()
         }
         if (next == DesktopDestination.LIBRARY && libraryStale) {
             libraryStale = false
@@ -2154,6 +2163,7 @@ fun BitChordDesktopApp() {
 
     /** Settings in place of the page — from the sidebar, the account switcher or the tray. */
     fun openSettings() {
+        releaseShortcutTextFocus()
         overlays.nowPlaying = false
         if (overlays.settingsPage == null) settingsSession++
         overlays.settingsPage = DesktopSettingsPage.MAIN
@@ -2315,6 +2325,7 @@ fun BitChordDesktopApp() {
             // so it has to raise the window before it does anything inside it.
             onActivate = {
                 DesktopWindowVisibility.show()
+                releaseShortcutTextFocus()
                 overlays.nowPlaying = true
             },
             onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
@@ -2344,6 +2355,7 @@ fun BitChordDesktopApp() {
             onPrevious = ::playPrevious,
             onOpenPlayer = {
                 DesktopWindowVisibility.show()
+                releaseShortcutTextFocus()
                 overlays.nowPlaying = true
             },
             onOpenSettings = {
@@ -2881,121 +2893,124 @@ fun BitChordDesktopApp() {
                         transparentBase = transparentBase,
                     )
                 },
-                modifier = Modifier.focusRequester(shortcutRootFocusRequester).onPreviewKeyEvent { event ->
-                    val slash = event.key.nativeKeyCode == java.awt.event.KeyEvent.VK_SLASH
-                    if (slash && event.type == KeyEventType.KeyUp) {
-                        shortcutDispatcher.dispatch(
-                            DesktopShortcutKey(java.awt.event.KeyEvent.VK_SLASH, pressed = false),
-                            editableFocused = false,
-                            shortcutsModalOpen = overlays.shortcuts,
-                            anotherModalOpen = false,
-                        )
-                    }
-                    if (slash && event.type == KeyEventType.KeyDown && event.isCtrlPressed &&
-                        !event.isAltPressed && !event.isShiftPressed
-                    ) {
-                        if (shortcutBlockedByModal && !overlays.shortcuts) return@onPreviewKeyEvent false
-                        val shortcut = shortcutDispatcher.dispatch(
-                            DesktopShortcutKey(java.awt.event.KeyEvent.VK_SLASH, ctrl = true),
-                            editableFocused = shortcutEditorFocused,
-                            shortcutsModalOpen = overlays.shortcuts,
-                            anotherModalOpen = shortcutBlockedByModal,
-                        )
-                        if (shortcut == DesktopShortcut.SHOW_SHORTCUTS) overlays.shortcuts = !overlays.shortcuts
-                        return@onPreviewKeyEvent true
-                    }
-                    if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
-                    when (event.key) {
-                        Key.MediaPlayPause -> {
-                            if (selectedSong != null) togglePlayPauseFromUser()
-                            true
+                modifier = Modifier
+                    .focusRequester(shortcutRootFocusRequester)
+                    // Global desktop shortcuts live in the preview phase. Focusable Compose
+                    // controls activate themselves from Space/Enter during the bubble phase;
+                    // handling shortcuts here keeps a focused player/lyrics/button from stealing
+                    // Space before Play/Pause sees it.
+                    .onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown && event.type != KeyEventType.KeyUp) {
+                            return@onPreviewKeyEvent false
                         }
-                        Key.MediaNext -> {
-                            playNext()
-                            true
-                        }
-                        Key.MediaPrevious -> {
-                            playPrevious()
-                            true
-                        }
-                        Key.DirectionLeft -> if (event.isAltPressed && !overlays.nowPlaying) {
-                            goBack()
-                            true
-                        } else {
-                            false
-                        }
-                        // One layer at a time, innermost first: the player's own side panel, then
-                        // the player.
-                        Key.Escape -> when {
-                            overlays.shortcuts -> {
-                                overlays.shortcuts = false
-                                true
-                            }
-                            // The player's own layers first — the lyrics, the queue, a
-                            // drawer — in the order Android's back reaches them.
-                            overlays.nowPlaying && PlayerBack.dispatch() -> true
-                            overlays.nowPlaying -> {
-                                overlays.nowPlaying = false
-                                true
-                            }
-                            overlays.sidePanel != null -> {
-                                overlays.sidePanel = null
-                                true
-                            }
-                            // A page of Settings steps back the way the back button does, unless
-                            // one of its prompts is up over it.
-                            overlays.settingsPage != null &&
-                                !overlays.lastfmLogin && !overlays.listenBrainzToken && !overlays.discordToken -> {
-                                goBack()
-                                true
-                            }
-                            else -> false
-                        }
-                        else -> false
-                    }
-                }.onKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown && event.type != KeyEventType.KeyUp) {
-                        return@onKeyEvent false
-                    }
-                    val shortcut = shortcutDispatcher.dispatch(
-                        DesktopShortcutKey(
+
+                        val pressed = event.type == KeyEventType.KeyDown
+                        val shortcutKey = DesktopShortcutKey(
                             keyCode = event.key.nativeKeyCode,
                             ctrl = event.isCtrlPressed,
                             alt = event.isAltPressed,
                             shift = event.isShiftPressed,
-                            pressed = event.type == KeyEventType.KeyDown,
-                        ),
-                        editableFocused = shortcutEditorFocused,
-                        shortcutsModalOpen = overlays.shortcuts,
-                        anotherModalOpen = shortcutBlockedByModal,
-                    ) ?: return@onKeyEvent false
-                    when (shortcut) {
-                        DesktopShortcut.QUICK_SEARCH,
-                        DesktopShortcut.SEARCH_PAGE -> selectDestination(DesktopDestination.SEARCH)
-                        DesktopShortcut.SHOW_SHORTCUTS -> overlays.shortcuts = !overlays.shortcuts
-                        DesktopShortcut.PLAY_PAUSE -> if (selectedSong != null) togglePlayPauseFromUser()
-                        DesktopShortcut.PREVIOUS -> playPrevious()
-                        DesktopShortcut.NEXT -> playNext()
-                        DesktopShortcut.SEEK_BACKWARD -> if (selectedSong != null) seekPlayer(playback.positionMs - 5_000L)
-                        DesktopShortcut.SEEK_FORWARD -> if (selectedSong != null) seekPlayer(playback.positionMs + 5_000L)
-                        DesktopShortcut.VOLUME_UP -> {
-                            volume = (volume + 0.05f).coerceIn(0f, 1f)
-                            persistence.saveString("volume", volume.toString())
+                            pressed = pressed,
+                        )
+
+                        // Release bookkeeping before looking at the current focus/modal state.
+                        // Focus can move between key-down and key-up (Ctrl+K is the obvious case).
+                        if (!pressed) {
+                            shortcutDispatcher.dispatch(
+                                shortcutKey,
+                                editableFocused = shortcutEditorFocused,
+                                shortcutsModalOpen = overlays.shortcuts,
+                                anotherModalOpen = shortcutBlockedByModal,
+                            )
+
+                            return@onPreviewKeyEvent when (event.key) {
+                                Key.MediaPlayPause -> {
+                                    if (selectedSong != null) togglePlayPauseFromUser()
+                                    true
+                                }
+                                Key.MediaNext -> {
+                                    playNext()
+                                    true
+                                }
+                                Key.MediaPrevious -> {
+                                    playPrevious()
+                                    true
+                                }
+                                Key.DirectionLeft -> if (event.isAltPressed && !overlays.nowPlaying) {
+                                    goBack()
+                                    true
+                                } else {
+                                    false
+                                }
+                                // One layer at a time, innermost first. A text editor is a layer too:
+                                // Escape leaves it without navigating away, then keyboard shortcuts
+                                // immediately belong to the app again.
+                                Key.Escape -> when {
+                                    overlays.shortcuts -> {
+                                        overlays.shortcuts = false
+                                        true
+                                    }
+                                    overlays.nowPlaying && PlayerBack.dispatch() -> true
+                                    overlays.nowPlaying -> {
+                                        overlays.nowPlaying = false
+                                        true
+                                    }
+                                    overlays.sidePanel != null -> {
+                                        overlays.sidePanel = null
+                                        true
+                                    }
+                                    shortcutEditorFocused -> {
+                                        releaseShortcutTextFocus()
+                                        true
+                                    }
+                                    overlays.settingsPage != null &&
+                                        !overlays.lastfmLogin && !overlays.listenBrainzToken && !overlays.discordToken -> {
+                                        goBack()
+                                        true
+                                    }
+                                    else -> false
+                                }
+                                else -> false
+                            }
                         }
-                        DesktopShortcut.VOLUME_DOWN -> {
-                            volume = (volume - 0.05f).coerceIn(0f, 1f)
-                            persistence.saveString("volume", volume.toString())
+
+                        val shortcut = shortcutDispatcher.dispatch(
+                            shortcutKey,
+                            editableFocused = shortcutEditorFocused,
+                            shortcutsModalOpen = overlays.shortcuts,
+                            anotherModalOpen = shortcutBlockedByModal,
+                        ) ?: return@onPreviewKeyEvent false
+
+                        when (shortcut) {
+                            DesktopShortcut.QUICK_SEARCH,
+                            DesktopShortcut.SEARCH_PAGE -> selectDestination(DesktopDestination.SEARCH)
+                            DesktopShortcut.SHOW_SHORTCUTS -> overlays.shortcuts = !overlays.shortcuts
+                            DesktopShortcut.PLAY_PAUSE -> if (selectedSong != null) togglePlayPauseFromUser()
+                            DesktopShortcut.PREVIOUS -> playPrevious()
+                            DesktopShortcut.NEXT -> playNext()
+                            DesktopShortcut.SEEK_BACKWARD ->
+                                if (selectedSong != null) seekPlayer(playback.positionMs - 5_000L)
+                            DesktopShortcut.SEEK_FORWARD ->
+                                if (selectedSong != null) seekPlayer(playback.positionMs + 5_000L)
+                            DesktopShortcut.VOLUME_UP -> {
+                                volume = (volume + 0.05f).coerceIn(0f, 1f)
+                                persistence.saveString("volume", volume.toString())
+                            }
+                            DesktopShortcut.VOLUME_DOWN -> {
+                                volume = (volume - 0.05f).coerceIn(0f, 1f)
+                                persistence.saveString("volume", volume.toString())
+                            }
+                            DesktopShortcut.SHUFFLE -> setShuffle(!shuffle)
+                            DesktopShortcut.REPEAT -> if (!DesktopListenTogether.state.value.controlsLocked) {
+                                repeatMode = repeatMode.next()
+                                persistence.saveString("repeat_mode", repeatMode.name)
+                            }
+                            DesktopShortcut.HOME -> selectDestination(DesktopDestination.LISTEN_NOW)
+                            DesktopShortcut.LYRICS -> overlays.toggleSidePanel(DesktopSidePanel.LYRICS)
                         }
-                        DesktopShortcut.SHUFFLE -> setShuffle(!shuffle)
-                        DesktopShortcut.REPEAT -> if (!DesktopListenTogether.state.value.controlsLocked) {
-                            repeatMode = repeatMode.next()
-                            persistence.saveString("repeat_mode", repeatMode.name)
-                        }
-                        DesktopShortcut.HOME -> selectDestination(DesktopDestination.LISTEN_NOW)
-                        DesktopShortcut.LYRICS -> overlays.toggleSidePanel(DesktopSidePanel.LYRICS)
+                        true
                     }
-                    true
-                }.focusable(),
+                    .focusable(),
                 topBar = { compact ->
                     DesktopTopBar(
                         compact = compact,
@@ -3020,15 +3035,24 @@ fun BitChordDesktopApp() {
                             repeatMode = it
                             persistence.saveString("repeat_mode", it.name)
                         },
-                        onOpenNowPlaying = { overlays.nowPlaying = true },
+                        onOpenNowPlaying = {
+                            releaseShortcutTextFocus()
+                            overlays.nowPlaying = true
+                        },
                         onVolumeChange = {
                             volume = it
                             persistence.saveString("volume", it.toString())
                         },
                         onOpenAudioOutput = { overlays.audioOutput = true },
                         // A second click on the same button puts the column away, as in Apple Music.
-                        onOpenLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
-                        onOpenQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
+                        onOpenLyrics = {
+                            releaseShortcutTextFocus()
+                            overlays.toggleSidePanel(DesktopSidePanel.LYRICS)
+                        },
+                        onOpenQueue = {
+                            releaseShortcutTextFocus()
+                            overlays.toggleSidePanel(DesktopSidePanel.QUEUE)
+                        },
                         sidePanel = overlays.sidePanel,
                         accountAvatar = activeAccount?.avatar
                             ?: activeAccount?.profiles?.firstOrNull()?.avatar,
@@ -3067,7 +3091,10 @@ fun BitChordDesktopApp() {
                         song = selectedSong,
                         isPlaying = playback.isPlaying,
                         onDestinationSelected = ::selectDestination,
-                        onExpand = { overlays.nowPlaying = true },
+                        onExpand = {
+                            releaseShortcutTextFocus()
+                            overlays.nowPlaying = true
+                        },
                         onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
                         onNext = ::playNext,
                     )
