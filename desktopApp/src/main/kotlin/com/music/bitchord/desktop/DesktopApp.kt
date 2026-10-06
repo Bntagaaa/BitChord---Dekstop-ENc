@@ -1573,6 +1573,7 @@ fun BitChordDesktopApp() {
     }
     val mprisController = remember(playbackEngine) {
         DesktopMprisController(
+            onRaise = DesktopWindowVisibility::raise,
             onPlay = ::playFromUser,
             onPause = ::pauseFromUser,
             onPlayPause = ::togglePlayPauseFromUser,
