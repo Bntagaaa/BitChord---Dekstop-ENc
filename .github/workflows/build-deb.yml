@@ -1,0 +1,75 @@
+name: Build Test DEB
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version (without leading v)"
+        required: false
+        default: "1.8.0-test"
+      run_tests:
+        description: "Run desktop tests before packaging"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-deb-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deb:
+    name: Build Debian package
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Write local.properties
+        shell: bash
+        run: |
+          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
+          echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Run desktop tests
+        if: ${{ inputs.run_tests }}
+        run: ./gradlew :desktopApp:test -Pbitchord.version=${{ inputs.version }}
+
+      - name: Build DEB
+        run: ./gradlew :desktopApp:packageDeb -Pbitchord.version=${{ inputs.version }}
+
+      - name: Collect package
+        shell: bash
+        run: |
+          mkdir -p dist
+          deb=$(find desktopApp/build/compose/binaries/main/deb -maxdepth 1 -type f -name '*.deb' | head -n 1)
+          if [ -z "$deb" ]; then
+            echo "No .deb package found"
+            exit 1
+          fi
+          cp "$deb" "dist/BitChord-${{ inputs.version }}-linux-amd64.deb"
+          ls -lh dist
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BitChord-DEB-${{ inputs.version }}
+          path: dist/*.deb
+          if-no-files-found: error
+          retention-days: 14
