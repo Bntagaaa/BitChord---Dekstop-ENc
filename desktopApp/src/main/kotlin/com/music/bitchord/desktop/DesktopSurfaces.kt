@@ -5,6 +5,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -23,6 +24,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
@@ -143,6 +148,18 @@ internal fun DesktopDialogPanel(
     popup: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    DesktopDialogPanel(onDismiss, maxWidth, popup, dismissOnEscape = false, content = content)
+}
+
+/** Opt-in dismissal keeps existing positional callers and unrelated dialog behavior unchanged. */
+@Composable
+internal fun DesktopDialogPanel(
+    onDismiss: () -> Unit,
+    maxWidth: Int,
+    popup: Boolean = false,
+    dismissOnEscape: Boolean,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     if (!popup && LocalDesktopPanelIsPage.current) {
         DesktopSettingsPageFrame(
             maxWidth = maxOf(maxWidth.dp, DesktopSettingsPageWidth),
@@ -150,35 +167,13 @@ internal fun DesktopDialogPanel(
         )
         return
     }
+    DesktopRegisterFlyout(
+        layer = DesktopFlyoutLayer.DIALOG,
+        onDismiss = if (dismissOnEscape) onDismiss else null,
+    )
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(DesktopScrim)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDismiss,
-                ),
-        )
-        val shape = RoundedCornerShape(20.dp)
-        Box(
-            Modifier
-                .widthIn(max = maxWidth.dp)
-                .fillMaxWidth()
-                .desktopCard(shape),
-        ) {
-            // Behind the content rather than around it, so it swallows clicks on the panel's own
-            // background without eating the rows' own.
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {},
-                    ),
-            )
+        DesktopFlyoutBackdrop(onDismiss = onDismiss)
+        DesktopFlyoutCard(Modifier.widthIn(max = maxWidth.dp).fillMaxWidth()) {
             Column(
                 Modifier.padding(bottom = 4.dp),
                 verticalArrangement = Arrangement.Top,
@@ -190,4 +185,47 @@ internal fun DesktopDialogPanel(
             }
         }
     }
+}
+
+/** Audio Output's visual shell, also used by Quick Search and Keyboard Shortcuts. */
+@Composable
+internal fun DesktopFlyoutCard(
+    modifier: Modifier = Modifier,
+    onBackgroundClick: () -> Unit = {},
+    content: @Composable BoxScope.() -> Unit,
+) {
+    Box(modifier.desktopCard(RoundedCornerShape(20.dp))) {
+        // A separate pointer-only sibling: clicking content cannot dismiss the backdrop or leave
+        // keyboard focus on a decorative panel that will be removed when the flyout closes.
+        Box(
+            Modifier.matchParentSize().focusProperties { canFocus = false }
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onBackgroundClick,
+                ),
+        )
+        content()
+    }
+}
+
+@Composable
+internal fun DesktopFlyoutBackdrop(onDismiss: () -> Unit, blockScroll: Boolean = false) {
+    Box(
+        Modifier.fillMaxSize().background(DesktopScrim)
+            .focusProperties { canFocus = false }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss,
+            )
+            .pointerInput(blockScroll) {
+                if (blockScroll) awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Main)
+                        if (event.type == PointerEventType.Scroll) event.changes.forEach { it.consume() }
+                    }
+                }
+            },
+    )
 }

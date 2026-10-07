@@ -109,6 +109,7 @@ internal fun DesktopAccountSelector(
     onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    DesktopRegisterFlyout(DesktopFlyoutLayer.ACCOUNT, onDismiss = onDismiss)
     var managing by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         // The scrim is its own layer rather than a modifier on the container.
@@ -278,6 +279,9 @@ internal fun DesktopSignInDialog(
     error: String?,
     onDismiss: () -> Unit,
 ) {
+    // A sign-in prompt is above the account picker. Keep its current dismiss/cancel behavior,
+    // but never let Escape reach a player or account underneath it.
+    DesktopRegisterFlyout(DesktopFlyoutLayer.DIALOG)
     var profiles by remember { mutableStateOf<List<DesktopBrowserCookies.Profile>?>(null) }
     var pasting by remember { mutableStateOf(false) }
     var pasted by remember { mutableStateOf("") }

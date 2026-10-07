@@ -164,7 +164,9 @@ private fun desktopMain() = application {
             LocalDesktopWindowActions provides actions,
             LocalDesktopWindowScope provides this,
         ) {
-            BitChordDesktopApp()
+            DesktopFlyoutHost {
+                BitChordDesktopApp()
+            }
         }
     }
 }

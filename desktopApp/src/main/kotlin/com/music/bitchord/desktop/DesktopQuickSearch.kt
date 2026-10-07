@@ -4,7 +4,6 @@ import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -34,7 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -44,10 +42,8 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.selected
@@ -82,6 +78,8 @@ internal fun DesktopQuickSearch(
     onPlay: (Song) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // Only register its z-order; the established Quick Search router owns Escape and all editing.
+    DesktopRegisterFlyout(DesktopFlyoutLayer.QUICK_SEARCH, delegateEscape = true)
     val state by controller.state.collectAsState()
     val listState = rememberLazyListState()
 
@@ -115,59 +113,37 @@ internal fun DesktopQuickSearch(
         val topInset = (maxHeight * 0.08f).coerceIn(16.dp, 72.dp)
         val availableHeight = (maxHeight - topInset - 16.dp).coerceAtLeast(0.dp)
         val listHeight = (availableHeight - 144.dp).coerceIn(0.dp, 560.dp)
-        Box(
-            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.68f))
-                .focusProperties { canFocus = false }
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDismiss,
-                )
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent(PointerEventPass.Main)
-                            if (event.type == PointerEventType.Scroll) event.changes.forEach { it.consume() }
-                        }
-                    }
-                },
-        )
-        val panelShape = RoundedCornerShape(10.dp)
-        Box(
-            Modifier.align(Alignment.TopCenter).padding(top = topInset, start = 16.dp, end = 16.dp)
-                .widthIn(max = 650.dp).fillMaxWidth().heightIn(max = availableHeight)
-                .clip(panelShape).background(DesktopBackground),
+        DesktopFlyoutBackdrop(onDismiss = onDismiss, blockScroll = true)
+        DesktopFlyoutCard(
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = topInset, start = 16.dp, end = 16.dp)
+                .widthIn(max = 650.dp).fillMaxWidth().heightIn(max = availableHeight),
+            onBackgroundClick = { focusRequester.requestFocus() },
         ) {
-            // A pointer-only background target; never leave a removed clickable holding focus.
-            Box(
-                Modifier.matchParentSize().focusProperties { canFocus = false }
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() }, indication = null,
-                        onClick = { focusRequester.requestFocus() },
-                    ),
-            )
-            Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Column(Modifier.fillMaxWidth().padding(22.dp)) {
+                val searchShape = RoundedCornerShape(7.dp)
                 BasicTextField(
                     value = state.query,
                     onValueChange = controller::edit,
                     singleLine = true,
-                    cursorBrush = SolidColor(Color.Black),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.Black, fontSize = 16.sp),
-                    modifier = Modifier.fillMaxWidth().height(48.dp)
-                        .background(Color.White, RoundedCornerShape(50))
+                    cursorBrush = SolidColor(DesktopAccent),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
+                    modifier = Modifier.fillMaxWidth().height(36.dp)
+                        .clip(searchShape)
+                        .background(Color.White.copy(alpha = 0.07f))
+                        .border(1.dp, Color.White.copy(alpha = 0.10f), searchShape)
                         .focusRequester(focusRequester)
                         .semantics { contentDescription = "Quick Search songs" },
                     decorationBox = { innerField ->
                         Row(
-                            Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                            Modifier.fillMaxSize().padding(horizontal = 9.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(BitChordIcons.Search, contentDescription = null, tint = Color.Black, modifier = Modifier.size(21.dp))
-                            Spacer(Modifier.width(10.dp))
+                            Icon(BitChordIcons.Search, contentDescription = null, tint = DesktopSecondary, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
                             Box(Modifier.weight(1f)) {
                                 if (state.query.isEmpty()) Text(
-                                    "What do you want to play?", color = Color(0xFF707070),
-                                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp), maxLines = 1,
+                                    "What do you want to play?", color = DesktopSecondary,
+                                    style = MaterialTheme.typography.bodyMedium, maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
                                 innerField()
