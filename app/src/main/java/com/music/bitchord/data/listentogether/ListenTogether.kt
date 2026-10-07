@@ -30,6 +30,7 @@ import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
+import kotlin.random.Random
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -469,7 +470,10 @@ object ListenTogether {
                 delay(HEALTH_POLL_INTERVAL_MS)
                 // Nobody is looking at the status row unless the screen is open,
                 // and every poll is a request to a server shared by every install.
-                if (isScreenActive) refreshServerHealth(showChecking = false)
+                // A live party socket already proves the server is reachable.
+                if (isScreenActive && _state.value.connection != Connection.LIVE) {
+                    refreshServerHealth(showChecking = false)
+                }
             }
         }
     }
@@ -1193,8 +1197,11 @@ object ListenTogether {
             // that it has not been measured since.
             clock.reset()
             _state.update { it.copy(clockSynced = false) }
-            delay(backoffMs)
-            backoffMs = (backoffMs * 2).coerceAtMost(20_000L)
+            // Jittered, or every client that lost the socket in the same outage
+            // retries at the same instants and a recovering server is hit by the
+            // whole crowd at once.
+            delay(backoffMs / 2 + Random.nextLong(backoffMs + 1))
+            backoffMs = (backoffMs * 2).coerceAtMost(30_000L)
         }
     }
 
