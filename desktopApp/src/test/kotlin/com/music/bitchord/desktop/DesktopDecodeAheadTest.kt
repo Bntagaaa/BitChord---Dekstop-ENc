@@ -107,6 +107,9 @@ class DesktopDecodeAheadTest {
         assertTrue(waitedMs in 20..500, "timed read should yield promptly, waited ${waitedMs}ms")
         assertTrue(!reader.isEnded)
         assertEquals(DesktopDecodeState.RUNNING, reader.state)
+        // underrunMillis is integer milliseconds. Immediately after the timed read returns the
+        // active underrun can legitimately still round down to 0ms on a fast CI runner.
+        Thread.sleep(5)
         assertTrue(reader.underrunMillis > 0)
 
         source.stall!!.countDown()
