@@ -185,7 +185,7 @@ private fun desktopMain() = application {
                 LocalDesktopWindowScope provides this,
             ) {
                 // Keep the entire caption outside the app background AND all in-window flyouts.
-                // A full-window opaque Box/scrim would paint over DWM's real caption buttons.
+                // A full-window overlay must stay below this strip so its Windows controls remain reachable.
                 Column(Modifier.fillMaxSize()) {
                     if (nativeCaption) DesktopNativeTitleBar()
                     Box(Modifier.fillMaxWidth().weight(1f)) {
