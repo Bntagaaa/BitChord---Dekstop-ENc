@@ -4288,8 +4288,6 @@ private fun DesktopTopBar(
     canGoBack: Boolean,
     onBack: () -> Unit,
 ) {
-    val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
-    val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
     // The same beat clock the player's scrubber runs, so this line and the player breathe
     // together through an Automix blend.
     val mixBlend = DesktopPlayerSettings.smartMixBlend.collectAsState()
@@ -4297,25 +4295,10 @@ private fun DesktopTopBar(
     val mixPulse = rememberMixPulse({ mixBlend.value }, enabled = !reduceAnimation)
     val currentProgress by rememberUpdatedState(progress)
 
-    // Apple Music uses one calm strip for both player controls and window furniture. The left
-    // sidebar owns the traffic lights; the rest is a balanced transport / now-playing / utility
-    // layout with deliberately smaller glyphs than the phone player.
-    DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(64.dp)) {
+    // This is the application toolbar. Windows owns a separate system caption above it.
+    Box(Modifier.fillMaxWidth().height(64.dp)) {
         Box(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            // The window's own buttons live at the head of the sidebar; a compact window has no
-            // sidebar, so there they lead this bar instead.
-            if (compact && inlineCaption) {
-                Box(
-                    Modifier
-                        .fillMaxHeight()
-                        .desktopWindowGlass(DesktopChromeEdge.BOTTOM)
-                        .padding(start = 10.dp),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    DesktopWindowButtons()
-                }
-            }
             Row(
                 Modifier
                     .weight(1f)
@@ -4607,8 +4590,6 @@ private fun DesktopSidebar(
         }
     }
 
-    val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
-    val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
     Box(
         Modifier
             .width(220.dp)
@@ -4616,17 +4597,8 @@ private fun DesktopSidebar(
             .desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f),
     ) {
         Column(Modifier.fillMaxSize()) {
-            // The sidebar runs to the top of the window, so its head is the window's caption: the
-            // three buttons, and room to take hold of the window by.
-            if (inlineCaption) {
-                DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(SIDEBAR_CAPTION_HEIGHT)) {
-                    Box(Modifier.fillMaxSize().padding(start = 10.dp), contentAlignment = Alignment.CenterStart) {
-                        DesktopWindowButtons()
-                    }
-                }
-            }
         Column(
-            Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = if (inlineCaption) 4.dp else 16.dp, bottom = 16.dp),
+            Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),
         ) {
             DesktopSearchField(
                 query = query,
@@ -4946,27 +4918,17 @@ private fun DesktopFrame(
 ) {
     // Held out here rather than inside the constraints box.
     val haze = remember { HazeState() }
-    // With a system material active, the window stays clear under its chrome. The app-background
-    // preference decides whether the page and side column also stay clear or retain their solid
-    // gray ground.
-    val material by DesktopWindowBackdrop.active.collectAsState()
-    val appBackground by DesktopWindowBackdrop.appBackground.collectAsState()
-    val glass = material != DesktopBackdrop.OFF
-    val materialBehindApp = glass && appBackground
+    // The decorated peer and Compose client remain opaque. DWM styling affects the native caption.
     CompositionLocalProvider(LocalDesktopHaze provides haze) {
-        Box(modifier.fillMaxSize().then(if (glass) Modifier else Modifier.background(containerColor))) {
+        Box(modifier.fillMaxSize().background(containerColor)) {
             // Both sources of the same state: the chrome blurs the backdrop behind it, and the
             // floating bottom bar blurs the page scrolling under it.
-            if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }
+            Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }
             Column(Modifier.fillMaxSize()) {
-                // Above everything, and outside the box the rest of the window is drawn in, because
-                // that is what a title bar is.
-                DesktopTitleBar()
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     BoxWithConstraints(Modifier.fillMaxSize()) {
                         val compact = maxWidth < 980.dp
-                        // The sidebar runs the full height of the window, its head the window's
-                        // caption; the player's bar and the page share the column beside it.
+                        // The system caption is outside this client layout.
                         Row(Modifier.fillMaxSize()) {
                             if (!compact) sidebar()
                             Column(Modifier.weight(1f).fillMaxHeight()) {
@@ -4975,17 +4937,9 @@ private fun DesktopFrame(
                                 Box(
                                     Modifier
                                         .weight(1f)
-                                        .fillMaxHeight()
-                                        .then(
-                                            if (glass && !materialBehindApp) {
-                                                Modifier.background(containerColor)
-                                            } else {
-                                                Modifier
-                                            },
-                                        ),
+                                        .fillMaxHeight(),
                                 ) {
                                     Box(Modifier.fillMaxSize().hazeSource(haze)) {
-                                        if (glass) backdrop(materialBehindApp)
                                         content(
                                             PaddingValues(
                                                 start = 0.dp,
@@ -5002,14 +4956,7 @@ private fun DesktopFrame(
                                 }
                                 Box(
                                     Modifier
-                                        .fillMaxHeight()
-                                        .then(
-                                            if (glass && !materialBehindApp) {
-                                                Modifier.background(containerColor)
-                                            } else {
-                                                Modifier
-                                            },
-                                        ),
+                                        .fillMaxHeight(),
                                 ) { trailing() }
                             }
                             }
@@ -5332,10 +5279,6 @@ private data class DesktopNavEntry(
 
 /** Deep enough for any way back anyone takes; the oldest fall off. */
 private const val NAV_HISTORY_LIMIT = 50
-
-/** The strip at the head of the sidebar that holds the window's buttons and can be dragged by. */
-private val SIDEBAR_CAPTION_HEIGHT = 34.dp
-
 
 @Composable
 private fun DesktopHistoryPage(
@@ -6024,29 +5967,11 @@ private fun DesktopSettingsScreen(
                         reduceDynamicBlur,
                         DesktopAppearanceSettings::setReduceDynamicBlur,
                     )
-                    // Window furniture belongs beside the visual settings it changes, rather than
-                    // interrupting playback controls. These rows remain Windows-only.
-                    if (DesktopPlatform.drawsOwnWindowFrame) {
-                        val titleBar by DesktopTitleBarSetting.enabled.collectAsState()
-                        SettingsToggle(
-                            DesktopStrings["d_title_bar", "Title bar"],
-                            DesktopStrings[
-                                "d_a_slim_bar_above_the_toolbar",
-                                "A slim bar above the toolbar with the window's own buttons. " +
-                                    "Off, the window has no title bar at all.",
-                            ],
-                            titleBar,
-                            DesktopTitleBarSetting::set,
-                        )
-                    }
-                    if (DesktopWindowBackdrop.available) {
+                    if (DesktopPlatform.isWindows) {
                         val backdropChoice by DesktopWindowBackdrop.selected.collectAsState()
-                        val backdropActive by DesktopWindowBackdrop.active.collectAsState()
-                        val materialTitle = DesktopStrings["d_window_material", "Window material"]
-                        val materialSubtitle = DesktopStrings[
-                            "d_window_material_subtitle",
-                            "Sets the material for the sidebar and top bar",
-                        ]
+                        val backdropActive by DesktopWindowBackdrop.captionActive.collectAsState()
+                        val materialTitle = "Native title bar material"
+                        val materialSubtitle = "Changes the Windows title bar only; app content stays opaque"
                         if (settingsRowVisible(materialTitle, materialSubtitle)) {
                             Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
                                 Text(materialTitle, fontWeight = FontWeight.Medium)
@@ -6066,28 +5991,18 @@ private fun DesktopSettingsScreen(
                                 Text(
                                     when {
                                         backdropChoice != DesktopBackdrop.OFF && backdropActive == DesktopBackdrop.OFF ->
-                                            "Needs Windows 11 version 22H2 or later"
+                                            "Unavailable on this Windows version or DWM declined it; the system title bar remains active"
                                         backdropChoice == DesktopBackdrop.MICA ->
-                                            "A soft tint taken from your wallpaper"
+                                            "Mica requested for the native title bar"
                                         backdropChoice == DesktopBackdrop.ACRYLIC ->
-                                            "A frosted blur of whatever is behind the window"
-                                        else -> "Solid, as the rest of the app"
+                                            "Acrylic requested for the native title bar"
+                                        else -> "System title bar without backdrop material"
                                     },
                                     color = DesktopSecondary,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
                         }
-                        val appBackground by DesktopWindowBackdrop.appBackground.collectAsState()
-                        SettingsToggle(
-                            DesktopStrings["d_app_background", "App background"],
-                            DesktopStrings[
-                                "d_app_background_subtitle",
-                                "Use the window material instead of a solid gray background",
-                            ],
-                            appBackground,
-                            DesktopWindowBackdrop::setAppBackground,
-                        )
                     }
                     SettingsToggle(
                         DesktopStrings["full_screen_cover_art", "Full-screen cover art"],
@@ -7054,39 +6969,20 @@ internal fun Modifier.desktopChromeGlass(
 )
 
 /**
- * The window's own chrome — title bar, top bar, sidebar. Over Windows 11's Mica or Acrylic
- * ([DesktopWindowBackdrop]) it is a light dark tint and nothing else, so DWM's material shows
- * through; the in-app blur would paint the page's backdrop over it. Otherwise the in-app glass.
- *
- * No dissolve over the material: it would fade the tint out into bare material right where the
- * opaque page begins, a lighter stripe along the seam rather than a softer one.
+ * The application toolbar and sidebar are opaque client content. DWM material, when accepted,
+ * is limited to the separate native caption and does not replace this in-app glass.
  */
 @Composable
 internal fun Modifier.desktopWindowGlass(
     edge: DesktopChromeEdge = DesktopChromeEdge.NONE,
     fade: Float = 0.2f,
-): Modifier {
-    val backdrop by DesktopWindowBackdrop.active.collectAsState()
-    return if (backdrop == DesktopBackdrop.OFF) {
-        desktopChromeGlass(edge, fade)
-    } else {
-        background(Color.Black.copy(alpha = WINDOW_GLASS_TINT))
-    }
-}
-
-/** Enough to keep white text readable over a bright wallpaper, little enough to let it through. */
-private const val WINDOW_GLASS_TINT = 0.28f
+): Modifier = desktopChromeGlass(edge, fade)
 
 /**
- * The separators in the window's chrome. Acrylic lets the wallpaper through bright, and the solid
- * dark divider cut across it as a black line; a faint white one reads as an edge in the glass
- * instead. Mica is dark enough for the usual one.
+ * Separator within opaque application chrome, independent of the native caption material.
  */
 @Composable
-internal fun desktopChromeDivider(): Color {
-    val backdrop by DesktopWindowBackdrop.active.collectAsState()
-    return if (backdrop == DesktopBackdrop.ACRYLIC) Color.White.copy(alpha = 0.14f) else DesktopDivider
-}
+internal fun desktopChromeDivider(): Color = DesktopDivider
 
 @Composable
 private fun Modifier.desktopFrosted(

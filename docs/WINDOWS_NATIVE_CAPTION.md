@@ -1,44 +1,43 @@
-# Windows: always-on Windows caption
+# Windows system caption
 
-Windows has one dedicated title strip above the application. The title-bar preference is retired
-and an existing `window_title_bar=false` value is ignored.
+BitChord creates its main Compose `Window` with `undecorated = false` and
+`transparent = false`. The AWT peer is opaque and retains the standard Windows
+non-client frame. Windows, rather than Compose or a subclassed window procedure,
+owns the title, icon, caption buttons, move/resize hit tests, system menu and Snap.
+The application toolbar starts below that frame. The saved `window_title_bar`
+preference is ignored, but is not deleted.
 
-The first DWM-only attempt intentionally kept the whole top edge as client area while asking DWM
-to provide its caption buttons. On the Compose/AWT undecorated peer used by BitChord, that left a
-correct-looking strip but no painted/clickable buttons and could consume caption hit-testing before
-our own `HTCAPTION` result. The current implementation avoids that ambiguous ownership.
+`Main.kt` keeps the same `onCloseRequest` policy: Close can hide to the tray, and
+tray/MPRIS raise restores the existing window. `DesktopWindowMode` still uses
+maximize instead of fullscreen on Windows. No window recreation is tied to
+material, move, resize or placement changes.
 
-## Architecture
+## Optional title bar material
 
-- `Main.kt` hosts the title strip outside both the application background and
-  `DesktopFlyoutHost`, so Quick Search, flyouts and Now Playing never cover its controls.
-- `DesktopWindowChrome.kt` draws Windows-style Minimize, Maximize/Restore and Close controls at
-  the right. Minimize/maximize are backed by Win32 `WM_SYSCOMMAND`; Close keeps BitChord's
-  existing close-to-tray path.
-- `native_caption.cpp` reserves that rightmost 3 × 46dp area as `HTCLIENT`, so Compose receives
-  hover/click there. Every other pixel in the strip is `HTCAPTION`, so Windows itself handles
-  dragging and double-click maximize/restore. Resize edges/corners remain native hit tests.
-- The bridge no longer calls `DwmDefWindowProc` before BitChord's hit-test. That was the path
-  suppressing the custom caption result in the failed build.
-- The title strip is transparent whenever Mica/Acrylic is active. The bridge does not force
-  `DWMWA_CAPTION_COLOR`, because a solid caption colour would cover the material.
-- Caption height and the 138dp control area are scaled by the HWND DPI and converted back to
-  Compose logical space through AWT's current monitor transform.
-- Missing/outdated native DLLs still fall back to a normal system-decorated window. Caption bridge
-  API v2 prevents the previous DLL from being accepted accidentally.
-- Linux keeps its normal window-manager decoration and gets no extra application title strip.
-- The old Title bar Settings row and macOS traffic-light controls remain disabled.
+`DesktopWindowsCaptionAppearance` requests dark caption styling and the selected
+DWM system backdrop on the displayable HWND. DWM type 2 requests Mica; type 3
+requests desktop Acrylic; Off requests no material. An unsupported API, missing
+JNA bridge, or failed DWM call leaves the decorated window usable. A successful
+attribute call does not guarantee a visible effect under every Windows policy.
 
-## Windows validation checklist
+The Compose client remains opaque and uses BitChord's normal backgrounds. Settings
+labels this option **Native title bar material**. The retired app-background
+preference is ignored without deleting its stored value. These settings do not
+promise Mica or Acrylic throughout the application content.
 
-Run Build Test Windows on this branch with tests enabled, then verify:
+`bitchord_window.dll` remains built and packaged for `DesktopWindowsAudio` WASAPI
+JNI. The old caption hook and its JNI exports are removed; audio entrypoints stay.
 
-1. The top-right shows `— □ ×`; Close becomes red on hover.
-2. All three controls click correctly; maximize changes to Restore.
-3. Drag anywhere in the empty title area; double-click it to maximize/restore.
-4. Resize every edge and corner.
-5. Test Mica, Acrylic and Off. Mica/Acrylic should continue through the title strip.
-6. Open every flyout and Now Playing; caption controls must remain reachable.
-7. Check 100%, 125%, 150% and 200% scaling and mixed-DPI monitors.
-8. Confirm the Title bar option is absent from Appearance.
-9. Confirm Linux remains unchanged.
+## Validation still required on Windows
+
+Use JDK 21 and the project's Compose version. Run the shared/desktop tests and
+`packageMsi`, `packageExe`, and `createDistributable` on Windows. On the actual
+BitChord executable, check
+drag and drag-to-restore, double-click maximize, native hover/buttons/system menu,
+all resize edges, Snap zones, taskbar/tray, flyouts, old preferences, 100–200% and
+mixed-monitor DPI. Verify material visually and also test a failed styling helper.
+Static review and Linux compilation cannot establish these runtime outcomes.
+
+The 900 logical-pixel minimum width may prevent narrow Snap zones from fitting;
+separate that limitation from whether the native Snap menu appears. Change the
+minimum only after checking compact-mode controls at the proposed size.
