@@ -10,7 +10,7 @@ foreach(suffix "" _DEBUG _RELEASE _RELWITHDEBINFO _MINSIZEREL)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY${suffix} ${CMAKE_BINARY_DIR})
 endforeach()
 
-add_library(bitchord_window SHARED window_jni.cpp)
+add_library(bitchord_window SHARED window_jni.cpp native_caption.cpp)
 set_target_properties(bitchord_window PROPERTIES PREFIX "")
 
 if(DEFINED ENV{JAVA_HOME})

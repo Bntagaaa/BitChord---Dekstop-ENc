@@ -15,46 +15,28 @@ internal enum class DesktopBackdrop(
 }
 
 /**
- * Windows 11's Mica and Acrylic, drawn by DWM behind the window.
- *
- * The window itself is created transparent whenever the material is possible at all — transparency
- * is fixed when the window is made — so switching between the three here is live, with no restart.
+ * Windows 11's Mica and Acrylic, drawn by DWM behind the extended native frame.
+ * Transparency is chosen by Main.kt before the peer is created; changing material is still live.
  * Compose decides whether the material also reaches the app background via [appBackground].
  */
 internal object DesktopWindowBackdrop {
-
     internal const val KEY = "window_backdrop"
 
-    /**
-     * Whether this window can carry a material: Windows 11 and the native frame. Decided once, at
-     * start, because it decides whether the window is created transparent.
-     */
-    val available: Boolean =
-        DesktopPlatform.isWindows && DesktopPlatform.drawsOwnWindowFrame &&
-            System.getProperty("os.name").orEmpty().contains("11")
+    /** The app starts after caption initialization, so fallback windows never offer dead controls. */
+    val available: Boolean
+        get() = DesktopPlatform.isWindows && System.getProperty("os.name").orEmpty().contains("11") &&
+            DesktopWindowsFrame.isInstalled
 
     private val _selected = MutableStateFlow(
         runCatching { DesktopBackdrop.valueOf(DesktopPersistence().string(KEY, DesktopBackdrop.MICA.name)) }
             .getOrDefault(DesktopBackdrop.MICA),
     )
-
-    /** What Settings shows and writes. */
     val selected: StateFlow<DesktopBackdrop> = _selected
-
     private val _appBackground = MutableStateFlow(
         DesktopPersistence().boolean(KEY_APP_BACKGROUND, true),
     )
-
-    /** Whether the selected material replaces the app's solid gray page background too. */
     val appBackground: StateFlow<Boolean> = _appBackground
-
     private val _active = MutableStateFlow(DesktopBackdrop.OFF)
-
-    /**
-     * The material actually behind the window right now. Off until the native frame is installed,
-     * and off if Windows turned the request down (a Windows 11 build before 22H2 has no backdrop
-     * attribute): the chrome only goes translucent over a material that is really there.
-     */
     val active: StateFlow<DesktopBackdrop> = _active
 
     fun set(value: DesktopBackdrop) {
@@ -68,9 +50,11 @@ internal object DesktopWindowBackdrop {
         _appBackground.value = value
     }
 
-    /** Asks DWM for the selected material; called once the native frame is in place, and on every change. */
     fun apply() {
-        if (!available) return
+        if (!available) {
+            _active.value = DesktopBackdrop.OFF
+            return
+        }
         val wanted = _selected.value
         val applied = DesktopWindowsFrame.setBackdrop(wanted.nativeKind)
         _active.value = if (applied) wanted else DesktopBackdrop.OFF

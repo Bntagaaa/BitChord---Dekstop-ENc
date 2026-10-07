@@ -1,77 +1,119 @@
 package com.music.bitchord.desktop
 
+import com.sun.jna.Native
+import com.sun.jna.Pointer
+import java.awt.EventQueue
+import java.awt.Window
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
+import java.awt.event.WindowStateListener
+import java.beans.PropertyChangeListener
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * Windows' native frame kept underneath BitChord's Compose-drawn traffic-light controls.
- *
- * The Win32 window remains an overlapped window, so DWM owns its shadow, transitions, taskbar
- * maximization and resize border. Only the caption drawing is replaced by the app. This object is
- * never loaded on Linux, where the window manager continues to provide the ordinary decoration.
- */
+/** Native Windows caption controls on an extended DWM frame; never loaded on Linux. */
 internal object DesktopWindowsFrame {
-
-    private val available: Boolean by lazy {
-        DesktopPlatform.isWindows &&
-            runCatching { DesktopAnalysisRuntime.loadNative(LIBRARY) }
-                .onFailure { DesktopTrackLog.log("native Windows frame unavailable: ${it.message}") }
-                .isSuccess
+    /**
+     * Probe before constructing the AWT peer. A missing/old DLL falls back to a NORMAL decorated
+     * window rather than a frameless window without a Close button. The API check also detects
+     * an older extracted DLL which has the old traffic-light bridge but not native captions.
+     */
+    val available: Boolean by lazy {
+        DesktopPlatform.isWindows && runCatching {
+            DesktopAnalysisRuntime.loadNative(LIBRARY)
+            check(nativeCaptionApiVersion() == CAPTION_API_VERSION) { "caption bridge version mismatch" }
+        }.onFailure {
+            DesktopTrackLog.log("native Windows caption unavailable; using system title bar: ${it.message}")
+        }.isSuccess
     }
 
-    @Volatile
-    private var installed = false
+    @Volatile private var installedWindow: Window? = null
+    @Volatile private var installedHandle = 0L
+    val isInstalled: Boolean get() = installedHandle != 0L
+    private val metrics = MutableStateFlow(DesktopNativeCaptionMetrics())
+    val captionMetrics: StateFlow<DesktopNativeCaptionMetrics> = metrics.asStateFlow()
 
-    suspend fun install(title: String): Boolean {
+    suspend fun install(window: Window): Boolean {
         if (!available) return false
         repeat(INSTALL_ATTEMPTS) {
-            val ready = runCatching { nativeInstall(title) }.getOrElse {
-                DesktopTrackLog.log("native Windows frame install failed: ${it.message}")
-                false
-            }
-            if (ready) {
-                installed = true
+            val handle = runCatching {
+                if (window.isDisplayable) Pointer.nativeValue(Native.getWindowPointer(window)) else 0L
+            }.getOrDefault(0L)
+            if (handle != 0L && runCatching { nativeCaptionInstall(handle) }.getOrDefault(false)) {
+                installedWindow = window
+                installedHandle = handle
+                refreshMetrics(window)
+                DesktopTrackLog.log("native Windows caption installed (always on)")
                 return true
             }
             delay(INSTALL_RETRY_MILLIS)
         }
-        DesktopTrackLog.log("native Windows frame could not find the visible app window")
+        DesktopTrackLog.log("native Windows caption install failed; recreating a system-decorated window")
         return false
     }
 
-    fun minimize(): Boolean = installed && runCatching { nativeMinimize() }.getOrDefault(false)
+    /** AWT notifies on resize, maximize/restore and monitor/DPI moves. No busy polling. */
+    fun observe(window: Window): AutoCloseable {
+        val disposed = AtomicBoolean(false)
+        val pending = AtomicBoolean(false)
+        fun refresh() {
+            if (disposed.get() || !pending.compareAndSet(false, true)) return
+            EventQueue.invokeLater {
+                pending.set(false)
+                if (!disposed.get()) refreshMetrics(window)
+            }
+        }
+        val component = object : ComponentAdapter() {
+            override fun componentMoved(event: ComponentEvent) = refresh()
+            override fun componentResized(event: ComponentEvent) = refresh()
+            override fun componentShown(event: ComponentEvent) = refresh()
+        }
+        val windowState = WindowStateListener { refresh() }
+        val graphics = PropertyChangeListener { refresh() }
+        window.addComponentListener(component)
+        window.addWindowStateListener(windowState)
+        window.addPropertyChangeListener("graphicsConfiguration", graphics)
+        refresh()
+        return AutoCloseable {
+            disposed.set(true)
+            window.removeComponentListener(component)
+            window.removeWindowStateListener(windowState)
+            window.removePropertyChangeListener("graphicsConfiguration", graphics)
+            if (installedWindow === window) {
+                installedWindow = null
+                installedHandle = 0L
+                metrics.value = DesktopNativeCaptionMetrics()
+            }
+        }
+    }
 
-    fun toggleMaximize(): Boolean =
-        installed && runCatching { nativeToggleMaximize() }.getOrDefault(false)
+    private fun refreshMetrics(window: Window) {
+        if (installedWindow !== window || !window.isDisplayable) return
+        val transform = window.graphicsConfiguration?.defaultTransform ?: return
+        val raw = runCatching { nativeCaptionMetrics(installedHandle) }.getOrNull()
+        metrics.value = desktopNativeCaptionMetrics(raw, transform.scaleX, transform.scaleY)
+    }
 
-    /**
-     * Hands the press in progress to Windows as a caption drag. False when there is no native
-     * frame, and the caller moves the window itself.
-     */
-    fun startDrag(): Boolean = installed && runCatching { nativeStartDrag() }.getOrDefault(false)
+    fun minimize(): Boolean = installedHandle != 0L &&
+        runCatching { nativeCaptionCommand(installedHandle, 0) }.getOrDefault(false)
 
-    @JvmStatic
-    private external fun nativeStartDrag(): Boolean
+    fun toggleMaximize(): Boolean = installedHandle != 0L &&
+        runCatching { nativeCaptionCommand(installedHandle, 1) }.getOrDefault(false)
 
-    /**
-     * Puts DWM's material behind the window — [DesktopBackdrop.nativeKind] — or takes it away.
-     * False without the native frame, or on a Windows too old to have one.
-     */
-    fun setBackdrop(kind: Int): Boolean =
-        installed && runCatching { nativeSetBackdrop(kind) }.getOrDefault(false)
+    fun setBackdrop(kind: Int): Boolean = installedHandle != 0L &&
+        runCatching { nativeCaptionSetBackdrop(installedHandle, kind) }.getOrDefault(false)
 
-    @JvmStatic
-    private external fun nativeSetBackdrop(kind: Int): Boolean
-
-    @JvmStatic
-    private external fun nativeInstall(title: String): Boolean
-
-    @JvmStatic
-    private external fun nativeMinimize(): Boolean
-
-    @JvmStatic
-    private external fun nativeToggleMaximize(): Boolean
+    @JvmStatic private external fun nativeCaptionApiVersion(): Int
+    @JvmStatic private external fun nativeCaptionInstall(handle: Long): Boolean
+    @JvmStatic private external fun nativeCaptionMetrics(handle: Long): IntArray
+    @JvmStatic private external fun nativeCaptionCommand(handle: Long, action: Int): Boolean
+    @JvmStatic private external fun nativeCaptionSetBackdrop(handle: Long, kind: Int): Boolean
 
     private const val LIBRARY = "bitchord_window"
+    private const val CAPTION_API_VERSION = 1
     private const val INSTALL_ATTEMPTS = 20
     private const val INSTALL_RETRY_MILLIS = 100L
 }

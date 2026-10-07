@@ -1,5 +1,14 @@
 package com.music.bitchord.desktop
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.CompositionLocalProvider
 import com.music.bitchord.ui.player.PlayerPlatform
 import com.music.bitchord.data.DebugLog
@@ -71,101 +80,122 @@ private fun desktopMain() = application {
     LaunchedEffect(state) {
         snapshotFlow { state.placement }.collect(DesktopWindowMode::adopt)
     }
-    Window(
-        onCloseRequest = { if (DesktopWindowVisibility.onCloseRequest()) exitApplication() },
-        visible = visible,
-        title = "BitChord",
-        icon = painterResource(Res.drawable.logo),
-        state = state,
-        // No system title bar on Windows, where the application draws its own instead — see
-        // [DesktopWindowChrome].
-        undecorated = DesktopPlatform.drawsOwnWindowFrame,
-        // For Mica and Acrylic behind the sidebar and top bar: only a transparent window lets
-        // DWM's material show through the chrome. Fixed at creation, so it is on wherever the
-        // material is possible and the chosen one can be switched live — see [DesktopWindowBackdrop].
-        transparent = DesktopWindowBackdrop.available,
-        resizable = true,
-    ) {
-        val composeWindow = window
-        LaunchedEffect(raiseRequest) {
-            if (raiseRequest == 0L) return@LaunchedEffect
-
-            // MPRIS Raise is also what desktop-shell media widgets use for "open player".
-            // Restore a minimized/hidden BitChord first, then defer the foreground request by one
-            // AWT turn so the compositor sees a mapped window before toFront/requestFocus.
-            state.isMinimized = false
-            composeWindow.isVisible = true
-            java.awt.EventQueue.invokeLater {
-                composeWindow.toFront()
-                composeWindow.requestFocus()
-            }
-        }
-        val openingSize = remember { state.size }
-        LaunchedEffect(composeWindow) {
-            // AWT's default is white, and it is what shows for the frame or two a moved or resized
-            // window takes to repaint: a white band along its edges.
-            // Not over a transparent window, whose clear background is what the material shows
-            // through; DWM moves that window, so there is no band to hide.
-            if (!DesktopWindowBackdrop.available) {
-                composeWindow.background = java.awt.Color.BLACK
-                composeWindow.contentPane.background = java.awt.Color.BLACK
-            }
-            // AWT measures this in device pixels while Compose's window state is in dp. Keeping
-            // the scale in the conversion makes the usable minimum consistent on every display.
-            val transform = composeWindow.graphicsConfiguration.defaultTransform
-            composeWindow.minimumSize = Dimension(
-                (MIN_WINDOW_WIDTH_DP * transform.scaleX).roundToInt(),
-                (MIN_WINDOW_HEIGHT_DP * transform.scaleY).roundToInt(),
-            )
-            // Setting AWT's minimum during the first composition can resize the native peer to
-            // that minimum without updating Compose's state. Compose would then keep laying out a
-            // 1220dp surface inside a 900dp window, cropping the right edge and putting its resize
-            // boundary off-screen until a maximize/restore cycle synchronised the two. Re-assert
-            // the requested opening size on the native peer so both layers start in agreement.
-            composeWindow.size = Dimension(
-                (openingSize.width.value * transform.scaleX).roundToInt(),
-                (openingSize.height.value * transform.scaleY).roundToInt(),
-            )
-            if (DesktopPlatform.isWindows && DesktopWindowsFrame.install("BitChord")) {
-                DesktopWindowBackdrop.apply()
-            }
-        }
-        val actions = remember {
-            DesktopWindowActions(
-                minimize = {
-                    if (!DesktopWindowsFrame.minimize()) state.isMinimized = true
-                },
-                toggleMaximize = {
-                    if (!DesktopWindowsFrame.toggleMaximize()) {
-                        // An undecorated AWT window otherwise maximizes to the monitor bounds on
-                        // Windows when the native frame bridge is unavailable. Give AWT the
-                        // monitor's usable work area before Compose switches the placement.
-                        if (DesktopPlatform.isWindows && !DesktopWindowMode.maximized.value) {
-                            val screen = composeWindow.graphicsConfiguration.bounds
-                            val insets = Toolkit.getDefaultToolkit().getScreenInsets(
-                                composeWindow.graphicsConfiguration,
-                            )
-                            composeWindow.maximizedBounds = Rectangle(
-                                screen.x + insets.left,
-                                screen.y + insets.top,
-                                screen.width - insets.left - insets.right,
-                                screen.height - insets.top - insets.bottom,
-                            )
-                        }
-                        DesktopWindowMode.toggleMaximized()
-                    }
-                },
-                // The same door the system's close button went through, so the tray keeps the
-                // process alive exactly as it did before.
-                close = { if (DesktopWindowVisibility.onCloseRequest()) exitApplication() },
-            )
-        }
-        CompositionLocalProvider(
-            LocalDesktopWindowActions provides actions,
-            LocalDesktopWindowScope provides this,
+    // Resolve capability BEFORE creating the AWT peer: decorated windows cannot be transparent.
+    // A failed native install recreates only this startup window, before any playback UI exists.
+    var nativeCaption by remember { mutableStateOf(DesktopWindowsFrame.available) }
+    key(nativeCaption) {
+        Window(
+            onCloseRequest = { if (DesktopWindowVisibility.onCloseRequest()) exitApplication() },
+            visible = visible,
+            title = "BitChord",
+            icon = painterResource(Res.drawable.logo),
+            state = state,
+            // The extended native frame needs transparent caption pixels, including on Windows 10.
+            // Linux and Windows without the new DLL use ordinary OS decoration and no extra strip.
+            undecorated = nativeCaption,
+            transparent = nativeCaption,
+            resizable = true,
         ) {
-            DesktopFlyoutHost {
-                BitChordDesktopApp()
+            val composeWindow = window
+            var frameReady by remember(composeWindow) { mutableStateOf(!nativeCaption) }
+            DisposableEffect(composeWindow) {
+                val observer = if (nativeCaption) DesktopWindowsFrame.observe(composeWindow) else null
+                onDispose { observer?.close() }
+            }
+            LaunchedEffect(raiseRequest) {
+                if (raiseRequest == 0L) return@LaunchedEffect
+
+                // MPRIS Raise is also what desktop-shell media widgets use for "open player".
+                // Restore a minimized/hidden BitChord first, then defer the foreground request by one
+                // AWT turn so the compositor sees a mapped window before toFront/requestFocus.
+                state.isMinimized = false
+                composeWindow.isVisible = true
+                java.awt.EventQueue.invokeLater {
+                    composeWindow.toFront()
+                    composeWindow.requestFocus()
+                }
+            }
+            val openingSize = remember { state.size }
+            LaunchedEffect(composeWindow) {
+                // AWT's default is white, and it is what shows for the frame or two a moved or resized
+                // window takes to repaint: a white band along its edges.
+                // Not over a transparent window, whose clear background is what the material shows
+                // through; DWM moves that window, so there is no band to hide.
+                if (!nativeCaption) {
+                    composeWindow.background = java.awt.Color.BLACK
+                    composeWindow.contentPane.background = java.awt.Color.BLACK
+                }
+                // AWT measures this in device pixels while Compose's window state is in dp. Keeping
+                // the scale in the conversion makes the usable minimum consistent on every display.
+                val transform = composeWindow.graphicsConfiguration.defaultTransform
+                composeWindow.minimumSize = Dimension(
+                    (MIN_WINDOW_WIDTH_DP * transform.scaleX).roundToInt(),
+                    (MIN_WINDOW_HEIGHT_DP * transform.scaleY).roundToInt(),
+                )
+                // Setting AWT's minimum during the first composition can resize the native peer to
+                // that minimum without updating Compose's state. Compose would then keep laying out a
+                // 1220dp surface inside a 900dp window, cropping the right edge and putting its resize
+                // boundary off-screen until a maximize/restore cycle synchronised the two. Re-assert
+                // the requested opening size on the native peer so both layers start in agreement.
+                composeWindow.size = Dimension(
+                    (openingSize.width.value * transform.scaleX).roundToInt(),
+                    (openingSize.height.value * transform.scaleY).roundToInt(),
+                )
+                if (nativeCaption) {
+                    if (!DesktopWindowsFrame.install(composeWindow)) {
+                        nativeCaption = false
+                        return@LaunchedEffect
+                    }
+                    DesktopWindowBackdrop.apply()
+                    frameReady = true
+                }
+            }
+            val actions = remember {
+                DesktopWindowActions(
+                    minimize = {
+                        if (!DesktopWindowsFrame.minimize()) state.isMinimized = true
+                    },
+                    toggleMaximize = {
+                        if (!DesktopWindowsFrame.toggleMaximize()) {
+                            // An undecorated AWT window otherwise maximizes to the monitor bounds on
+                            // Windows when the native frame bridge is unavailable. Give AWT the
+                            // monitor's usable work area before Compose switches the placement.
+                            if (DesktopPlatform.isWindows && !DesktopWindowMode.maximized.value) {
+                                val screen = composeWindow.graphicsConfiguration.bounds
+                                val insets = Toolkit.getDefaultToolkit().getScreenInsets(
+                                    composeWindow.graphicsConfiguration,
+                                )
+                                composeWindow.maximizedBounds = Rectangle(
+                                    screen.x + insets.left,
+                                    screen.y + insets.top,
+                                    screen.width - insets.left - insets.right,
+                                    screen.height - insets.top - insets.bottom,
+                                )
+                            }
+                            DesktopWindowMode.toggleMaximized()
+                        }
+                    },
+                    // The same door the system's close button went through, so the tray keeps the
+                    // process alive exactly as it did before.
+                    close = { if (DesktopWindowVisibility.onCloseRequest()) exitApplication() },
+                )
+            }
+            CompositionLocalProvider(
+                LocalDesktopWindowActions provides actions,
+                LocalDesktopWindowScope provides this,
+            ) {
+                // Keep the entire caption outside the app background AND all in-window flyouts.
+                // A full-window opaque Box/scrim would paint over DWM's real caption buttons.
+                Column(Modifier.fillMaxSize()) {
+                    if (nativeCaption) DesktopNativeTitleBar()
+                    Box(Modifier.fillMaxWidth().weight(1f)) {
+                        if (frameReady) {
+                            DesktopFlyoutHost {
+                                BitChordDesktopApp()
+                            }
+                        }
+                    }
+                }
             }
         }
     }
