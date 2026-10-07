@@ -96,6 +96,32 @@ class DesktopDecodeAheadTest {
     }
 
     @Test
+    fun `timed read yields during a stalled decode and later recovers`() {
+        val source = CountingSource(blocks = 10)
+        source.stall = CountDownLatch(1)
+        val reader = ahead(source)
+
+        val startedAt = System.nanoTime()
+        assertNull(reader.readSamples(50))
+        val waitedMs = (System.nanoTime() - startedAt) / 1_000_000
+        assertTrue(waitedMs in 20..500, "timed read should yield promptly, waited ${waitedMs}ms")
+        assertTrue(!reader.isEnded)
+
+        source.stall!!.countDown()
+        source.stall = null
+        assertEquals(0f, reader.readSamples()!![0])
+        reader.close()
+    }
+
+    @Test
+    fun `real eof remains distinguishable from a temporary underrun`() {
+        val reader = ahead(CountingSource(blocks = 0))
+        assertNull(reader.readSamples())
+        assertTrue(reader.isEnded)
+        reader.close()
+    }
+
+    @Test
     fun `seeking after the end plays again`() {
         val reader = ahead(CountingSource(blocks = 2))
         while (reader.readSamples() != null) Unit
