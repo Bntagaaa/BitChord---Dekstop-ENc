@@ -3753,6 +3753,7 @@ private fun BitChordApp(
                     showReplay = false
                     settingsSubScreen = null
                     showHistory = false
+                    showSpotify = false
                     libraryShowAll = null
                     selectedTab = index
 

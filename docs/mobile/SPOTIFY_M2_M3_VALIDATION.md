@@ -22,13 +22,17 @@ Baseline: `78cde0f17f41b6aa8d6e9e5aca3a931ecd383f62` pada `feature/mobile-spotif
 
 SDK dipasang di `/workspace/.local/android-sdk`, di luar checkout. AGP 8.10.1 mencari direktori `android-37`, sementara paket platform terpasang sebagai `android-37.0`; alias lokal SDK digunakan untuk build. Tidak ada perubahan `compileSdk`, plugin, atau file konfigurasi repository. AGP memberi peringatan bahwa versi ini diuji sampai SDK 36; build Android 37 tetap selesai.
 
-APK universal DevDebug terbaru: `app/build/outputs/apk/dev/debug/app-dev-universal-debug.apk` (186,989,515 byte), SHA-256 `48aa76758178ad7e28b110cef875ddd56de1c4df005f3dafe0068f201818f852`. ABI lain (`arm64-v8a`, `armeabi-v7a`, `x86_64`) juga dihasilkan. APK ini **belum** diuji pada perangkat.
+APK universal DevDebug terbaru: `app/build/outputs/apk/dev/debug/app-dev-universal-debug.apk` (186,989,515 byte), SHA-256 `6cbd83386b36730eca231a9c32185f5f638e120519ac2002b659c7aae3451057`. ABI lain (`arm64-v8a`, `armeabi-v7a`, `x86_64`) juga dihasilkan. APK ini **belum** diuji pada perangkat.
 
 ## Tindak lanjut: membuka playlist Spotify
 
 Laporan pengguna berikutnya: mengetuk playlist mengembalikan tampilan ke menu sebelumnya tanpa crash. Audit source menemukan jalur khusus ketika Spotify dibuka dari Account/Settings: `MainActivity.kt` sudah mendorong halaman detail, tetapi pemilihan `AnimatedContent` memprioritaskan `settingsSubScreen`/Account atas detail; efek yang menutup Settings juga menghapus flag Spotify. Perbaikan menjaga route Spotify saat detail terbuka, memilih detail di depan Settings, dan mengarahkan Back (tombol maupun sistem) ke daftar Spotify lebih dulu. Overlay Discord/History/Replay tetap mendapat prioritasnya.
 
 Perintah setelah perbaikan: `./gradlew :app:testDevDebugUnitTest --tests 'com.music.bitchord.Spotify*' :app:assembleDevDebug --console=plain` **PASS** (8 tes Spotify; build APK berhasil). Alur klik dan Back pada perangkat tetap **NOT RUN**, sehingga hasil interaktif perlu dikonfirmasi dengan APK terbaru di atas.
+
+## Tindak lanjut: pindah tab dari Spotify Library
+
+Laporan pengguna membedakan dua jalur: dari Settings → Account, detail playlist sebelumnya tersembunyi oleh Settings; dari tab Library, detail sudah bisa terbuka tetapi Spotify tetap tampak setelah memilih Home/Explore. `onTabSelected` di `MainActivity.kt` dipakai oleh kedua tab bar dan sudah menutup detail serta overlay lain, tetapi tidak menghapus `showSpotify`. Handler sekarang menghapus flag tersebut sebelum mengganti tab. Tes Spotify dan build DevDebug diulang: **PASS** (8 tes dan APK). Di perangkat, cek dua jalur secara terpisah: Settings → Account → Spotify → playlist → Back, serta Library → Spotify → Home/Explore. Keduanya **NOT RUN** di lingkungan ini.
 
 ## Checklist perangkat — NOT RUN
 
