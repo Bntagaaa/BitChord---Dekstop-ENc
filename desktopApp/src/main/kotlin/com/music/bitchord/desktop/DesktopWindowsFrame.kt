@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Native Windows caption controls on an extended DWM frame; never loaded on Linux. */
+/** Windows frame bridge for the always-on Windows-style caption; never loaded on Linux. */
 internal object DesktopWindowsFrame {
     /**
      * Probe before constructing the AWT peer. A missing/old DLL falls back to a NORMAL decorated
@@ -113,7 +113,7 @@ internal object DesktopWindowsFrame {
     @JvmStatic private external fun nativeCaptionSetBackdrop(handle: Long, kind: Int): Boolean
 
     private const val LIBRARY = "bitchord_window"
-    private const val CAPTION_API_VERSION = 1
+    private const val CAPTION_API_VERSION = 2
     private const val INSTALL_ATTEMPTS = 20
     private const val INSTALL_RETRY_MILLIS = 100L
 }
