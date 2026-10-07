@@ -737,6 +737,12 @@ class DesktopPlaybackEngine(
         val block = readCurrent(track)
         val count = currentReadCount
         if (block == null) {
+            // An underrun is not EOF. Yield to the pump so Start/Flush/Seek/Reconfigure commands
+            // remain responsive even while FFmpeg or the network is stalled.
+            if (sourceReadWaiting) {
+                Thread.sleep(DECODE_POLL_SLEEP_MS)
+                return
+            }
             if (fadeRemaining > 0 && upcoming != null) {
                 val channels = sink.format.channels.coerceAtLeast(1)
                 val wanted = MIX_END_PADDING_FRAMES * channels
@@ -935,6 +941,9 @@ class DesktopPlaybackEngine(
     /** How much of the array [readSource] returned is this block. */
     private var sourceReadCount = 0
 
+    /** The last source read timed out waiting for decode-ahead rather than reaching EOF. */
+    private var sourceReadWaiting = false
+
     /**
      * The next block of [track], at the output stream's rate.
      *
@@ -945,7 +954,12 @@ class DesktopPlaybackEngine(
      * Android never meets it: each of its players has its own output.
      */
     private fun readSource(track: Track): FloatArray? {
-        val block = track.decoder.readSamples() ?: return null
+        sourceReadWaiting = false
+        val block = track.decoder.readSamples(DECODE_POLL_MS)
+        if (block == null) {
+            sourceReadWaiting = !track.decoder.isEnded
+            return null
+        }
         val count = track.decoder.sampleCount
         val from = track.decoder.outputFormat.sampleRate
         val to = sink.format.sampleRate
@@ -1670,6 +1684,10 @@ class DesktopPlaybackEngine(
     }
 
     companion object {
+        /** Keep the audio pump responsive to commands while decoder/network I/O is stalled. */
+        private const val DECODE_POLL_MS = 100L
+        private const val DECODE_POLL_SLEEP_MS = 10L
+
         /** How many times a lossy substitute is asked to be beaten before the question is closed. */
         private const val LOSSLESS_FOLLOW_UPS = 2
 
