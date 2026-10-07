@@ -3,7 +3,7 @@ package com.music.bitchord.desktop
 /** Logical layout space for the dedicated native Windows caption, not the player toolbar. */
 internal data class DesktopNativeCaptionMetrics(
     val heightDp: Float = 32f,
-    val rightInsetDp: Float = 160f,
+    val rightInsetDp: Float = 138f,
 )
 
 /** DWM reports physical pixels; AWT's per-monitor transform converts them to Compose dp. */
