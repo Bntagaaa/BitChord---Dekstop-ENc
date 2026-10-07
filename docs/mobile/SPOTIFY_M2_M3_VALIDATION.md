@@ -22,7 +22,13 @@ Baseline: `78cde0f17f41b6aa8d6e9e5aca3a931ecd383f62` pada `feature/mobile-spotif
 
 SDK dipasang di `/workspace/.local/android-sdk`, di luar checkout. AGP 8.10.1 mencari direktori `android-37`, sementara paket platform terpasang sebagai `android-37.0`; alias lokal SDK digunakan untuk build. Tidak ada perubahan `compileSdk`, plugin, atau file konfigurasi repository. AGP memberi peringatan bahwa versi ini diuji sampai SDK 36; build Android 37 tetap selesai.
 
-APK universal DevDebug: `app/build/outputs/apk/dev/debug/app-dev-universal-debug.apk` (186,989,515 byte), SHA-256 `0f1f4cc677ece263cd65195151fd42f0d71e7ca1c79b86afd6ee0b730184fd32`. ABI lain (`arm64-v8a`, `armeabi-v7a`, `x86_64`) juga dihasilkan. APK ini **belum** diuji pada perangkat.
+APK universal DevDebug terbaru: `app/build/outputs/apk/dev/debug/app-dev-universal-debug.apk` (186,989,515 byte), SHA-256 `48aa76758178ad7e28b110cef875ddd56de1c4df005f3dafe0068f201818f852`. ABI lain (`arm64-v8a`, `armeabi-v7a`, `x86_64`) juga dihasilkan. APK ini **belum** diuji pada perangkat.
+
+## Tindak lanjut: membuka playlist Spotify
+
+Laporan pengguna berikutnya: mengetuk playlist mengembalikan tampilan ke menu sebelumnya tanpa crash. Audit source menemukan jalur khusus ketika Spotify dibuka dari Account/Settings: `MainActivity.kt` sudah mendorong halaman detail, tetapi pemilihan `AnimatedContent` memprioritaskan `settingsSubScreen`/Account atas detail; efek yang menutup Settings juga menghapus flag Spotify. Perbaikan menjaga route Spotify saat detail terbuka, memilih detail di depan Settings, dan mengarahkan Back (tombol maupun sistem) ke daftar Spotify lebih dulu. Overlay Discord/History/Replay tetap mendapat prioritasnya.
+
+Perintah setelah perbaikan: `./gradlew :app:testDevDebugUnitTest --tests 'com.music.bitchord.Spotify*' :app:assembleDevDebug --console=plain` **PASS** (8 tes Spotify; build APK berhasil). Alur klik dan Back pada perangkat tetap **NOT RUN**, sehingga hasil interaktif perlu dikonfirmasi dengan APK terbaru di atas.
 
 ## Checklist perangkat — NOT RUN
 

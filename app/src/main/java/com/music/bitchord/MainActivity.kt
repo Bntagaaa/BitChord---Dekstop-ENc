@@ -792,7 +792,9 @@ private fun BitChordApp(
     // Settings has no tab of its own — it sits on top of whatever tab was
     // selected. A pushed album/artist page (from the player, search, etc.)
     // should surface above it rather than being hidden behind it.
-    LaunchedEffect(detail) { if (detail != null) showSettings = false }
+    // A Spotify playlist is pushed over the Spotify list, which may itself have
+    // been opened from Settings. Keep that route mounted until the detail closes.
+    LaunchedEffect(detail, showSpotify) { if (detail != null && !showSpotify) showSettings = false }
     LaunchedEffect(detail?.browseId) { detailActiveShelf = null }
     LaunchedEffect(showSettings) {
         if (!showSettings) {
@@ -2449,8 +2451,9 @@ private fun BitChordApp(
             }
         }
         BackHandler(
-            enabled = detail != null && !showSettings && !showAccountScrobbling && !showSources && !showListenTogether &&
-                !showEqualizer && !showReplay,
+            enabled = detail != null && ((showSpotify && !showDiscord && !showHistory && !showReplay) ||
+                (!showSettings && !showAccountScrobbling && !showSources && !showListenTogether &&
+                    !showEqualizer && !showReplay)),
         ) { viewModel.closeDetail() }
         BackHandler(enabled = selectedMoodGenre != null && detail == null && !showSettings && !showReplay) {
             viewModel.closeMoodGenre()
@@ -2517,6 +2520,9 @@ private fun BitChordApp(
                 AnimatedContent(
                     targetState = when {
                         showSpotify && detail == null -> "spotify"
+                        // Spotify can sit over Account in Settings; its pushed
+                        // playlist must win over that preserved Settings page.
+                        showSpotify && detail != null && !showDiscord && !showHistory && !showReplay -> detail.browseId
                         showDiscord -> "discord"
                         showHistory -> "history"
                         // `&& detail == null`: a card opened from the grid
@@ -3423,6 +3429,8 @@ private fun BitChordApp(
                 FrostedTopBar(
                     title = when {
                         showSpotify && detail == null -> stringResource(R.string.spotify)
+                        showSpotify && detail != null && !showDiscord && !showHistory && !showReplay ->
+                            detailActiveShelf?.title ?: detail.title
                         showDiscord -> "Discord"
                         showHistory -> stringResource(R.string.history)
                         libraryShowAll != null && detail == null -> libraryShowAll?.title.orEmpty()
@@ -3448,6 +3456,8 @@ private fun BitChordApp(
                     // Search has no large in-list header to hand the title back to —
                     // the field takes that space — so its bar title is always up.
                     scrolled = when {
+                        showSpotify && detail != null && !showDiscord && !showHistory && !showReplay ->
+                            detailActiveShelf != null || detailScrolled
                         showSettings || showAccountScrobbling || showSources || showListenTogether ||
                             showEqualizer ||
                             showDiscord || showHistory ||
@@ -3464,6 +3474,10 @@ private fun BitChordApp(
                     pullFraction = { currentPull?.distanceFraction ?: 0f },
                     onBack = when {
                         showSpotify && detail == null -> ({ showSpotify = false })
+                        showSpotify && detailActiveShelf != null && !showDiscord && !showHistory && !showReplay ->
+                            ({ detailActiveShelf = null })
+                        showSpotify && detail != null && !showDiscord && !showHistory && !showReplay ->
+                            ({ viewModel.closeDetail(); Unit })
                         showDiscord -> ({ showDiscord = false })
                         showHistory -> ({ showHistory = false })
                         libraryShowAll != null && detail == null -> ({ libraryShowAll = null })
