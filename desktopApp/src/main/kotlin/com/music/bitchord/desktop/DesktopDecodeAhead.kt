@@ -17,6 +17,14 @@ internal interface DesktopSampleSource {
     fun close()
 }
 
+/** Lifecycle of the worker behind [DesktopDecodeAhead]. */
+internal enum class DesktopDecodeState {
+    RUNNING,
+    EOF,
+    FAILED,
+    CLOSED,
+}
+
 /**
  * Decodes a track a few seconds ahead of the speakers, on a thread of its own.
  *
@@ -47,8 +55,10 @@ internal class DesktopDecodeAhead(
 
     private val queue = ArrayDeque<FloatArray>()
     private var queuedSamples = 0
-    private var ended = false
-    private var closed = false
+    private var lifecycle = DesktopDecodeState.RUNNING
+    private var failure: Throwable? = null
+    /** Set only while a consumer is genuinely waiting on an otherwise-live worker. */
+    private var underrunSinceNanos = 0L
     private var pendingSeekUs: Long? = null
     /** Bumped by every seek, so a block decoded before it is never played after it. */
     private var generation = 0
@@ -77,13 +87,13 @@ internal class DesktopDecodeAhead(
      * indefinitely. A null result is either a real end (see [isEnded]) or a temporary underrun.
      */
     fun readSamples(maxWaitMillis: Long): FloatArray? = lock.withLock {
-        if (queue.isEmpty() && !ended && !closed) {
+        if (queue.isEmpty() && lifecycle == DesktopDecodeState.RUNNING) {
             val waitedFrom = System.nanoTime()
             if (maxWaitMillis == Long.MAX_VALUE) {
-                while (queue.isEmpty() && !ended && !closed) ready.await()
+                while (queue.isEmpty() && lifecycle == DesktopDecodeState.RUNNING) ready.await()
             } else {
                 var remaining = TimeUnit.MILLISECONDS.toNanos(maxWaitMillis.coerceAtLeast(0L))
-                while (queue.isEmpty() && !ended && !closed && remaining > 0L) {
+                while (queue.isEmpty() && lifecycle == DesktopDecodeState.RUNNING && remaining > 0L) {
                     remaining = ready.awaitNanos(remaining)
                 }
             }
@@ -95,8 +105,14 @@ internal class DesktopDecodeAhead(
         val block = queue.removeFirstOrNull()
         if (block == null) {
             sampleCount = 0
+            if (lifecycle == DesktopDecodeState.RUNNING) {
+                if (underrunSinceNanos == 0L) underrunSinceNanos = System.nanoTime()
+            } else {
+                underrunSinceNanos = 0L
+            }
             return null
         }
+        underrunSinceNanos = 0L
         queuedSamples -= block.size
         started = true
         wake.signal()
@@ -104,71 +120,98 @@ internal class DesktopDecodeAhead(
         block
     }
 
-    /** True when null means EOF/closed, rather than a temporary decoder underrun. */
+    /** The worker's actual lifecycle, so a dead worker cannot masquerade as buffering forever. */
+    val state: DesktopDecodeState
+        get() = lock.withLock { lifecycle }
+
+    /** Why [state] became [DesktopDecodeState.FAILED], when there is one. */
+    val failureCause: Throwable?
+        get() = lock.withLock { failure }
+
+    /** Time spent with an empty queue while the worker still claims to be live. */
+    val underrunMillis: Long
+        get() = lock.withLock {
+            if (underrunSinceNanos == 0L) 0L
+            else (System.nanoTime() - underrunSinceNanos).coerceAtLeast(0L) / 1_000_000
+        }
+
+    /** Compatibility for callers that only need terminal-vs-temporary-null semantics. */
     val isEnded: Boolean
-        get() = lock.withLock { ended || closed }
+        get() = lock.withLock { lifecycle != DesktopDecodeState.RUNNING }
 
     /** Moves to [micros]; whatever was decoded ahead of the old position is thrown away. */
     fun seek(micros: Long): Boolean {
         lock.withLock {
+            if (lifecycle == DesktopDecodeState.CLOSED || lifecycle == DesktopDecodeState.FAILED) return false
             generation++
             queue.clear()
             queuedSamples = 0
-            ended = false
+            lifecycle = DesktopDecodeState.RUNNING
+            failure = null
+            underrunSinceNanos = 0L
             started = false
             pendingSeekUs = micros
-            wake.signal()
+            wake.signalAll()
+            ready.signalAll()
         }
         return true
     }
 
-    /** Stops decoding; the decoder itself is closed by the worker, once any read in flight returns. */
+    /** Stops decoding and wakes/interrupts the worker so parked reads cannot leak a thread. */
     fun close() {
         lock.withLock {
-            closed = true
+            if (lifecycle == DesktopDecodeState.CLOSED) return
+            lifecycle = DesktopDecodeState.CLOSED
             queue.clear()
             queuedSamples = 0
-            wake.signal()
+            underrunSinceNanos = 0L
+            wake.signalAll()
             ready.signalAll()
         }
+        worker.interrupt()
     }
 
     private fun decodeLoop() {
+        var terminalFailure: Throwable? = null
         try {
             while (true) {
                 var seekTo: Long? = null
                 val decodingFor = lock.withLock {
-                    while (!closed && pendingSeekUs == null && (ended || queuedSamples >= aheadSamples)) {
+                    while (
+                        lifecycle != DesktopDecodeState.CLOSED &&
+                        lifecycle != DesktopDecodeState.FAILED &&
+                        pendingSeekUs == null &&
+                        (lifecycle == DesktopDecodeState.EOF || queuedSamples >= aheadSamples)
+                    ) {
                         wake.await()
                     }
-                    if (closed) return
+                    if (lifecycle == DesktopDecodeState.CLOSED || lifecycle == DesktopDecodeState.FAILED) return
                     seekTo = pendingSeekUs
                     pendingSeekUs = null
                     generation
                 }
+
                 val micros = seekTo
                 if (micros != null) {
-                    if (!source.seek(micros)) DesktopTrackLog.log("decode-ahead: seek to ${micros / 1_000}ms failed")
+                    if (!source.seek(micros)) {
+                        DesktopTrackLog.log("decode-ahead: seek to ${micros / 1_000}ms failed")
+                    }
                     continue
                 }
 
-                val decoded = try {
-                    source.readSamples()?.copyOf(source.sampleCount)
-                } catch (failure: Exception) {
-                    DesktopTrackLog.log("decode-ahead: decoder failed, ending the track: ${failure.message}")
-                    null
-                }
+                // Do not translate decoder exceptions into EOF. EOF is a valid end-of-song state;
+                // a thrown decoder/network/native failure needs a different state so the engine can
+                // reopen the stream instead of either skipping the song or waiting forever.
+                val decoded = source.readSamples()?.copyOf(source.sampleCount)
                 lock.withLock {
                     // A seek came in while this block was being read; it belongs to the old position.
                     if (decodingFor != generation) return@withLock
-                    // Close came in while this block was being read. Committing it would leave the
-                    // queue non-empty after close, and the caller's very next readSamples() — which
-                    // the contract says is null — would return this block instead. Seen on Windows
-                    // CI, where scheduling lets the caller's close win this race consistently;
-                    // Linux's timing hides it. The block dies with the closed reader.
-                    if (closed) return@withLock
+                    if (lifecycle == DesktopDecodeState.CLOSED || lifecycle == DesktopDecodeState.FAILED) {
+                        return@withLock
+                    }
                     if (decoded == null) {
-                        ended = true
+                        lifecycle = DesktopDecodeState.EOF
+                        underrunSinceNanos = 0L
                     } else if (decoded.isNotEmpty()) {
                         queue.addLast(decoded)
                         queuedSamples += decoded.size
@@ -176,10 +219,29 @@ internal class DesktopDecodeAhead(
                     ready.signalAll()
                 }
             }
-        } catch (_: InterruptedException) {
-            // Closing the app; the decoder goes with the process.
+        } catch (interrupted: InterruptedException) {
+            val expected = lock.withLock { lifecycle == DesktopDecodeState.CLOSED }
+            if (!expected) terminalFailure = interrupted
+        } catch (failed: Throwable) {
+            terminalFailure = failed
         } finally {
-            runCatching { source.close() }
+            val closeFailure = runCatching { source.close() }.exceptionOrNull()
+            val unexpected = terminalFailure ?: closeFailure
+            var report: Throwable? = null
+            lock.withLock {
+                if (lifecycle != DesktopDecodeState.CLOSED) {
+                    report = unexpected ?: IllegalStateException("decode worker stopped unexpectedly")
+                    failure = report
+                    lifecycle = DesktopDecodeState.FAILED
+                    underrunSinceNanos = 0L
+                }
+                ready.signalAll()
+                wake.signalAll()
+            }
+            report?.let { failed ->
+                val message = failed.message?.takeIf { it.isNotBlank() } ?: failed.javaClass.simpleName
+                runCatching { DesktopTrackLog.log("decode-ahead worker failed: $message") }
+            }
         }
     }
 
