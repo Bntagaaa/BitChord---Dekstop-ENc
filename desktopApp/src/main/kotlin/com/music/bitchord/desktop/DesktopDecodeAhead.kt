@@ -1,5 +1,6 @@
 package com.music.bitchord.desktop
 
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -66,13 +67,29 @@ internal class DesktopDecodeAhead(
     }
 
     /** The next decoded block, waiting for the decoder only if it has fallen behind. */
-    fun readSamples(): FloatArray? = lock.withLock {
+    fun readSamples(): FloatArray? = readSamples(Long.MAX_VALUE)
+
+    /**
+     * The next decoded block, but gives the caller back control after [maxWaitMillis].
+     *
+     * A live decoder can be blocked in FFmpeg/network I/O for seconds. The playback thread also
+     * drains Start/Flush/Seek/Reconfigure commands, so it must never wait for that decoder
+     * indefinitely. A null result is either a real end (see [isEnded]) or a temporary underrun.
+     */
+    fun readSamples(maxWaitMillis: Long): FloatArray? = lock.withLock {
         if (queue.isEmpty() && !ended && !closed) {
             val waitedFrom = System.nanoTime()
-            while (queue.isEmpty() && !ended && !closed) ready.await()
+            if (maxWaitMillis == Long.MAX_VALUE) {
+                while (queue.isEmpty() && !ended && !closed) ready.await()
+            } else {
+                var remaining = TimeUnit.MILLISECONDS.toNanos(maxWaitMillis.coerceAtLeast(0L))
+                while (queue.isEmpty() && !ended && !closed && remaining > 0L) {
+                    remaining = ready.awaitNanos(remaining)
+                }
+            }
             val waitedMs = (System.nanoTime() - waitedFrom) / 1_000_000
-            if (started && waitedMs >= STARVED_LOG_MS) {
-                DesktopTrackLog.log("decode-ahead ran dry: the audio thread waited ${waitedMs}ms for the decoder")
+            if (started && queue.isNotEmpty() && waitedMs >= STARVED_LOG_MS) {
+                DesktopTrackLog.log("decode-ahead recovered after waiting ${waitedMs}ms for the decoder")
             }
         }
         val block = queue.removeFirstOrNull()
@@ -86,6 +103,10 @@ internal class DesktopDecodeAhead(
         sampleCount = block.size
         block
     }
+
+    /** True when null means EOF/closed, rather than a temporary decoder underrun. */
+    val isEnded: Boolean
+        get() = lock.withLock { ended || closed }
 
     /** Moves to [micros]; whatever was decoded ahead of the old position is thrown away. */
     fun seek(micros: Long): Boolean {
