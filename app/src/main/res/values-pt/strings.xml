@@ -1293,4 +1293,10 @@
     <string name="spotify_library_subtitle">Suas playlists do Spotify</string>
     <string name="spotify_sign_in">Entrar com Spotify</string>
     <string name="spotify_track_unavailable">Não foi possível encontrar essa música no YouTube Music</string>
+    <string name="spotify_validating">Verificando o acesso à biblioteca do Spotify…</string>
+    <string name="spotify_needs_reauth">É preciso entrar novamente no Spotify.</string>
+    <string name="spotify_temporary_error">A biblioteca do Spotify está indisponível no momento. Tente novamente.</string>
+    <string name="spotify_login_error">Não foi possível carregar a página de entrada do Spotify. Tente novamente.</string>
+    <string name="spotify_login_unsupported">Este destino de entrada não pode ser aberto no BitChord.</string>
+    <string name="spotify_login_renderer_error">A página de entrada parou de responder. Tente novamente.</string>
 </resources>

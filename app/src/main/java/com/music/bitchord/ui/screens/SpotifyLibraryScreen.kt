@@ -1,10 +1,13 @@
 package com.music.bitchord.ui.screens
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.RenderProcessGoneDetail
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -38,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,9 +58,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.music.bitchord.R
 import com.music.bitchord.data.settings.AppSettings
-import com.music.bitchord.data.spotify.SpotifyLibrary
+import com.music.bitchord.data.spotify.SpotifyConnection
 import com.music.bitchord.data.spotify.SpotifyPlaylist
-import com.music.bitchord.data.spotify.SpotifyTrack
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val LOGIN_URL =
     "https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F"
@@ -93,30 +97,36 @@ fun SpotifyLibraryScreen(
     var showLogin by remember { mutableStateOf(false) }
     var playlists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var retry by remember { mutableIntStateOf(0) }
+    val connectionStatus by SpotifyConnection.status.collectAsStateWithLifecycle()
 
-    BackHandler(enabled = showLogin) { showLogin = false }
+    BackHandler(enabled = showLogin) {
+        showLogin = false
+        SpotifyConnection.loginCancelled()
+    }
 
-    LaunchedEffect(cookie) {
+    LaunchedEffect(cookie, retry) {
         if (cookie.isBlank()) {
             playlists = emptyList()
-            error = null
+            loading = false
             return@LaunchedEffect
         }
         loading = true
-        error = null
-        runCatching { SpotifyLibrary.playlists() }
-            .onSuccess { playlists = it }
-            .onFailure { error = it.message }
-        loading = false
+        val result = SpotifyConnection.validate(cookie, force = true)
+        if (AppSettings.spotifySpdcToken.value == cookie) {
+            playlists = result.orEmpty()
+            loading = false
+        }
     }
 
     if (showLogin) {
         SpotifyLogin(
             modifier = modifier.padding(contentPadding),
             onConnected = { token ->
-                AppSettings.setSpotifySpdcToken(token)
-                showLogin = false
+                if (showLogin) {
+                    AppSettings.setSpotifySpdcToken(token)
+                    showLogin = false
+                }
             },
         )
         return
@@ -154,7 +164,10 @@ fun SpotifyLibraryScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(16.dp))
-                    Button(onClick = { showLogin = true }) {
+                    Button(onClick = {
+                        SpotifyConnection.loginStarted()
+                        showLogin = true
+                    }) {
                         Text(stringResource(R.string.spotify_sign_in))
                     }
                 }
@@ -167,13 +180,29 @@ fun SpotifyLibraryScreen(
                     }
                 }
             }
-            error?.let { message ->
+            val message = when (connectionStatus) {
+                SpotifyConnection.Status.NeedsReauth -> R.string.spotify_needs_reauth
+                SpotifyConnection.Status.TemporaryError -> R.string.spotify_temporary_error
+                else -> null
+            }
+            message?.let { textId ->
                 item {
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                    )
+                    Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                        Text(stringResource(textId), color = MaterialTheme.colorScheme.error)
+                        Row {
+                            TextButton(onClick = { retry++ }) { Text(stringResource(R.string.retry)) }
+                            if (connectionStatus == SpotifyConnection.Status.NeedsReauth) {
+                                TextButton(onClick = {
+                                    AppSettings.setSpotifySpdcToken("")
+                                    clearSpotifyWebSession()
+                                    SpotifyConnection.loginStarted()
+                                    showLogin = true
+                                }) {
+                                    Text(stringResource(R.string.spotify_sign_in))
+                                }
+                            }
+                        }
+                    }
                 }
             }
             items(playlists, key = { it.id }) { item ->
@@ -280,53 +309,97 @@ private fun SpotifyLogin(
     modifier: Modifier = Modifier,
 ) {
     var sent by remember { mutableStateOf(false) }
-    AndroidView(
-        modifier = modifier.fillMaxSize(),
-        factory = { context ->
-            WebView(context).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                )
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.loadWithOverviewMode = true
-                settings.useWideViewPort = true
-                settings.userAgentString = LOGIN_USER_AGENT
-                if (Build.VERSION.SDK_INT >= 33) {
-                    settings.isAlgorithmicDarkeningAllowed = false
-                } else if (Build.VERSION.SDK_INT >= 29) {
-                    @Suppress("DEPRECATION")
-                    settings.forceDark = WebSettings.FORCE_DARK_OFF
-                }
-                setBackgroundColor(0xFF121212.toInt())
-                CookieManager.getInstance().setAcceptCookie(true)
-                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                webViewClient = object : WebViewClient() {
-                    // Spotify's own pages and the identity providers its sign-in
-                    // hands off to; anything else is not part of logging in.
-                    override fun shouldOverrideUrlLoading(
-                        view: WebView,
-                        request: WebResourceRequest,
-                    ): Boolean = !isLoginHost(request.url)
-
-                    override fun onPageFinished(view: WebView, url: String?) {
-                        if (isSpotifyHost(url?.toUri())) view.evaluateJavascript(LOGIN_LAYOUT_FIX, null)
-                        if (sent || url?.startsWith("https://open.spotify.com") != true) return
-                        val raw = CookieManager.getInstance().getCookie("https://open.spotify.com") ?: return
-                        val token = raw.split(";")
-                            .map { it.trim() }
-                            .firstOrNull { it.startsWith("sp_dc=") }
-                            ?.substringAfter("=")
-                            ?.takeIf { it.isNotBlank() }
-                            ?: return
-                        sent = true
-                        onConnected(token)
+    var failure by remember { mutableStateOf<Int?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var attempt by remember { mutableIntStateOf(0) }
+    val active = remember(attempt) { AtomicBoolean(true) }
+    if (failure != null) {
+        Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
+            Text(stringResource(failure!!), color = MaterialTheme.colorScheme.error)
+            TextButton(onClick = {
+                attempt++
+                failure = null
+                loading = true
+            }) { Text(stringResource(R.string.retry)) }
+        }
+        return
+    }
+    Box(modifier.fillMaxSize()) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { context ->
+                WebView(context).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.loadWithOverviewMode = true
+                    settings.useWideViewPort = true
+                    settings.userAgentString = LOGIN_USER_AGENT
+                    if (Build.VERSION.SDK_INT >= 33) {
+                        settings.isAlgorithmicDarkeningAllowed = false
+                    } else if (Build.VERSION.SDK_INT >= 29) {
+                        @Suppress("DEPRECATION")
+                        settings.forceDark = WebSettings.FORCE_DARK_OFF
                     }
+                    setBackgroundColor(0xFF121212.toInt())
+                    CookieManager.getInstance().setAcceptCookie(true)
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                    webViewClient = object : WebViewClient() {
+                        // Spotify's own pages and the identity providers its sign-in
+                        // hands off to; anything else is not part of logging in.
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView,
+                            request: WebResourceRequest,
+                        ): Boolean {
+                            if (!request.isForMainFrame) return false
+                            if (isLoginHost(request.url)) return false
+                            if (active.getAndSet(false)) failure = R.string.spotify_login_unsupported
+                            return true
+                        }
+
+                        override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                            if (active.get()) loading = true
+                        }
+
+                        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                            if (request.isForMainFrame && active.getAndSet(false)) failure = R.string.spotify_login_error
+                        }
+
+                        override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                            if (active.getAndSet(false)) failure = R.string.spotify_login_renderer_error
+                            return true
+                        }
+
+                        override fun onPageFinished(view: WebView, url: String?) {
+                            if (!active.get()) return
+                            loading = false
+                            if (isSpotifyHost(url?.toUri())) view.evaluateJavascript(LOGIN_LAYOUT_FIX, null)
+                            val uri = url?.toUri()
+                            if (sent || uri?.scheme != "https" || uri.host != "open.spotify.com") return
+                            val raw = CookieManager.getInstance().getCookie("https://open.spotify.com") ?: return
+                            val token = raw.split(";")
+                                .map { it.trim() }
+                                .firstOrNull { it.startsWith("sp_dc=") }
+                                ?.substringAfter("=")
+                                ?.takeIf { it.isNotBlank() }
+                                ?: return
+                            sent = true
+                            if (active.get()) onConnected(token)
+                        }
+                    }
+                    loadUrl(LOGIN_URL)
                 }
-                loadUrl(LOGIN_URL)
-            }
-        },
-        onRelease = { it.destroy() },
-    )
+            },
+            onRelease = {
+                active.set(false)
+                it.stopLoading()
+                it.webViewClient = WebViewClient()
+                it.destroy()
+            },
+        )
+    if (loading) CircularProgressIndicator(Modifier.align(Alignment.Center))
+    }
 }

@@ -24,6 +24,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -34,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.R
 import com.music.bitchord.data.model.Account
 import com.music.bitchord.data.settings.AppSettings
+import com.music.bitchord.data.spotify.SpotifyConnection
 import kotlin.math.roundToInt
 
 @Composable
@@ -67,6 +69,10 @@ fun AccountAndScrobblingScreen(
     val discordUsername by AppSettings.discordUsername.collectAsStateWithLifecycle()
     val discordRpcEnabled by AppSettings.discordRpcEnabled.collectAsStateWithLifecycle()
     val spotifyConnected by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
+    val spotifyStatus by SpotifyConnection.status.collectAsStateWithLifecycle()
+    LaunchedEffect(spotifyConnected) {
+        if (spotifyConnected.isNotBlank()) SpotifyConnection.validate(spotifyConnected)
+    }
 
     Column(
         modifier = modifier
@@ -114,9 +120,13 @@ fun AccountAndScrobblingScreen(
             SettingsRow(
                 iconPainter = painterResource(Res.drawable.spotify_logo),
                 title = stringResource(R.string.spotify),
-                subtitle = stringResource(
-                    if (spotifyConnected.isNotBlank()) R.string.connected else R.string.tap_to_connect,
-                ),
+                subtitle = stringResource(when {
+                    spotifyConnected.isBlank() -> R.string.tap_to_connect
+                    spotifyStatus == SpotifyConnection.Status.Connected -> R.string.connected
+                    spotifyStatus == SpotifyConnection.Status.NeedsReauth -> R.string.spotify_needs_reauth
+                    spotifyStatus == SpotifyConnection.Status.TemporaryError -> R.string.spotify_temporary_error
+                    else -> R.string.spotify_validating
+                }),
                 onClick = onOpenSpotify,
             )
             if (spotifyConnected.isNotBlank()) {
@@ -124,8 +134,8 @@ fun AccountAndScrobblingScreen(
                 DestructiveRow(
                     label = stringResource(R.string.spotify_disconnect),
                     onClick = {
-                        clearSpotifyWebSession()
                         AppSettings.setSpotifySpdcToken("")
+                        clearSpotifyWebSession()
                     },
                 )
             }

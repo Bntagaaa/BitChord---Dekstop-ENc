@@ -1328,4 +1328,10 @@
     <string name="spotify_library_subtitle">Twoje playlisty Spotify</string>
     <string name="spotify_sign_in">Zaloguj się przez Spotify</string>
     <string name="spotify_track_unavailable">Nie znaleziono tego utworu w YouTube Music</string>
+    <string name="spotify_validating">Sprawdzanie dostępu do biblioteki Spotify…</string>
+    <string name="spotify_needs_reauth">Zaloguj się ponownie do Spotify.</string>
+    <string name="spotify_temporary_error">Biblioteka Spotify jest teraz niedostępna. Spróbuj ponownie.</string>
+    <string name="spotify_login_error">Nie udało się wczytać strony logowania Spotify. Spróbuj ponownie.</string>
+    <string name="spotify_login_unsupported">Nie można otworzyć tego miejsca logowania w BitChord.</string>
+    <string name="spotify_login_renderer_error">Strona logowania przestała odpowiadać. Spróbuj ponownie.</string>
 </resources>

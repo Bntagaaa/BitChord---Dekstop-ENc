@@ -1271,4 +1271,10 @@
     <string name="spotify_library_subtitle">เพลย์ลิสต์ Spotify ของคุณ</string>
     <string name="spotify_sign_in">ลงชื่อเข้าใช้ด้วย Spotify</string>
     <string name="spotify_track_unavailable">หาเพลงนั้นบน YouTube Music ไม่พบ</string>
+    <string name="spotify_validating">กำลังตรวจสอบการเข้าถึงคลัง Spotify…</string>
+    <string name="spotify_needs_reauth">ต้องลงชื่อเข้าใช้ Spotify อีกครั้ง</string>
+    <string name="spotify_temporary_error">คลัง Spotify ไม่พร้อมใช้งานในขณะนี้ โปรดลองอีกครั้ง</string>
+    <string name="spotify_login_error">ไม่สามารถโหลดหน้าลงชื่อเข้าใช้ Spotify โปรดลองอีกครั้ง</string>
+    <string name="spotify_login_unsupported">ไม่สามารถเปิดปลายทางการลงชื่อเข้าใช้นี้ใน BitChord</string>
+    <string name="spotify_login_renderer_error">หน้าลงชื่อเข้าใช้หยุดตอบสนอง โปรดลองอีกครั้ง</string>
 </resources>

@@ -1260,4 +1260,10 @@
     <string name="spotify_library_subtitle">Tus playlists de Spotify</string>
     <string name="spotify_sign_in">Iniciar sesión con Spotify</string>
     <string name="spotify_track_unavailable">No se encontró esa canción en YouTube Music</string>
+    <string name="spotify_validating">Comprobando el acceso a la biblioteca de Spotify…</string>
+    <string name="spotify_needs_reauth">Debes volver a iniciar sesión en Spotify.</string>
+    <string name="spotify_temporary_error">La biblioteca de Spotify no está disponible ahora. Inténtalo de nuevo.</string>
+    <string name="spotify_login_error">No se pudo cargar la página de inicio de sesión de Spotify. Inténtalo de nuevo.</string>
+    <string name="spotify_login_unsupported">Este destino de inicio de sesión no se puede abrir en BitChord.</string>
+    <string name="spotify_login_renderer_error">La página de inicio de sesión dejó de responder. Inténtalo de nuevo.</string>
 </resources>

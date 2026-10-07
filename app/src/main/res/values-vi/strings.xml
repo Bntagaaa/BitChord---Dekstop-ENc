@@ -1205,4 +1205,10 @@
     <string name="spotify_library_subtitle">Danh sách phát Spotify của bạn</string>
     <string name="spotify_sign_in">Đăng nhập bằng Spotify</string>
     <string name="spotify_track_unavailable">Không tìm thấy bài hát đó trên YouTube Music</string>
+    <string name="spotify_validating">Đang kiểm tra quyền truy cập thư viện Spotify…</string>
+    <string name="spotify_needs_reauth">Bạn cần đăng nhập lại vào Spotify.</string>
+    <string name="spotify_temporary_error">Thư viện Spotify hiện không khả dụng. Hãy thử lại.</string>
+    <string name="spotify_login_error">Không thể tải trang đăng nhập Spotify. Hãy thử lại.</string>
+    <string name="spotify_login_unsupported">Không thể mở đích đăng nhập này trong BitChord.</string>
+    <string name="spotify_login_renderer_error">Trang đăng nhập đã ngừng phản hồi. Hãy thử lại.</string>
 </resources>

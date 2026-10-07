@@ -119,6 +119,12 @@
     <string name="spotify">Spotify</string>
     <string name="spotify_connect_subtitle">Sign in to load your playlists. Playback uses YouTube Music.</string>
     <string name="spotify_sign_in">Sign in with Spotify</string>
+    <string name="spotify_validating">Checking Spotify library access…</string>
+    <string name="spotify_needs_reauth">Spotify sign-in needs to be renewed.</string>
+    <string name="spotify_temporary_error">Spotify library is unavailable right now. Try again.</string>
+    <string name="spotify_login_error">Spotify sign-in page could not load. Try again.</string>
+    <string name="spotify_login_unsupported">This sign-in destination cannot open inside BitChord.</string>
+    <string name="spotify_login_renderer_error">The sign-in page stopped responding. Try again.</string>
     <string name="spotify_disconnect">Disconnect</string>
     <string name="spotify_empty_playlists">No playlists on this account</string>
     <string name="spotify_empty_tracks">This playlist has no tracks</string>

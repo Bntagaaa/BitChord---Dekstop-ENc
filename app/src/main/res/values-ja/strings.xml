@@ -1266,4 +1266,10 @@
     <string name="spotify_library_subtitle">あなたの Spotify プレイリスト</string>
     <string name="spotify_sign_in">Spotify でサインイン</string>
     <string name="spotify_track_unavailable">その曲は YouTube Music で見つかりません</string>
+    <string name="spotify_validating">Spotify ライブラリへのアクセスを確認しています…</string>
+    <string name="spotify_needs_reauth">Spotify に再度サインインしてください。</string>
+    <string name="spotify_temporary_error">Spotify ライブラリは現在利用できません。もう一度お試しください。</string>
+    <string name="spotify_login_error">Spotify のサインインページを読み込めませんでした。もう一度お試しください。</string>
+    <string name="spotify_login_unsupported">このサインイン先は BitChord 内で開けません。</string>
+    <string name="spotify_login_renderer_error">サインインページが応答しなくなりました。もう一度お試しください。</string>
 </resources>

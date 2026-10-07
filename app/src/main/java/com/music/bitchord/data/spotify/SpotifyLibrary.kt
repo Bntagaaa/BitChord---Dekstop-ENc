@@ -42,6 +42,8 @@ data class SpotifyTrack(
     val imageUrl: String?,
 )
 
+internal class SpotifyLibraryHttpException(val code: Int) : Exception("Spotify library HTTP $code")
+
 object SpotifyLibrary {
     private const val GQL = "https://api-partner.spotify.com/pathfinder/v2/query"
     private const val LIBRARY = "973e511ca44261fda7eebac8b653155e7caee3675abb4fb110cc1b8c78b091c3"
@@ -189,7 +191,7 @@ object SpotifyLibrary {
         val text = Http.client.newCall(request).execute().use { response ->
             val payload = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                throw IllegalStateException("Spotify $operation failed (${response.code})")
+                throw SpotifyLibraryHttpException(response.code)
             }
             payload
         }

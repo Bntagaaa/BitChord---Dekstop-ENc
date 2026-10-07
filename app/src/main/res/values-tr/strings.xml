@@ -1245,4 +1245,10 @@
     <string name="spotify_library_subtitle">Spotify çalma listeleriniz</string>
     <string name="spotify_sign_in">Spotify ile oturum aç</string>
     <string name="spotify_track_unavailable">O şarkı YouTube Music’de bulunamadı</string>
+    <string name="spotify_validating">Spotify kitaplığı erişimi kontrol ediliyor…</string>
+    <string name="spotify_needs_reauth">Spotify oturumunu yeniden açmanız gerekiyor.</string>
+    <string name="spotify_temporary_error">Spotify kitaplığı şu anda kullanılamıyor. Tekrar deneyin.</string>
+    <string name="spotify_login_error">Spotify oturum açma sayfası yüklenemedi. Tekrar deneyin.</string>
+    <string name="spotify_login_unsupported">Bu oturum açma hedefi BitChord içinde açılamaz.</string>
+    <string name="spotify_login_renderer_error">Oturum açma sayfası yanıt vermeyi durdurdu. Tekrar deneyin.</string>
 </resources>

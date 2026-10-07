@@ -5,6 +5,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
+import android.webkit.RenderProcessGoneDetail
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -12,6 +15,7 @@ import com.music.bitchord.data.DebugLog as Log
 import com.music.bitchord.data.Http
 import com.music.bitchord.data.settings.AppSettings
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -28,6 +32,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.Base64
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * The bearer token behind Spotify's own web player, minted from the
@@ -48,10 +53,15 @@ internal object SpotifyToken {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val harvestMutex = Mutex()
+    private val cacheLock = Any()
+    private val sessionGeneration = AtomicLong()
+    private var activeHarvest: CompletableDeferred<HarvestedToken?>? = null
 
     @Volatile private var appContext: Context? = null
+    @Volatile private var expectedCookie: String? = null
 
     @Volatile private var cachedAccessToken: String? = null
+    @Volatile private var cachedForCookie: String? = null
     @Volatile private var accessTokenExpiresAtMs = 0L
     @Volatile private var cachedClientId: String? = null
 
@@ -66,12 +76,20 @@ internal object SpotifyToken {
         appContext = context.applicationContext
     }
 
-    fun invalidate() {
-        cachedAccessToken = null
-        accessTokenExpiresAtMs = 0L
-        cachedClientId = null
-        cachedClientToken = null
-        clientTokenExpiresAtMs = 0L
+    fun invalidate(newCookie: String) {
+        synchronized(cacheLock) {
+            sessionGeneration.incrementAndGet()
+            expectedCookie = newCookie
+            activeHarvest?.complete(null)
+            activeHarvest = null
+            cachedAccessToken = null
+            cachedForCookie = null
+            accessTokenExpiresAtMs = 0L
+            cachedClientId = null
+            cachedClientToken = null
+            clientTokenExpiresAtMs = 0L
+            cachedSession = null
+        }
     }
 
     /**
@@ -88,13 +106,22 @@ internal object SpotifyToken {
     suspend fun accessToken(): String? {
         val cookie = AppSettings.spotifySpdcToken.value
         if (cookie.isBlank()) return null
+        if (expectedCookie != null && expectedCookie != cookie) return null
+        val generation = sessionGeneration.get()
 
         val now = System.currentTimeMillis()
-        cachedAccessToken?.let { if (now < accessTokenExpiresAtMs - 30_000) return it }
+        cachedAccessToken?.let {
+            if (cachedForCookie == cookie && generation == sessionGeneration.get() &&
+                now < accessTokenExpiresAtMs - 30_000) return it
+        }
 
         return harvestMutex.withLock {
+            if (generation != sessionGeneration.get() || AppSettings.spotifySpdcToken.value != cookie ||
+                (expectedCookie != null && expectedCookie != cookie)) return@withLock null
             val stillNow = System.currentTimeMillis()
-            cachedAccessToken?.let { if (stillNow < accessTokenExpiresAtMs - 30_000) return@withLock it }
+            cachedAccessToken?.let {
+                if (cachedForCookie == cookie && stillNow < accessTokenExpiresAtMs - 30_000) return@withLock it
+            }
 
             val context = appContext
             if (context == null) {
@@ -102,17 +129,23 @@ internal object SpotifyToken {
                 return@withLock null
             }
 
-            val harvested = withContext(Dispatchers.Main) { harvestViaWebView(context, cookie) }
+            val harvested = withContext(Dispatchers.Main) { harvestViaWebView(context, cookie, generation) }
             if (harvested == null) {
                 Log.w(TAG, "token harvest failed or timed out")
                 return@withLock null
             }
-
-            cachedAccessToken = harvested.token
-            accessTokenExpiresAtMs = harvested.expiresAt
-            harvested.clientId?.let { cachedClientId = it }
-            Log.d(TAG, "harvested access token, good until ${java.util.Date(harvested.expiresAt)}")
-            harvested.token
+            synchronized(cacheLock) {
+                if (generation != sessionGeneration.get() || AppSettings.spotifySpdcToken.value != cookie ||
+                    (expectedCookie != null && expectedCookie != cookie)) {
+                    return@withLock null
+                }
+                cachedAccessToken = harvested.token
+                cachedForCookie = cookie
+                accessTokenExpiresAtMs = harvested.expiresAt
+                harvested.clientId?.let { cachedClientId = it }
+                Log.d(TAG, "harvested access token, good until ${java.util.Date(harvested.expiresAt)}")
+                harvested.token
+            }
         }
     }
 
@@ -131,7 +164,7 @@ internal object SpotifyToken {
      * runs.
      */
     @SuppressLint("SetJavaScriptEnabled")
-    private suspend fun harvestViaWebView(context: Context, cookie: String): HarvestedToken? {
+    private suspend fun harvestViaWebView(context: Context, cookie: String, generation: Long): HarvestedToken? {
         val deferred = CompletableDeferred<HarvestedToken?>()
 
         val cookieManager = CookieManager.getInstance().apply {
@@ -142,9 +175,13 @@ internal object SpotifyToken {
         }
         // The player caches its token in web storage and skips a fresh
         // /api/token request if a live one is already sitting there, leaving
-        // the hook with nothing to see — wipe storage so every harvest forces
-        // a real mint.
-        runCatching { WebStorage.getInstance().deleteAllData() }
+        // the hook with nothing to see. Clear only Spotify's origin; the same
+        // WebView profile can hold another service's sign-in state.
+        runCatching { WebStorage.getInstance().deleteOrigin("https://open.spotify.com") }
+        synchronized(cacheLock) {
+            if (generation != sessionGeneration.get()) return null
+            activeHarvest = deferred
+        }
 
         var webView: WebView? = null
         return try {
@@ -156,6 +193,15 @@ internal object SpotifyToken {
                 addJavascriptInterface(TokenBridge(deferred), BRIDGE_NAME)
 
                 webViewClient = object : WebViewClient() {
+                    override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                        if (request.isForMainFrame) deferred.complete(null)
+                    }
+
+                    override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                        deferred.complete(null)
+                        return true
+                    }
+
                     override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(view, url, favicon)
                         view.evaluateJavascript(HOOK_SCRIPT, null)
@@ -172,10 +218,15 @@ internal object SpotifyToken {
             }
 
             withTimeoutOrNull(HARVEST_TIMEOUT_MS) { deferred.await() }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             Log.w(TAG, "token harvest threw: ${e.message}")
             null
         } finally {
+            synchronized(cacheLock) {
+                if (activeHarvest === deferred) activeHarvest = null
+            }
             runCatching {
                 webView?.removeJavascriptInterface(BRIDGE_NAME)
                 webView?.stopLoading()
@@ -262,8 +313,11 @@ internal object SpotifyToken {
      */
     @Synchronized
     fun clientToken(): String? {
+        val generation = sessionGeneration.get()
         val now = System.currentTimeMillis()
-        cachedClientToken?.let { if (now < clientTokenExpiresAtMs - 30_000) return it }
+        cachedClientToken?.let {
+            if (generation == sessionGeneration.get() && now < clientTokenExpiresAtMs - 30_000) return it
+        }
 
         val clientId = cachedClientId
         if (clientId == null) {
@@ -330,8 +384,11 @@ internal object SpotifyToken {
         val ttlSeconds = granted["expires_after_seconds"]?.jsonPrimitive?.contentOrNull
             ?.toLongOrNull() ?: 3600L
 
-        cachedClientToken = token
-        clientTokenExpiresAtMs = now + ttlSeconds * 1000
+        synchronized(cacheLock) {
+            if (generation != sessionGeneration.get()) return null
+            cachedClientToken = token
+            clientTokenExpiresAtMs = now + ttlSeconds * 1000
+        }
         Log.d(TAG, "minted client token, good for ${ttlSeconds}s")
         return token
     }
@@ -344,6 +401,7 @@ internal object SpotifyToken {
      * changes inside a session.
      */
     private fun session(): SessionInfo? {
+        val generation = sessionGeneration.get()
         cachedSession?.let { return it }
 
         val request = Request.Builder()
@@ -380,7 +438,8 @@ internal object SpotifyToken {
         }
 
         val session = SessionInfo(clientVersion, deviceId ?: java.util.UUID.randomUUID().toString())
-        cachedSession = session
-        return session
+        return synchronized(cacheLock) {
+            if (generation != sessionGeneration.get()) null else session.also { cachedSession = it }
+        }
     }
 }

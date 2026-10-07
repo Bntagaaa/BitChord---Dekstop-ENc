@@ -1320,4 +1320,10 @@
     <string name="spotify_library_subtitle">Ваши плейлисты Spotify</string>
     <string name="spotify_sign_in">Войти через Spotify</string>
     <string name="spotify_track_unavailable">Не удалось найти этот трек на YouTube Music</string>
+    <string name="spotify_validating">Проверяем доступ к медиатеке Spotify…</string>
+    <string name="spotify_needs_reauth">Необходимо снова войти в Spotify.</string>
+    <string name="spotify_temporary_error">Медиатека Spotify сейчас недоступна. Повторите попытку.</string>
+    <string name="spotify_login_error">Не удалось загрузить страницу входа в Spotify. Повторите попытку.</string>
+    <string name="spotify_login_unsupported">Эту страницу входа нельзя открыть в BitChord.</string>
+    <string name="spotify_login_renderer_error">Страница входа перестала отвечать. Повторите попытку.</string>
 </resources>

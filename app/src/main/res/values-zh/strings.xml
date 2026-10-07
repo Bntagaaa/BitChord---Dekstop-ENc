@@ -1265,4 +1265,10 @@
     <string name="spotify_library_subtitle">你的 Spotify 播放列表</string>
     <string name="spotify_sign_in">使用 Spotify 登录</string>
     <string name="spotify_track_unavailable">在 YouTube Music 上找不到该歌曲</string>
+    <string name="spotify_validating">正在检查 Spotify 音乐库访问权限…</string>
+    <string name="spotify_needs_reauth">需要重新登录 Spotify。</string>
+    <string name="spotify_temporary_error">Spotify 音乐库目前不可用，请重试。</string>
+    <string name="spotify_login_error">无法加载 Spotify 登录页面，请重试。</string>
+    <string name="spotify_login_unsupported">无法在 BitChord 中打开此登录目标。</string>
+    <string name="spotify_login_renderer_error">登录页面已停止响应，请重试。</string>
 </resources>

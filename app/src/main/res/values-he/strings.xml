@@ -1293,4 +1293,10 @@
     <string name="spotify_library_subtitle">הפלייליסטים שלכם ב-Spotify</string>
     <string name="spotify_sign_in">התחברות עם Spotify</string>
     <string name="spotify_track_unavailable">לא נמצא שיר כזה ב-YouTube Music</string>
+    <string name="spotify_validating">בודק גישה לספריית Spotify…</string>
+    <string name="spotify_needs_reauth">יש להתחבר מחדש ל-Spotify.</string>
+    <string name="spotify_temporary_error">ספריית Spotify אינה זמינה כעת. כדאי לנסות שוב.</string>
+    <string name="spotify_login_error">לא ניתן לטעון את דף ההתחברות של Spotify. כדאי לנסות שוב.</string>
+    <string name="spotify_login_unsupported">לא ניתן לפתוח יעד התחברות זה בתוך BitChord.</string>
+    <string name="spotify_login_renderer_error">דף ההתחברות הפסיק להגיב. כדאי לנסות שוב.</string>
 </resources>

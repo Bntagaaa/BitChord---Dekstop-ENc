@@ -1288,4 +1288,10 @@
     <string name="spotify_library_subtitle">Deine Spotify-Playlists</string>
     <string name="spotify_sign_in">Bei Spotify anmelden</string>
     <string name="spotify_track_unavailable">Diesen Titel gab es nicht auf YouTube Music</string>
+    <string name="spotify_validating">Spotify-Bibliothek wird geprüft…</string>
+    <string name="spotify_needs_reauth">Die Spotify-Anmeldung muss erneuert werden.</string>
+    <string name="spotify_temporary_error">Die Spotify-Bibliothek ist derzeit nicht verfügbar. Erneut versuchen.</string>
+    <string name="spotify_login_error">Die Spotify-Anmeldeseite konnte nicht geladen werden. Erneut versuchen.</string>
+    <string name="spotify_login_unsupported">Dieses Anmeldeziel kann nicht in BitChord geöffnet werden.</string>
+    <string name="spotify_login_renderer_error">Die Anmeldeseite reagiert nicht mehr. Erneut versuchen.</string>
 </resources>

@@ -1288,4 +1288,10 @@
     <string name="spotify_library_subtitle">आपकी Spotify प्लेलिस्ट</string>
     <string name="spotify_sign_in">Spotify से साइन इन करें</string>
     <string name="spotify_track_unavailable">वह गाना YouTube Music पर नहीं मिला</string>
+    <string name="spotify_validating">Spotify लाइब्रेरी की पहुँच जाँची जा रही है…</string>
+    <string name="spotify_needs_reauth">Spotify में फिर से साइन इन करना होगा।</string>
+    <string name="spotify_temporary_error">Spotify लाइब्रेरी अभी उपलब्ध नहीं है। फिर से कोशिश करें।</string>
+    <string name="spotify_login_error">Spotify साइन-इन पेज लोड नहीं हो सका। फिर से कोशिश करें।</string>
+    <string name="spotify_login_unsupported">यह साइन-इन गंतव्य BitChord में नहीं खुल सकता।</string>
+    <string name="spotify_login_renderer_error">साइन-इन पेज ने प्रतिक्रिया देना बंद कर दिया। फिर से कोशिश करें।</string>
 </resources>

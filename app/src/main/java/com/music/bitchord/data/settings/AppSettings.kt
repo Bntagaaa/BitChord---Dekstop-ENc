@@ -1460,9 +1460,10 @@ object AppSettings {
     }
 
     fun setSpotifySpdcToken(value: String) {
+        SpotifyToken.invalidate(value)
+        com.music.bitchord.data.spotify.SpotifyConnection.sessionChanged(value)
         spotifySpdcToken.value = value
         prefs.edit().putString(KEY_SPOTIFY_SPDC_TOKEN, value).apply()
-        SpotifyToken.invalidate()
     }
 
     fun setLastfmScrobbleEnabled(value: Boolean) {
@@ -2029,6 +2030,4 @@ object AppSettings {
     private const val KEY_DISCORD_INFO_DISMISSED = "discord_info_dismissed"
     private const val KEY_LAST_VERSION_CODE = "last_version_code"
 }
-
-
 
