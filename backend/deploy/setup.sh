@@ -63,6 +63,17 @@ if ! cmp -s /tmp/Caddyfile /etc/caddy/Caddyfile; then
   mv /tmp/Caddyfile /etc/caddy/Caddyfile
   systemctl reload caddy || systemctl restart caddy
 fi
+# Hard memory cap so a runaway Caddy is killed and restarted alone rather than the
+# whole 1 GB VM thrashing swap. No soft GOMEMLIMIT: a limit below the working set
+# made the Go GC run flat out on a CPU the hypervisor was already starving.
+install -d /etc/systemd/system/caddy.service.d
+cat > /etc/systemd/system/caddy.service.d/memory.conf <<'UNIT'
+[Service]
+MemoryMax=750M
+Restart=always
+RestartSec=2
+UNIT
+systemctl daemon-reload
 
 echo "== deploy hook"
 echo "$DOMAIN" > /etc/bitchord-domain
@@ -97,7 +108,7 @@ if ! swapon --show --noheadings | grep -q .; then
   fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
   grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
-echo 'vm.swappiness = 10' > /etc/sysctl.d/91-bitchord-swap.conf
+echo 'vm.swappiness = 1' > /etc/sysctl.d/91-bitchord-swap.conf
 sysctl -q -p /etc/sysctl.d/91-bitchord-swap.conf || true
 
 echo "== firewall"
