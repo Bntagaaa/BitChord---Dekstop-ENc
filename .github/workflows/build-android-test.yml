@@ -1,0 +1,72 @@
+name: Build Android Test APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/mobile-spotify-stability
+    paths:
+      - "app/**"
+      - "shared/**"
+      - "sharedUi/**"
+      - "gradle/**"
+      - "gradle.properties"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+      - ".github/workflows/build-android-test.yml"
+
+concurrency:
+  group: android-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-dev-debug:
+    name: Android · Dev Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Write optional local properties
+        shell: bash
+        run: |
+          {
+            echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}"
+            echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}"
+          } > local.properties
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Build dev debug APK
+        run: ./gradlew :app:assembleDevDebug --stacktrace --console=plain
+
+      - name: List generated APKs
+        shell: bash
+        run: |
+          echo "Generated APKs:"
+          find app/build/outputs/apk/dev/debug -maxdepth 1 -type f -name "*.apk" -print
+          echo
+          echo "SHA-256:"
+          find app/build/outputs/apk/dev/debug -maxdepth 1 -type f -name "*.apk" -print0 |
+            sort -z |
+            xargs -0 sha256sum
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BitChord-Android-Dev-${{ github.sha }}
+          path: app/build/outputs/apk/dev/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
