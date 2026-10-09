@@ -2873,6 +2873,62 @@ fun BitChordDesktopApp() {
         overlays.listenTogether || overlays.audioOutput || overlays.pipeline || playerMenuOpen ||
         availableUpdate != null
 
+    val playerBackDepth = PlayerBack.depth.value
+    var previousPlayerBackDepth by remember { mutableStateOf(playerBackDepth) }
+    var shortcutNowPlayingWasOpen by remember { mutableStateOf(overlays.nowPlaying) }
+
+    // A lyric row (and several other player controls) is focusable on desktop. If that row is
+    // clicked and the lyrics layer is then closed, the focused node leaves composition. Compose
+    // can legitimately end up with no focused descendant at all, so the root preview shortcut
+    // handler stops receiving keys. PlayerBack is the authoritative stack for those inner player
+    // layers; when the final layer disappears, hand keyboard ownership back to the app root.
+    LaunchedEffect(playerBackDepth) {
+        val previous = previousPlayerBackDepth
+        previousPlayerBackDepth = playerBackDepth
+        if (previous > 0 && playerBackDepth == 0 && overlays.nowPlaying) {
+            androidx.compose.runtime.withFrameNanos { }
+            if (PlayerBack.depth.value != 0 || !overlays.nowPlaying || shortcutBlockedByModal ||
+                overlays.shortcuts || shortcutEditorFocused
+            ) {
+                return@LaunchedEffect
+            }
+            shortcutDispatcher.reset()
+            repeat(3) {
+                if (PlayerBack.depth.value != 0 || !overlays.nowPlaying || shortcutBlockedByModal ||
+                    overlays.shortcuts || shortcutEditorFocused
+                ) {
+                    return@LaunchedEffect
+                }
+                if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) {
+                    return@LaunchedEffect
+                }
+                androidx.compose.runtime.withFrameNanos { }
+            }
+        }
+    }
+
+    // Closing the whole player can remove the same focused lyric/control node one level later.
+    // Repair that transition too, including mouse-driven dismissals that never pass through Escape.
+    LaunchedEffect(overlays.nowPlaying) {
+        val wasOpen = shortcutNowPlayingWasOpen
+        shortcutNowPlayingWasOpen = overlays.nowPlaying
+        if (wasOpen && !overlays.nowPlaying) {
+            androidx.compose.runtime.withFrameNanos { }
+            shortcutDispatcher.reset()
+            repeat(3) {
+                if (overlays.nowPlaying || shortcutBlockedByModal || overlays.shortcuts ||
+                    shortcutEditorFocused
+                ) {
+                    return@LaunchedEffect
+                }
+                if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) {
+                    return@LaunchedEffect
+                }
+                androidx.compose.runtime.withFrameNanos { }
+            }
+        }
+    }
+
     // Focusable Compose popups/dropdowns may temporarily move native window focus away from the
     // main scene without being represented by DesktopOverlays (context menus and DropdownMenu are
     // examples). When the main window comes back, repair keyboard ownership after the popup has
