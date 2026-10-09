@@ -37,7 +37,7 @@ internal fun DesktopAudioOutputDialog(onDismiss: () -> Unit) {
     val selected by DesktopAudioDevices.selected.collectAsState()
     val changes by DesktopAudioDevices.changes.collectAsState()
     val devices = remember(changes) { DesktopAudioDevices.available() }
-    DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 440) {
+    DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 440, dismissOnEscape = true) {
         Column(Modifier.padding(horizontal = panelInset(22.dp), vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 DesktopStrings["audio_output", "Audio output"],

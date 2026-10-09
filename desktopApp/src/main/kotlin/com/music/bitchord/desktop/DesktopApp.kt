@@ -58,6 +58,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -222,12 +223,18 @@ import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.nativeKeyCode
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
@@ -490,6 +497,9 @@ private enum class DesktopRepeatMode {
 @Composable
 fun BitChordDesktopApp() {
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
+    val shortcutRootFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { shortcutRootFocusRequester.requestFocus() }
     // Filled once the audio engine exists. Local playback helpers use this single hook so every
     // transport and queue gesture reaches Listen Together without duplicating protocol logic.
     val partySyncHolder = remember { arrayOfNulls<DesktopPartySync>(1) }
@@ -498,31 +508,6 @@ fun BitChordDesktopApp() {
     var personalPositionStash by remember { mutableStateOf(0L) }
     var personalPlayingStash by remember { mutableStateOf(false) }
     val persistence = remember { DesktopPersistence() }
-    var availableUpdate by remember { mutableStateOf<DesktopUpdateChecker.UpdateInfo?>(null) }
-    LaunchedEffect(Unit) { availableUpdate = DesktopUpdateChecker.check() }
-    availableUpdate?.let { update ->
-        AlertDialog(
-            onDismissRequest = { availableUpdate = null },
-            title = { Text(DesktopStrings["d_update_available", "Update available"]) },
-            text = {
-                Text(
-                    "BitChord ${update.version} is out — you have ${DesktopUpdateChecker.currentVersion}." +
-                        (update.notes?.takeIf { it.isNotBlank() }?.let { "\n\n${it.take(600)}" } ?: ""),
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    DesktopExternalLinks.open(update.downloadUrl ?: update.releaseUrl)
-                    availableUpdate = null
-                }) { Text(DesktopStrings["d_download", "Download"]) }
-            },
-            dismissButton = {
-                TextButton(onClick = { availableUpdate = null }) {
-                    Text(DesktopStrings["d_later", "Later"])
-                }
-            },
-        )
-    }
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
     var query by remember { mutableStateOf("") }
     var searchFilter by remember { mutableStateOf(SearchFilter.ALL) }
@@ -534,6 +519,20 @@ fun BitChordDesktopApp() {
     var searchCommitted by remember { mutableStateOf(false) }
     var searchScrollReset by remember { mutableStateOf(0) }
     var searchFocusRequested by remember { mutableStateOf(false) }
+    var shortcutEditorFocused by remember { mutableStateOf(false) }
+    val shortcutDispatcher = remember { DesktopShortcutDispatcher() }
+    val quickSearchState = remember { DesktopQuickSearchState<Song> { it.videoId } }
+    val quickSearchKeys = remember { DesktopQuickSearchKeys() }
+    val quickSearchFocusRequester = remember { FocusRequester() }
+    var quickSearchRestorePending by remember { mutableStateOf(false) }
+    val shortcutWindowInfo = LocalWindowInfo.current
+    var shortcutWindowWasFocused by remember { mutableStateOf(shortcutWindowInfo.isWindowFocused) }
+    LaunchedEffect(shortcutWindowInfo.isWindowFocused) {
+        if (!shortcutWindowInfo.isWindowFocused) {
+            shortcutDispatcher.reset()
+            quickSearchKeys.reset()
+        }
+    }
     var searchSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
     // Playable rows for the half-typed query, shown under the text completions.
     var searchTypeahead by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
@@ -1549,6 +1548,7 @@ fun BitChordDesktopApp() {
     }
     val mprisController = remember(playbackEngine) {
         DesktopMprisController(
+            onRaise = DesktopWindowVisibility::raise,
             onPlay = ::playFromUser,
             onPause = ::pauseFromUser,
             onPlayPause = ::togglePlayPauseFromUser,
@@ -2116,7 +2116,43 @@ fun BitChordDesktopApp() {
         search()
     }
 
+    fun releaseShortcutTextFocus() {
+        focusManager.clearFocus()
+        shortcutEditorFocused = false
+        runCatching { shortcutRootFocusRequester.requestFocus() }
+    }
+
+    fun openQuickSearch() {
+        if (overlays.quickSearch) return
+        searchFocusRequested = false
+        releaseShortcutTextFocus()
+        quickSearchState.reset()
+        quickSearchRestorePending = false
+        overlays.quickSearch = true
+    }
+
+    fun dismissQuickSearch() {
+        if (!overlays.quickSearch) return
+        overlays.quickSearch = false
+        quickSearchState.reset()
+        quickSearchRestorePending = true
+    }
+
+    fun playQuickSearchSong(song: Song) {
+        if (!overlays.quickSearch || !quickSearchState.canPlay(song)) return
+        if (partyTrackChangeBlocked()) {
+            quickSearchState.playbackError("Only the party host can change playback")
+            return
+        }
+        recordSongSearch(song)
+        playSong(song, source = DesktopQueueSource(DesktopStrings["search", "Search"], PlaybackSourceType.SEARCH))
+        dismissQuickSearch()
+    }
+
     fun selectDestination(next: DesktopDestination) {
+        if (next != DesktopDestination.SEARCH) {
+            releaseShortcutTextFocus()
+        }
         if (next == DesktopDestination.LIBRARY && libraryStale) {
             libraryStale = false
             reloadLibrary()
@@ -2139,6 +2175,7 @@ fun BitChordDesktopApp() {
 
     /** Settings in place of the page — from the sidebar, the account switcher or the tray. */
     fun openSettings() {
+        releaseShortcutTextFocus()
         overlays.nowPlaying = false
         if (overlays.settingsPage == null) settingsSession++
         overlays.settingsPage = DesktopSettingsPage.MAIN
@@ -2300,6 +2337,7 @@ fun BitChordDesktopApp() {
             // so it has to raise the window before it does anything inside it.
             onActivate = {
                 DesktopWindowVisibility.show()
+                releaseShortcutTextFocus()
                 overlays.nowPlaying = true
             },
             onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
@@ -2329,6 +2367,7 @@ fun BitChordDesktopApp() {
             onPrevious = ::playPrevious,
             onOpenPlayer = {
                 DesktopWindowVisibility.show()
+                releaseShortcutTextFocus()
                 overlays.nowPlaying = true
             },
             onOpenSettings = {
@@ -2839,6 +2878,144 @@ fun BitChordDesktopApp() {
         partySyncHolder[0]?.onLocalIntent()
     }
 
+    val shortcutBlockedByModal = overlays.accounts || overlays.signIn || overlays.playlistDialog ||
+        playlistTarget != null || overlays.rename || overlays.delete || overlays.downloadManager ||
+        overlays.lastfmLogin || overlays.listenBrainzToken || overlays.discordToken ||
+        overlays.listenTogether || overlays.audioOutput || overlays.pipeline || playerMenuOpen
+
+    val playerBackDepth = PlayerBack.depth.value
+    var previousPlayerBackDepth by remember { mutableStateOf(playerBackDepth) }
+    var shortcutNowPlayingWasOpen by remember { mutableStateOf(overlays.nowPlaying) }
+
+    // A lyric row (and several other player controls) is focusable on desktop. If that row is
+    // clicked and the lyrics layer is then closed, the focused node leaves composition. Compose
+    // can legitimately end up with no focused descendant at all, so the root preview shortcut
+    // handler stops receiving keys. PlayerBack is the authoritative stack for those inner player
+    // layers; when the final layer disappears, hand keyboard ownership back to the app root.
+    LaunchedEffect(playerBackDepth) {
+        val previous = previousPlayerBackDepth
+        previousPlayerBackDepth = playerBackDepth
+        if (previous > 0 && playerBackDepth == 0 && overlays.nowPlaying) {
+            androidx.compose.runtime.withFrameNanos { }
+            if (PlayerBack.depth.value != 0 || !overlays.nowPlaying || shortcutBlockedByModal ||
+                overlays.shortcuts || overlays.quickSearch || shortcutEditorFocused
+            ) {
+                return@LaunchedEffect
+            }
+            shortcutDispatcher.reset()
+            quickSearchKeys.reset()
+            repeat(3) {
+                if (PlayerBack.depth.value != 0 || !overlays.nowPlaying || shortcutBlockedByModal ||
+                    overlays.shortcuts || overlays.quickSearch || shortcutEditorFocused
+                ) {
+                    return@LaunchedEffect
+                }
+                if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) {
+                    return@LaunchedEffect
+                }
+                androidx.compose.runtime.withFrameNanos { }
+            }
+        }
+    }
+
+    // Closing the whole player can remove the same focused lyric/control node one level later.
+    // Repair that transition too, including mouse-driven dismissals that never pass through Escape.
+    LaunchedEffect(overlays.nowPlaying) {
+        val wasOpen = shortcutNowPlayingWasOpen
+        shortcutNowPlayingWasOpen = overlays.nowPlaying
+        if (wasOpen && !overlays.nowPlaying) {
+            androidx.compose.runtime.withFrameNanos { }
+            shortcutDispatcher.reset()
+            quickSearchKeys.reset()
+            repeat(3) {
+                if (overlays.nowPlaying || shortcutBlockedByModal || overlays.shortcuts ||
+                    overlays.quickSearch || shortcutEditorFocused
+                ) {
+                    return@LaunchedEffect
+                }
+                if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) {
+                    return@LaunchedEffect
+                }
+                androidx.compose.runtime.withFrameNanos { }
+            }
+        }
+    }
+
+    // Focusable Compose popups/dropdowns may temporarily move native window focus away from the
+    // main scene without being represented by DesktopOverlays (context menus and DropdownMenu are
+    // examples). When the main window comes back, repair keyboard ownership after the popup has
+    // actually disappeared. Waiting a frame also lets a Search editor restore itself first.
+    LaunchedEffect(shortcutWindowInfo.isWindowFocused) {
+        val wasFocused = shortcutWindowWasFocused
+        shortcutWindowWasFocused = shortcutWindowInfo.isWindowFocused
+        if (!wasFocused && shortcutWindowInfo.isWindowFocused) {
+            androidx.compose.runtime.withFrameNanos { }
+            yield()
+            shortcutDispatcher.reset()
+            quickSearchKeys.reset()
+            if (overlays.quickSearch) {
+                runCatching { quickSearchFocusRequester.requestFocus() }
+            } else if (!shortcutEditorFocused && !shortcutBlockedByModal) {
+                repeat(3) {
+                    if (shortcutEditorFocused || overlays.quickSearch || shortcutBlockedByModal) {
+                        return@LaunchedEffect
+                    }
+                    if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) {
+                        return@LaunchedEffect
+                    }
+                    androidx.compose.runtime.withFrameNanos { }
+                }
+            }
+        }
+    }
+
+    // Rows/buttons inside these overlays can own Compose focus. When the overlay is removed, Compose
+    // does not always hand focus back to the page automatically, leaving the root shortcut handler
+    // with no focused descendant. Retry for a few frames: requestFocus can legally return false
+    // while the disappearing popup still owns the focus transaction.
+    var shortcutModalWasBlocking by remember { mutableStateOf(shortcutBlockedByModal) }
+    LaunchedEffect(shortcutBlockedByModal) {
+        val wasBlocking = shortcutModalWasBlocking
+        shortcutModalWasBlocking = shortcutBlockedByModal
+        if (wasBlocking && !shortcutBlockedByModal) {
+            yield()
+            shortcutDispatcher.reset()
+            quickSearchKeys.reset()
+            repeat(3) {
+                if (shortcutEditorFocused || overlays.quickSearch || overlays.shortcuts || shortcutBlockedByModal) {
+                    return@LaunchedEffect
+                }
+                if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) {
+                    return@LaunchedEffect
+                }
+                androidx.compose.runtime.withFrameNanos { }
+            }
+        }
+    }
+
+    // Wait for the overlay's focused field to leave composition. If another dialog took over,
+    // defer restoration rather than stealing its focus. The old Search query is never modified.
+    LaunchedEffect(quickSearchRestorePending, overlays.quickSearch, shortcutBlockedByModal, overlays.shortcuts) {
+        if (quickSearchRestorePending && !overlays.quickSearch && !shortcutBlockedByModal && !overlays.shortcuts) {
+            focusManager.clearFocus()
+            shortcutEditorFocused = false
+            shortcutDispatcher.reset()
+            quickSearchKeys.reset()
+            repeat(3) {
+                androidx.compose.runtime.withFrameNanos { }
+                if (shortcutEditorFocused || overlays.quickSearch || shortcutBlockedByModal || overlays.shortcuts) {
+                    return@LaunchedEffect
+                }
+                if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) {
+                    quickSearchRestorePending = false
+                    return@LaunchedEffect
+                }
+            }
+            // Do not leave the flag permanently armed if this window is being hidden/closed.
+            quickSearchRestorePending = false
+        }
+    }
+
     MaterialTheme(
         colorScheme = desktopColorScheme(),
         typography = desktopTypography(),
@@ -2846,6 +3023,8 @@ fun BitChordDesktopApp() {
         CompositionLocalProvider(
             LocalContentColor provides Color.White,
             LocalNowPlaying provides selectedSong,
+            LocalDesktopShortcutTextFocus provides { shortcutEditorFocused = it },
+            LocalDesktopShortcutModalVisible provides { overlays.shortcuts || overlays.quickSearch },
         ) {
             DesktopFrame(
                 // The phone's page is black, not the near-black of its cards.
@@ -2858,53 +3037,153 @@ fun BitChordDesktopApp() {
                         transparentBase = transparentBase,
                     )
                 },
-                modifier = Modifier.onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
-                    when (event.key) {
-                        Key.MediaPlayPause -> {
-                            if (selectedSong != null) togglePlayPauseFromUser()
-                            true
+                modifier = Modifier
+                    .focusRequester(shortcutRootFocusRequester)
+                    // Global desktop shortcuts live in the preview phase. Focusable Compose
+                    // controls activate themselves from Space/Enter during the bubble phase;
+                    // handling shortcuts here keeps a focused player/lyrics/button from stealing
+                    // Space before Play/Pause sees it.
+                    .onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown && event.type != KeyEventType.KeyUp) {
+                            return@onPreviewKeyEvent false
                         }
-                        Key.MediaNext -> {
-                            playNext()
-                            true
-                        }
-                        Key.MediaPrevious -> {
-                            playPrevious()
-                            true
-                        }
-                        Key.DirectionLeft -> if (event.isAltPressed && !overlays.nowPlaying) {
-                            goBack()
-                            true
-                        } else {
-                            false
-                        }
-                        // One layer at a time, innermost first: the player's own side panel, then
-                        // the player.
-                        Key.Escape -> when {
-                            // The player's own layers first — the lyrics, the queue, a
-                            // drawer — in the order Android's back reaches them.
-                            overlays.nowPlaying && PlayerBack.dispatch() -> true
-                            overlays.nowPlaying -> {
-                                overlays.nowPlaying = false
-                                true
+
+                        val pressed = event.type == KeyEventType.KeyDown
+                        val shortcutKey = DesktopShortcutKey(
+                            keyCode = event.key.nativeKeyCode,
+                            ctrl = event.isCtrlPressed,
+                            alt = event.isAltPressed,
+                            shift = event.isShiftPressed,
+                            pressed = pressed,
+                        )
+
+                        // Quick Search owns navigation and play/dismiss keys, while ordinary
+                        // editing goes to its field. Its pending releases are drained even after a
+                        // mouse dismissal, before the page/player behind it can see those events.
+                        val quickAction = quickSearchKeys.handle(
+                            keyCode = shortcutKey.keyCode,
+                            pressed = pressed,
+                            active = overlays.quickSearch,
+                            ctrl = shortcutKey.ctrl,
+                            alt = shortcutKey.alt,
+                            shift = shortcutKey.shift,
+                            meta = event.isMetaPressed,
+                            globalShortcut = DesktopShortcut.matching(
+                                shortcutKey.keyCode, shortcutKey.ctrl, shortcutKey.alt, shortcutKey.shift,
+                            ) != null,
+                        )
+                        if (quickAction != DesktopQuickSearchKeyAction.PASS) {
+                            if (!pressed) shortcutDispatcher.release(shortcutKey.keyCode)
+                            when (quickAction) {
+                                DesktopQuickSearchKeyAction.PREVIOUS -> quickSearchState.move(-1)
+                                DesktopQuickSearchKeyAction.NEXT -> quickSearchState.move(1)
+                                DesktopQuickSearchKeyAction.PLAY -> quickSearchState.selected()?.let(::playQuickSearchSong)
+                                DesktopQuickSearchKeyAction.DISMISS -> dismissQuickSearch()
+                                DesktopQuickSearchKeyAction.FOCUS_QUERY -> runCatching { quickSearchFocusRequester.requestFocus() }
+                                else -> Unit
                             }
-                            overlays.sidePanel != null -> {
-                                overlays.sidePanel = null
-                                true
-                            }
-                            // A page of Settings steps back the way the back button does, unless
-                            // one of its prompts is up over it.
-                            overlays.settingsPage != null &&
-                                !overlays.lastfmLogin && !overlays.listenBrainzToken && !overlays.discordToken -> {
-                                goBack()
-                                true
-                            }
-                            else -> false
+                            return@onPreviewKeyEvent true
                         }
-                        else -> false
+                        if (overlays.quickSearch) {
+                            // The opening Ctrl+K was captured by the normal dispatcher.
+                            return@onPreviewKeyEvent !pressed && shortcutDispatcher.release(shortcutKey.keyCode)
+                        }
+
+                        // Release bookkeeping before looking at the current focus/modal state.
+                        // Focus can move between key-down and key-up (Ctrl+K is the obvious case).
+                        if (!pressed) {
+                            val capturedShortcut = shortcutDispatcher.release(shortcutKey.keyCode)
+
+                            if (capturedShortcut) return@onPreviewKeyEvent true
+
+                            return@onPreviewKeyEvent when (event.key) {
+                                Key.MediaPlayPause -> {
+                                    if (selectedSong != null) togglePlayPauseFromUser()
+                                    true
+                                }
+                                Key.MediaNext -> {
+                                    playNext()
+                                    true
+                                }
+                                Key.MediaPrevious -> {
+                                    playPrevious()
+                                    true
+                                }
+                                Key.DirectionLeft -> if (event.isAltPressed && !overlays.nowPlaying) {
+                                    goBack()
+                                    true
+                                } else {
+                                    false
+                                }
+                                // One layer at a time, innermost first. A text editor is a layer too:
+                                // Escape leaves it without navigating away, then keyboard shortcuts
+                                // immediately belong to the app again.
+                                Key.Escape -> when {
+                                    overlays.shortcuts -> {
+                                        overlays.shortcuts = false
+                                        true
+                                    }
+                                    overlays.nowPlaying && PlayerBack.dispatch() -> true
+                                    overlays.nowPlaying -> {
+                                        overlays.nowPlaying = false
+                                        true
+                                    }
+                                    overlays.sidePanel != null -> {
+                                        overlays.sidePanel = null
+                                        true
+                                    }
+                                    shortcutEditorFocused -> {
+                                        releaseShortcutTextFocus()
+                                        true
+                                    }
+                                    overlays.settingsPage != null &&
+                                        !overlays.lastfmLogin && !overlays.listenBrainzToken && !overlays.discordToken -> {
+                                        goBack()
+                                        true
+                                    }
+                                    else -> false
+                                }
+                                else -> false
+                            }
+                        }
+
+                        val shortcut = shortcutDispatcher.dispatch(
+                            shortcutKey,
+                            editableFocused = shortcutEditorFocused,
+                            shortcutsModalOpen = overlays.shortcuts,
+                            anotherModalOpen = shortcutBlockedByModal,
+                        ) ?: return@onPreviewKeyEvent false
+
+                        when (shortcut) {
+                            DesktopShortcut.QUICK_SEARCH -> openQuickSearch()
+                            DesktopShortcut.SEARCH_PAGE -> selectDestination(DesktopDestination.SEARCH)
+                            DesktopShortcut.SHOW_SHORTCUTS -> overlays.shortcuts = !overlays.shortcuts
+                            DesktopShortcut.PLAY_PAUSE -> if (selectedSong != null) togglePlayPauseFromUser()
+                            DesktopShortcut.PREVIOUS -> playPrevious()
+                            DesktopShortcut.NEXT -> playNext()
+                            DesktopShortcut.SEEK_BACKWARD ->
+                                if (selectedSong != null) seekPlayer(playback.positionMs - 5_000L)
+                            DesktopShortcut.SEEK_FORWARD ->
+                                if (selectedSong != null) seekPlayer(playback.positionMs + 5_000L)
+                            DesktopShortcut.VOLUME_UP -> {
+                                volume = (volume + 0.05f).coerceIn(0f, 1f)
+                                persistence.saveString("volume", volume.toString())
+                            }
+                            DesktopShortcut.VOLUME_DOWN -> {
+                                volume = (volume - 0.05f).coerceIn(0f, 1f)
+                                persistence.saveString("volume", volume.toString())
+                            }
+                            DesktopShortcut.SHUFFLE -> setShuffle(!shuffle)
+                            DesktopShortcut.REPEAT -> if (!DesktopListenTogether.state.value.controlsLocked) {
+                                repeatMode = repeatMode.next()
+                                persistence.saveString("repeat_mode", repeatMode.name)
+                            }
+                            DesktopShortcut.HOME -> selectDestination(DesktopDestination.LISTEN_NOW)
+                            DesktopShortcut.LYRICS -> overlays.toggleSidePanel(DesktopSidePanel.LYRICS)
+                        }
+                        true
                     }
-                },
+                    .focusable(),
                 topBar = { compact ->
                     DesktopTopBar(
                         compact = compact,
@@ -2929,15 +3208,24 @@ fun BitChordDesktopApp() {
                             repeatMode = it
                             persistence.saveString("repeat_mode", it.name)
                         },
-                        onOpenNowPlaying = { overlays.nowPlaying = true },
+                        onOpenNowPlaying = {
+                            releaseShortcutTextFocus()
+                            overlays.nowPlaying = true
+                        },
                         onVolumeChange = {
                             volume = it
                             persistence.saveString("volume", it.toString())
                         },
                         onOpenAudioOutput = { overlays.audioOutput = true },
                         // A second click on the same button puts the column away, as in Apple Music.
-                        onOpenLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
-                        onOpenQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
+                        onOpenLyrics = {
+                            releaseShortcutTextFocus()
+                            overlays.toggleSidePanel(DesktopSidePanel.LYRICS)
+                        },
+                        onOpenQueue = {
+                            releaseShortcutTextFocus()
+                            overlays.toggleSidePanel(DesktopSidePanel.QUEUE)
+                        },
                         sidePanel = overlays.sidePanel,
                         accountAvatar = activeAccount?.avatar
                             ?: activeAccount?.profiles?.firstOrNull()?.avatar,
@@ -2976,7 +3264,10 @@ fun BitChordDesktopApp() {
                         song = selectedSong,
                         isPlaying = playback.isPlaying,
                         onDestinationSelected = ::selectDestination,
-                        onExpand = { overlays.nowPlaying = true },
+                        onExpand = {
+                            releaseShortcutTextFocus()
+                            overlays.nowPlaying = true
+                        },
                         onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
                         onNext = ::playNext,
                     )
@@ -3329,6 +3620,17 @@ fun BitChordDesktopApp() {
                             },
                             pipeline = playbackEngine.pipeline(),
                             onDismiss = { overlays.pipeline = false },
+                        )
+                    }
+                    if (overlays.shortcuts) {
+                        DesktopKeyboardShortcutsModal(onDismiss = { overlays.shortcuts = false })
+                    }
+                    if (overlays.quickSearch) {
+                        DesktopQuickSearch(
+                            controller = quickSearchState,
+                            focusRequester = quickSearchFocusRequester,
+                            onPlay = ::playQuickSearchSong,
+                            onDismiss = ::dismissQuickSearch,
                         )
                     }
                 },
@@ -3960,8 +4262,6 @@ private fun DesktopTopBar(
     canGoBack: Boolean,
     onBack: () -> Unit,
 ) {
-    val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
-    val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
     // The same beat clock the player's scrubber runs, so this line and the player breathe
     // together through an Automix blend.
     val mixBlend = DesktopPlayerSettings.smartMixBlend.collectAsState()
@@ -3969,25 +4269,10 @@ private fun DesktopTopBar(
     val mixPulse = rememberMixPulse({ mixBlend.value }, enabled = !reduceAnimation)
     val currentProgress by rememberUpdatedState(progress)
 
-    // Apple Music uses one calm strip for both player controls and window furniture. The left
-    // sidebar owns the traffic lights; the rest is a balanced transport / now-playing / utility
-    // layout with deliberately smaller glyphs than the phone player.
-    DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(64.dp)) {
+    // This is the application toolbar. Windows owns a separate system caption above it.
+    Box(Modifier.fillMaxWidth().height(64.dp)) {
         Box(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            // The window's own buttons live at the head of the sidebar; a compact window has no
-            // sidebar, so there they lead this bar instead.
-            if (compact && inlineCaption) {
-                Box(
-                    Modifier
-                        .fillMaxHeight()
-                        .desktopWindowGlass(DesktopChromeEdge.BOTTOM)
-                        .padding(start = 10.dp),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    DesktopWindowButtons()
-                }
-            }
             Row(
                 Modifier
                     .weight(1f)
@@ -4279,8 +4564,6 @@ private fun DesktopSidebar(
         }
     }
 
-    val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
-    val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
     Box(
         Modifier
             .width(220.dp)
@@ -4288,17 +4571,8 @@ private fun DesktopSidebar(
             .desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f),
     ) {
         Column(Modifier.fillMaxSize()) {
-            // The sidebar runs to the top of the window, so its head is the window's caption: the
-            // three buttons, and room to take hold of the window by.
-            if (inlineCaption) {
-                DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(SIDEBAR_CAPTION_HEIGHT)) {
-                    Box(Modifier.fillMaxSize().padding(start = 10.dp), contentAlignment = Alignment.CenterStart) {
-                        DesktopWindowButtons()
-                    }
-                }
-            }
         Column(
-            Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = if (inlineCaption) 4.dp else 16.dp, bottom = 16.dp),
+            Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),
         ) {
             DesktopSearchField(
                 query = query,
@@ -4538,6 +4812,8 @@ internal fun DesktopSearchField(
     placeholder: String = "Search",
 ) {
     val searchShape = RoundedCornerShape(7.dp)
+    val onShortcutFocusChanged = LocalDesktopShortcutTextFocus.current
+    val shortcutModalVisible = LocalDesktopShortcutModalVisible.current
     Box(
         modifier
             .fillMaxWidth()
@@ -4551,11 +4827,16 @@ internal fun DesktopSearchField(
     ) {
         BasicTextField(
             value = query,
-            onValueChange = onQueryChange,
+            onValueChange = { value ->
+                if (shortcutModalVisible?.invoke() != true) onQueryChange(value)
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
-                .onFocusChanged { onFocusChanged(it.isFocused) }
+                .onFocusChanged {
+                    onFocusChanged(it.isFocused)
+                    onShortcutFocusChanged?.invoke(it.isFocused)
+                }
                 .onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
                         onSearch()
@@ -4611,27 +4892,17 @@ private fun DesktopFrame(
 ) {
     // Held out here rather than inside the constraints box.
     val haze = remember { HazeState() }
-    // With a system material active, the window stays clear under its chrome. The app-background
-    // preference decides whether the page and side column also stay clear or retain their solid
-    // gray ground.
-    val material by DesktopWindowBackdrop.active.collectAsState()
-    val appBackground by DesktopWindowBackdrop.appBackground.collectAsState()
-    val glass = material != DesktopBackdrop.OFF
-    val materialBehindApp = glass && appBackground
+    // The decorated peer and Compose client remain opaque. DWM styling affects the native caption.
     CompositionLocalProvider(LocalDesktopHaze provides haze) {
-        Box(modifier.fillMaxSize().then(if (glass) Modifier else Modifier.background(containerColor))) {
+        Box(modifier.fillMaxSize().background(containerColor)) {
             // Both sources of the same state: the chrome blurs the backdrop behind it, and the
             // floating bottom bar blurs the page scrolling under it.
-            if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }
+            Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }
             Column(Modifier.fillMaxSize()) {
-                // Above everything, and outside the box the rest of the window is drawn in, because
-                // that is what a title bar is.
-                DesktopTitleBar()
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     BoxWithConstraints(Modifier.fillMaxSize()) {
                         val compact = maxWidth < 980.dp
-                        // The sidebar runs the full height of the window, its head the window's
-                        // caption; the player's bar and the page share the column beside it.
+                        // The system caption is outside this client layout.
                         Row(Modifier.fillMaxSize()) {
                             if (!compact) sidebar()
                             Column(Modifier.weight(1f).fillMaxHeight()) {
@@ -4640,17 +4911,9 @@ private fun DesktopFrame(
                                 Box(
                                     Modifier
                                         .weight(1f)
-                                        .fillMaxHeight()
-                                        .then(
-                                            if (glass && !materialBehindApp) {
-                                                Modifier.background(containerColor)
-                                            } else {
-                                                Modifier
-                                            },
-                                        ),
+                                        .fillMaxHeight(),
                                 ) {
                                     Box(Modifier.fillMaxSize().hazeSource(haze)) {
-                                        if (glass) backdrop(materialBehindApp)
                                         content(
                                             PaddingValues(
                                                 start = 0.dp,
@@ -4667,14 +4930,7 @@ private fun DesktopFrame(
                                 }
                                 Box(
                                     Modifier
-                                        .fillMaxHeight()
-                                        .then(
-                                            if (glass && !materialBehindApp) {
-                                                Modifier.background(containerColor)
-                                            } else {
-                                                Modifier
-                                            },
-                                        ),
+                                        .fillMaxHeight(),
                                 ) { trailing() }
                             }
                             }
@@ -4997,10 +5253,6 @@ private data class DesktopNavEntry(
 
 /** Deep enough for any way back anyone takes; the oldest fall off. */
 private const val NAV_HISTORY_LIMIT = 50
-
-/** The strip at the head of the sidebar that holds the window's buttons and can be dragged by. */
-private val SIDEBAR_CAPTION_HEIGHT = 34.dp
-
 
 @Composable
 private fun DesktopHistoryPage(
@@ -5689,29 +5941,11 @@ private fun DesktopSettingsScreen(
                         reduceDynamicBlur,
                         DesktopAppearanceSettings::setReduceDynamicBlur,
                     )
-                    // Window furniture belongs beside the visual settings it changes, rather than
-                    // interrupting playback controls. These rows remain Windows-only.
-                    if (DesktopPlatform.drawsOwnWindowFrame) {
-                        val titleBar by DesktopTitleBarSetting.enabled.collectAsState()
-                        SettingsToggle(
-                            DesktopStrings["d_title_bar", "Title bar"],
-                            DesktopStrings[
-                                "d_a_slim_bar_above_the_toolbar",
-                                "A slim bar above the toolbar with the window's own buttons. " +
-                                    "Off, the window has no title bar at all.",
-                            ],
-                            titleBar,
-                            DesktopTitleBarSetting::set,
-                        )
-                    }
-                    if (DesktopWindowBackdrop.available) {
+                    if (DesktopPlatform.isWindows) {
                         val backdropChoice by DesktopWindowBackdrop.selected.collectAsState()
-                        val backdropActive by DesktopWindowBackdrop.active.collectAsState()
-                        val materialTitle = DesktopStrings["d_window_material", "Window material"]
-                        val materialSubtitle = DesktopStrings[
-                            "d_window_material_subtitle",
-                            "Sets the material for the sidebar and top bar",
-                        ]
+                        val backdropActive by DesktopWindowBackdrop.captionActive.collectAsState()
+                        val materialTitle = "Native title bar material"
+                        val materialSubtitle = "Changes the Windows title bar only; app content stays opaque"
                         if (settingsRowVisible(materialTitle, materialSubtitle)) {
                             Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
                                 Text(materialTitle, fontWeight = FontWeight.Medium)
@@ -5731,28 +5965,18 @@ private fun DesktopSettingsScreen(
                                 Text(
                                     when {
                                         backdropChoice != DesktopBackdrop.OFF && backdropActive == DesktopBackdrop.OFF ->
-                                            "Needs Windows 11 version 22H2 or later"
+                                            "Unavailable on this Windows version or DWM declined it; the system title bar remains active"
                                         backdropChoice == DesktopBackdrop.MICA ->
-                                            "A soft tint taken from your wallpaper"
+                                            "Mica requested for the native title bar"
                                         backdropChoice == DesktopBackdrop.ACRYLIC ->
-                                            "A frosted blur of whatever is behind the window"
-                                        else -> "Solid, as the rest of the app"
+                                            "Acrylic requested for the native title bar"
+                                        else -> "System title bar without backdrop material"
                                     },
                                     color = DesktopSecondary,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
                         }
-                        val appBackground by DesktopWindowBackdrop.appBackground.collectAsState()
-                        SettingsToggle(
-                            DesktopStrings["d_app_background", "App background"],
-                            DesktopStrings[
-                                "d_app_background_subtitle",
-                                "Use the window material instead of a solid gray background",
-                            ],
-                            appBackground,
-                            DesktopWindowBackdrop::setAppBackground,
-                        )
                     }
                     SettingsToggle(
                         DesktopStrings["full_screen_cover_art", "Full-screen cover art"],
@@ -6719,39 +6943,20 @@ internal fun Modifier.desktopChromeGlass(
 )
 
 /**
- * The window's own chrome — title bar, top bar, sidebar. Over Windows 11's Mica or Acrylic
- * ([DesktopWindowBackdrop]) it is a light dark tint and nothing else, so DWM's material shows
- * through; the in-app blur would paint the page's backdrop over it. Otherwise the in-app glass.
- *
- * No dissolve over the material: it would fade the tint out into bare material right where the
- * opaque page begins, a lighter stripe along the seam rather than a softer one.
+ * The application toolbar and sidebar are opaque client content. DWM material, when accepted,
+ * is limited to the separate native caption and does not replace this in-app glass.
  */
 @Composable
 internal fun Modifier.desktopWindowGlass(
     edge: DesktopChromeEdge = DesktopChromeEdge.NONE,
     fade: Float = 0.2f,
-): Modifier {
-    val backdrop by DesktopWindowBackdrop.active.collectAsState()
-    return if (backdrop == DesktopBackdrop.OFF) {
-        desktopChromeGlass(edge, fade)
-    } else {
-        background(Color.Black.copy(alpha = WINDOW_GLASS_TINT))
-    }
-}
-
-/** Enough to keep white text readable over a bright wallpaper, little enough to let it through. */
-private const val WINDOW_GLASS_TINT = 0.28f
+): Modifier = desktopChromeGlass(edge, fade)
 
 /**
- * The separators in the window's chrome. Acrylic lets the wallpaper through bright, and the solid
- * dark divider cut across it as a black line; a faint white one reads as an edge in the glass
- * instead. Mica is dark enough for the usual one.
+ * Separator within opaque application chrome, independent of the native caption material.
  */
 @Composable
-internal fun desktopChromeDivider(): Color {
-    val backdrop by DesktopWindowBackdrop.active.collectAsState()
-    return if (backdrop == DesktopBackdrop.ACRYLIC) Color.White.copy(alpha = 0.14f) else DesktopDivider
-}
+internal fun desktopChromeDivider(): Color = DesktopDivider
 
 @Composable
 private fun Modifier.desktopFrosted(

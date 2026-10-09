@@ -2,6 +2,8 @@ package com.music.bitchord.ui.player
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -52,16 +54,24 @@ object PlayerBack {
     class Entry(val onBack: () -> Unit)
 
     private val entries = ArrayList<Entry>()
+    private val depthState = mutableIntStateOf(0)
+
+    /** Number of active player-owned back layers, observable by the desktop focus host. */
+    val depth: State<Int> get() = depthState
 
     internal fun push(entry: Entry) {
         synchronized(entries) {
             entries.remove(entry)
             entries.add(entry)
+            depthState.intValue = entries.size
         }
     }
 
     internal fun remove(entry: Entry) {
-        synchronized(entries) { entries.remove(entry) }
+        synchronized(entries) {
+            entries.remove(entry)
+            depthState.intValue = entries.size
+        }
     }
 
     /** Back, from the window. False when no layer of the player wanted it. */

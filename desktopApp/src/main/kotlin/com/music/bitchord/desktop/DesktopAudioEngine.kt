@@ -15,6 +15,7 @@ import com.music.bitchord.playback.smart.TransitionTrackInfo
 import com.music.bitchord.playback.smart.echoTailSeconds
 import com.music.bitchord.playback.smart.planTransition
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.delay
@@ -22,15 +23,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.ceil
 
 /** Playback, decoded here rather than behind JavaFX. */
@@ -66,6 +70,8 @@ class DesktopPlaybackEngine(
     )
     private val commands = ConcurrentLinkedQueue<Command>()
     private val running = AtomicBoolean(true)
+    /** Invalidates a canceled/obsolete load even if native open work ignores coroutine cancellation. */
+    private val loadGeneration = AtomicLong(0)
 
     // The output sheet changes the persisted mixer directly. Observe that single source of truth
     // here so both the shared main-player sheet and the desktop settings dialog move the live
@@ -108,6 +114,7 @@ class DesktopPlaybackEngine(
     private var resolveJob: Job? = null
     private var upgradeJob: Job? = null
     private var nextResolveJob: Job? = null
+    private var recoveryJob: Job? = null
 
     @Volatile private var playbackSpeed = 1f
     @Volatile private var volume = 1f
@@ -141,8 +148,12 @@ class DesktopPlaybackEngine(
          * decoder, and a position published against an unmoved start is short by the whole cue.
          */
         var startUs: Long,
+        /** Consecutive automatic reopen attempts since this deck last produced audible PCM. */
+        var recoveryAttempt: Int = 0,
     ) {
         var gain = 1f
+        /** Prevents one empty decoder from spawning a recovery on every 100 ms poll. */
+        var recoveryRequested = false
         var finished = false
         var tempo: DesktopTempoBuffer? = null
         var tempoRate = 1.0
@@ -171,6 +182,12 @@ class DesktopPlaybackEngine(
         class Start(val track: Track, val playWhenReady: Boolean) : Command
         /** Replaces only the playing deck; a quality upgrade must not discard the prepared next deck. */
         class ReplaceCurrent(val track: Track, val playWhenReady: Boolean) : Command
+        class RecoverCurrent(
+            val failed: Track,
+            val replacement: Track,
+            val pendingSubstitute: Deferred<DesktopStream?>?,
+        ) : Command
+        class RecoveryFailed(val failed: Track, val reason: String) : Command
         class Upcoming(val track: Track) : Command
         /** A better copy of the incoming track, found after it was opened; see [upgradeIncoming]. */
         class ReplaceUpcoming(val track: Track) : Command
@@ -214,9 +231,12 @@ class DesktopPlaybackEngine(
         /** Why the first attempt failed, when this call is the retry. */
         priorFailure: Throwable? = null,
     ) {
+        val requestGeneration = loadGeneration.incrementAndGet()
         resolveJob?.cancel()
         nextResolveJob?.cancel()
         upgradeJob?.cancel()
+        recoveryJob?.cancel()
+        recoveryJob = null
         commands += Command.Flush
         searchingBetterFor = null
         incomingSearchingFor = null
@@ -237,51 +257,104 @@ class DesktopPlaybackEngine(
                     val opened = openTrack(song, live.stream, startAtMs)
                     opened.fold(
                         onSuccess = { track ->
-                            searchingBetterFor = song.videoId.takeIf { live.pendingSubstitute != null }
-                            commands += Command.Start(track, playWhenReady)
-                            live.pendingSubstitute?.let { watchForUpgrade(song, it) }
+                            if (requestGeneration != loadGeneration.get()) {
+                                track.decoder.close()
+                                live.pendingSubstitute?.cancel()
+                            } else {
+                                searchingBetterFor = song.videoId.takeIf { live.pendingSubstitute != null }
+                                commands += Command.Start(track, playWhenReady)
+                                live.pendingSubstitute?.let { watchForUpgrade(song, it) }
+                            }
                         },
-                        onFailure = { failure -> retryAfterFailure(song, playWhenReady, live.stream, failure) },
+                        onFailure = { failure ->
+                            if (requestGeneration == loadGeneration.get()) {
+                                retryAfterFailure(song, playWhenReady, live.stream, failure)
+                            } else {
+                                live.pendingSubstitute?.cancel()
+                            }
+                        },
                     )
                 },
                 onFailure = { failure ->
-                    val reported = priorFailure ?: failure
-                    _state.value = DesktopPlaybackState(
-                        song = song,
-                        volume = volume,
-                        error = reported.message ?: "Playback failed",
-                    )
+                    if (requestGeneration == loadGeneration.get()) {
+                        val reported = priorFailure ?: failure
+                        _state.value = DesktopPlaybackState(
+                            song = song,
+                            volume = volume,
+                            error = reported.message ?: "Playback failed",
+                        )
+                    }
                 },
             )
         }
     }
 
-    /** Opens a decoder on [stream], off the audio thread. */
-    private suspend fun openTrack(song: Song, stream: DesktopStream, startAtMs: Long): Result<Track> =
-        withContext(Dispatchers.IO) {
-            val decoder = DesktopAudioDecoder()
-            decoder.open(
-                url = stream.url,
-                headers = stream.headers,
-                // Float throughout: the processors work in it and the sink converts once, at the
-                // end.
-                requested = DesktopPcmFormat(44_100, 2, bytesPerSample = 4, isFloat = true),
-                windowed = stream.windowedReads,
-                transport = stream.transport,
-            ).map {
-                if (startAtMs > 0) decoder.seek(startAtMs * 1_000)
-                // From here the decoder belongs to its own read-ahead thread: the audio thread only
-                // ever takes what has already been decoded, so a slow network read is not a gap.
-                val ahead = DesktopDecodeAhead(
-                    source = decoder,
-                    outputFormat = decoder.outputFormat,
-                    durationUs = decoder.durationUs,
-                    measuredFormat = decoder.measuredFormat,
-                    name = "BitChord-Decode ${song.title.take(24)}",
+    /** Opens a decoder on [stream], off the audio thread, with cancellation-safe ownership. */
+    private suspend fun openTrack(
+        song: Song,
+        stream: DesktopStream,
+        startAtMs: Long,
+        recoveryAttempt: Int = 0,
+    ): Result<Track> {
+        var rawDecoder: DesktopAudioDecoder? = null
+        var wrappedDecoder: DesktopDecodeAhead? = null
+        return try {
+            withContext(Dispatchers.IO) {
+                currentCoroutineContext().ensureActive()
+                val decoder = DesktopAudioDecoder()
+                rawDecoder = decoder
+                val opened = decoder.open(
+                    url = stream.url,
+                    headers = stream.headers,
+                    // Float throughout: the processors work in it and the sink converts once, at the
+                    // end.
+                    requested = DesktopPcmFormat(44_100, 2, bytesPerSample = 4, isFloat = true),
+                    windowed = stream.windowedReads,
+                    transport = stream.transport,
                 )
-                Track(song, ahead, stream, startAtMs * 1_000)
-            }.onFailure { decoder.close() }
+                val openFailure = opened.exceptionOrNull()
+                if (openFailure != null) {
+                    // DesktopAudioDecoder.open() owns its failure cleanup.
+                    rawDecoder = null
+                    Result.failure(openFailure)
+                } else {
+                    currentCoroutineContext().ensureActive()
+                    if (startAtMs > 0 && !decoder.seek(startAtMs * 1_000)) {
+                        error("could not seek reopened stream to ${startAtMs}ms")
+                    }
+                    currentCoroutineContext().ensureActive()
+
+                    // Ownership crosses here: from this point only DesktopDecodeAhead may touch or
+                    // close the native decoder.
+                    val ahead = DesktopDecodeAhead(
+                        source = decoder,
+                        outputFormat = decoder.outputFormat,
+                        durationUs = decoder.durationUs,
+                        measuredFormat = decoder.measuredFormat,
+                        name = "BitChord-Decode ${song.title.take(24)}",
+                    )
+                    wrappedDecoder = ahead
+                    rawDecoder = null
+                    currentCoroutineContext().ensureActive()
+                    Result.success(
+                        Track(
+                            song = song,
+                            decoder = ahead,
+                            stream = stream,
+                            startUs = startAtMs * 1_000,
+                            recoveryAttempt = recoveryAttempt,
+                        ),
+                    )
+                }
+            }
+        } catch (cancelled: CancellationException) {
+            wrappedDecoder?.close() ?: rawDecoder?.close()
+            throw cancelled
+        } catch (failure: Throwable) {
+            wrappedDecoder?.close() ?: rawDecoder?.close()
+            Result.failure(failure)
         }
+    }
 
     /**
      * A source that cannot actually be decoded is struck off and the track asked for again, once.
@@ -614,6 +687,9 @@ class DesktopPlaybackEngine(
         resolveJob?.cancel()
         nextResolveJob?.cancel()
         upgradeJob?.cancel()
+        recoveryJob?.cancel()
+        recoveryJob = null
+        loadGeneration.incrementAndGet()
         thread.interrupt()
         scope.cancel()
     }
@@ -737,6 +813,21 @@ class DesktopPlaybackEngine(
         val block = readCurrent(track)
         val count = currentReadCount
         if (block == null) {
+            val decodeState = track.decoder.state
+            // A short empty queue is ordinary buffering. The old fix correctly yielded here, but
+            // had no way to tell a live worker from one that had died, so a dead decoder could look
+            // like "buffering" forever. Keep the timed poll, now against an explicit lifecycle.
+            if (decodeState == DesktopDecodeState.RUNNING) {
+                val stalledFor = track.decoder.underrunMillis
+                if (stalledFor >= DECODE_STALL_RECOVERY_MS) {
+                    requestDecoderRecovery(
+                        track,
+                        "decoder produced no audio for ${stalledFor}ms",
+                    )
+                }
+                Thread.sleep(DECODE_POLL_SLEEP_MS)
+                return
+            }
             if (fadeRemaining > 0 && upcoming != null) {
                 val channels = sink.format.channels.coerceAtLeast(1)
                 val wanted = MIX_END_PADDING_FRAMES * channels
@@ -746,6 +837,15 @@ class DesktopPlaybackEngine(
                 val (stretched, stretchedCount) = stretch(blended, blendedCount)
                 play(track, stretched, stretchedCount)
                 publishPosition(track)
+                return
+            }
+            if (decodeState == DesktopDecodeState.FAILED || decodeState == DesktopDecodeState.CLOSED) {
+                val failure = track.decoder.failureCause
+                val reason = failure?.message?.takeIf { it.isNotBlank() }
+                    ?: failure?.javaClass?.simpleName
+                    ?: "decoder worker stopped"
+                requestDecoderRecovery(track, reason)
+                Thread.sleep(DECODE_POLL_SLEEP_MS)
                 return
             }
             finishTrack(track)
@@ -782,7 +882,20 @@ class DesktopPlaybackEngine(
         }
         sink.write(samples, count)
         framesWritten += count / sink.format.channels.coerceAtLeast(1)
-        if (count > 0 && _state.value.awaitingAudio) _state.update { it.copy(awaitingAudio = false) }
+        if (count > 0) {
+            // If a watchdog reopen was in flight but the original worker recovered on its own,
+            // keep the healthy stream and make the eventual replacement stale.
+            if (track.recoveryRequested && track.decoder.state == DesktopDecodeState.RUNNING) {
+                DesktopTrackLog.log("decoder recovered before reopen completed; keeping '${track.song.title}'")
+                track.recoveryRequested = false
+                recoveryJob?.cancel()
+                recoveryJob = null
+            }
+            // A replacement that has actually produced PCM is healthy; future stalls get a fresh
+            // bounded retry budget instead of inheriting a transient failure forever.
+            track.recoveryAttempt = 0
+            if (_state.value.awaitingAudio) _state.update { it.copy(awaitingAudio = false) }
+        }
     }
 
     /** The beatmatch stretch [track] is actually rendered at — [DesktopTempoBuffer]'s clamp included. */
@@ -945,7 +1058,7 @@ class DesktopPlaybackEngine(
      * Android never meets it: each of its players has its own output.
      */
     private fun readSource(track: Track): FloatArray? {
-        val block = track.decoder.readSamples() ?: return null
+        val block = track.decoder.readSamples(DECODE_POLL_MS) ?: return null
         val count = track.decoder.sampleCount
         val from = track.decoder.outputFormat.sampleRate
         val to = sink.format.sampleRate
@@ -962,6 +1075,103 @@ class DesktopPlaybackEngine(
         val converted = converter.process(block, count)
         sourceReadCount = converter.outputCount
         return converted
+    }
+
+    /**
+     * Re-resolves and reopens a decoder that died, or one that has produced no PCM for too long.
+     *
+     * The reopen happens off the audio thread and carries the heard playhead forward. [track]
+     * stays installed until a replacement is completely open, so Pause/Seek/track changes remain
+     * responsive instead of being coupled to network/native work.
+     */
+    private fun requestDecoderRecovery(track: Track, reason: String) {
+        if (current !== track || track.recoveryRequested) return
+        if (track.recoveryAttempt >= MAX_DECODE_RECOVERY_ATTEMPTS) {
+            failDecoderRecovery(track, reason)
+            return
+        }
+
+        val attempt = track.recoveryAttempt + 1
+        track.recoveryAttempt = attempt
+        track.recoveryRequested = true
+        val resumeUs = playhead.at(sink.framesPlayed()).coerceAtLeast(track.startUs)
+        val resumeMs = (resumeUs / 1_000).coerceAtLeast(0L)
+        DesktopTrackLog.log(
+            "decoder recovery $attempt/$MAX_DECODE_RECOVERY_ATTEMPTS for '${track.song.title}' " +
+                "at ${resumeMs}ms: $reason",
+        )
+        _state.update { state ->
+            if (state.song?.videoId == track.song.videoId) state.copy(awaitingAudio = true, error = null)
+            else state
+        }
+
+        recoveryJob?.cancel()
+        recoveryJob = scope.launch {
+            try {
+                DesktopMusicSources.resolveLive(track.song, audioQuality).fold(
+                    onSuccess = { live ->
+                        openTrack(
+                            song = track.song,
+                            stream = live.stream,
+                            startAtMs = resumeMs,
+                            recoveryAttempt = attempt,
+                        ).fold(
+                            onSuccess = { replacement ->
+                                commands += Command.RecoverCurrent(track, replacement, live.pendingSubstitute)
+                            },
+                            onFailure = { failure ->
+                                live.pendingSubstitute?.cancel()
+                                commands += Command.RecoveryFailed(
+                                    track,
+                                    failure.message?.takeIf { it.isNotBlank() }
+                                        ?: failure.javaClass.simpleName,
+                                )
+                            },
+                        )
+                    },
+                    onFailure = { failure ->
+                        commands += Command.RecoveryFailed(
+                            track,
+                            failure.message?.takeIf { it.isNotBlank() } ?: failure.javaClass.simpleName,
+                        )
+                    },
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                commands += Command.RecoveryFailed(
+                    track,
+                    failure.message?.takeIf { it.isNotBlank() } ?: failure.javaClass.simpleName,
+                )
+            }
+        }
+    }
+
+    /** Retries a failed reopen once, then fails visibly instead of spinning forever. */
+    private fun failDecoderRecovery(track: Track, reason: String) {
+        if (current !== track) return
+        track.recoveryRequested = false
+        recoveryJob = null
+        if (track.recoveryAttempt < MAX_DECODE_RECOVERY_ATTEMPTS) {
+            requestDecoderRecovery(track, reason)
+            return
+        }
+        paused = true
+        sink.pause()
+        DesktopTrackLog.log(
+            "decoder recovery exhausted for '${track.song.title}' after ${track.recoveryAttempt} attempts: $reason",
+        )
+        _state.update { state ->
+            if (state.song?.videoId == track.song.videoId) {
+                state.copy(
+                    isPlaying = false,
+                    awaitingAudio = false,
+                    error = "Playback stalled and could not recover: $reason",
+                )
+            } else {
+                state
+            }
+        }
     }
 
     /** Eases a promoted beatmatch stretch back by at most 0.75% on each beat. */
@@ -1154,6 +1364,32 @@ class DesktopPlaybackEngine(
             when (val command = commands.poll() ?: return) {
                 is Command.Start -> startTrack(command.track, command.playWhenReady)
                 is Command.ReplaceCurrent -> replaceCurrent(command.track, command.playWhenReady)
+                is Command.RecoverCurrent -> {
+                    recoveryJob = null
+                    val failed = command.failed
+                    if (current !== failed || !failed.recoveryRequested) {
+                        command.replacement.decoder.close()
+                        command.pendingSubstitute?.cancel()
+                    } else {
+                        failed.recoveryRequested = false
+                        DesktopTrackLog.log(
+                            "decoder recovery installed for '${command.replacement.song.title}' " +
+                                "at ${command.replacement.startUs / 1_000}ms",
+                        )
+                        replaceCurrent(command.replacement, playWhenReady = !paused)
+                        if (current === command.replacement) {
+                            command.pendingSubstitute?.let { watchForUpgrade(command.replacement.song, it) }
+                        } else {
+                            command.pendingSubstitute?.cancel()
+                        }
+                    }
+                }
+                is Command.RecoveryFailed -> {
+                    recoveryJob = null
+                    if (current === command.failed) {
+                        failDecoderRecovery(command.failed, command.reason)
+                    }
+                }
                 is Command.Upcoming -> {
                     upcoming?.decoder?.close()
                     upcoming = command.track
@@ -1670,6 +1906,17 @@ class DesktopPlaybackEngine(
     }
 
     companion object {
+        /** Keep the audio pump responsive to commands while decoder/network I/O is stalled. */
+        private const val DECODE_POLL_MS = 100L
+        private const val DECODE_POLL_SLEEP_MS = 10L
+
+        /**
+         * Longer than both FFmpeg's 15s rw_timeout and the custom range reader's 20s request
+         * timeout: only a worker that outlived its own transport timeout is force-reopened.
+         */
+        private const val DECODE_STALL_RECOVERY_MS = 22_000L
+        private const val MAX_DECODE_RECOVERY_ATTEMPTS = 2
+
         /** How many times a lossy substitute is asked to be beaten before the question is closed. */
         private const val LOSSLESS_FOLLOW_UPS = 2
 
