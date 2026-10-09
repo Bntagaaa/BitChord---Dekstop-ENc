@@ -2,6 +2,7 @@ package com.music.bitchord.desktop
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 
 /** Whether the window is on screen, and what closing it means. */
 internal object DesktopWindowVisibility {
@@ -36,7 +37,7 @@ internal object DesktopWindowVisibility {
      */
     fun raise() {
         _visible.value = true
-        _raiseRequest.value = _raiseRequest.value + 1L
+        _raiseRequest.update { it + 1L }
     }
 
     /**
