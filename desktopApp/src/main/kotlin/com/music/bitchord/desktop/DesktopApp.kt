@@ -2970,7 +2970,6 @@ fun BitChordDesktopApp() {
                 if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) return@LaunchedEffect
                 androidx.compose.runtime.withFrameNanos { }
             }
-            }
         }
     }
 
