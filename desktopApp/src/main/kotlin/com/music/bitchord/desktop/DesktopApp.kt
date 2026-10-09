@@ -2923,14 +2923,14 @@ fun BitChordDesktopApp() {
         if (previous > 0 && playerBackDepth == 0 && overlays.nowPlaying) {
             androidx.compose.runtime.withFrameNanos { }
             if (PlayerBack.depth.value != 0 || !overlays.nowPlaying || shortcutBlockedByModal ||
-                overlays.shortcuts || shortcutEditorFocused
+                overlays.shortcuts || overlays.quickSearch || shortcutEditorFocused
             ) {
                 return@LaunchedEffect
             }
             shortcutDispatcher.reset()
             repeat(3) {
                 if (PlayerBack.depth.value != 0 || !overlays.nowPlaying || shortcutBlockedByModal ||
-                    overlays.shortcuts || shortcutEditorFocused
+                    overlays.shortcuts || overlays.quickSearch || shortcutEditorFocused
                 ) {
                     return@LaunchedEffect
                 }
@@ -2952,7 +2952,7 @@ fun BitChordDesktopApp() {
             shortcutDispatcher.reset()
             repeat(3) {
                 if (overlays.nowPlaying || shortcutBlockedByModal || overlays.shortcuts ||
-                    shortcutEditorFocused
+                    overlays.quickSearch || shortcutEditorFocused
                 ) {
                     return@LaunchedEffect
                 }
@@ -2975,9 +2975,12 @@ fun BitChordDesktopApp() {
             androidx.compose.runtime.withFrameNanos { }
             yield()
             shortcutDispatcher.reset()
-            if (!shortcutEditorFocused && !shortcutBlockedByModal) {
+            quickSearchKeys.reset()
+            if (overlays.quickSearch) {
+                runCatching { quickSearchFocusRequester.requestFocus() }
+            } else if (!shortcutEditorFocused && !shortcutBlockedByModal) {
                 repeat(3) {
-                    if (shortcutEditorFocused || shortcutBlockedByModal) {
+                    if (shortcutEditorFocused || overlays.quickSearch || shortcutBlockedByModal) {
                         return@LaunchedEffect
                     }
                     if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) {
@@ -3000,6 +3003,7 @@ fun BitChordDesktopApp() {
         if (wasBlocking && !shortcutBlockedByModal) {
             yield()
             shortcutDispatcher.reset()
+            quickSearchKeys.reset()
             repeat(3) {
                 if (shortcutEditorFocused || overlays.shortcuts || overlays.quickSearch || shortcutBlockedByModal) return@LaunchedEffect
                 if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) return@LaunchedEffect
@@ -3012,8 +3016,20 @@ fun BitChordDesktopApp() {
     // defer restoration rather than stealing its focus. The old Search query is never modified.
     LaunchedEffect(quickSearchRestorePending, overlays.quickSearch, shortcutBlockedByModal, overlays.shortcuts) {
         if (quickSearchRestorePending && !overlays.quickSearch && !shortcutBlockedByModal && !overlays.shortcuts) {
-            androidx.compose.runtime.withFrameNanos { }
-            releaseShortcutTextFocus()
+            focusManager.clearFocus()
+            shortcutEditorFocused = false
+            shortcutDispatcher.reset()
+            quickSearchKeys.reset()
+            repeat(3) {
+                androidx.compose.runtime.withFrameNanos { }
+                if (shortcutEditorFocused || overlays.quickSearch || shortcutBlockedByModal || overlays.shortcuts) {
+                    return@LaunchedEffect
+                }
+                if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) {
+                    quickSearchRestorePending = false
+                    return@LaunchedEffect
+                }
+            }
             quickSearchRestorePending = false
         }
     }
