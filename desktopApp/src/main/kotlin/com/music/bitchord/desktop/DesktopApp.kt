@@ -546,6 +546,7 @@ fun BitChordDesktopApp() {
     var shortcutEditorFocused by remember { mutableStateOf(false) }
     val shortcutDispatcher = remember { DesktopShortcutDispatcher() }
     val shortcutWindowInfo = LocalWindowInfo.current
+    var shortcutWindowWasFocused by remember { mutableStateOf(shortcutWindowInfo.isWindowFocused) }
     LaunchedEffect(shortcutWindowInfo.isWindowFocused) {
         if (!shortcutWindowInfo.isWindowFocused) shortcutDispatcher.reset()
     }
@@ -2872,9 +2873,35 @@ fun BitChordDesktopApp() {
         overlays.listenTogether || overlays.audioOutput || overlays.pipeline || playerMenuOpen ||
         availableUpdate != null
 
+    // Focusable Compose popups/dropdowns may temporarily move native window focus away from the
+    // main scene without being represented by DesktopOverlays (context menus and DropdownMenu are
+    // examples). When the main window comes back, repair keyboard ownership after the popup has
+    // actually disappeared. Waiting a frame also lets a Search editor restore itself first.
+    LaunchedEffect(shortcutWindowInfo.isWindowFocused) {
+        val wasFocused = shortcutWindowWasFocused
+        shortcutWindowWasFocused = shortcutWindowInfo.isWindowFocused
+        if (!wasFocused && shortcutWindowInfo.isWindowFocused) {
+            androidx.compose.runtime.withFrameNanos { }
+            yield()
+            shortcutDispatcher.reset()
+            if (!shortcutEditorFocused && !shortcutBlockedByModal) {
+                repeat(3) {
+                    if (shortcutEditorFocused || shortcutBlockedByModal) {
+                        return@LaunchedEffect
+                    }
+                    if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) {
+                        return@LaunchedEffect
+                    }
+                    androidx.compose.runtime.withFrameNanos { }
+                }
+            }
+        }
+    }
+
     // Rows/buttons inside these overlays can own Compose focus. When the overlay is removed, Compose
     // does not always hand focus back to the page automatically, leaving the root shortcut handler
-    // with no focused descendant. Restore it once the final blocking overlay has actually disposed.
+    // with no focused descendant. Retry for a few frames: requestFocus can legally return false
+    // while the disappearing popup still owns the focus transaction.
     var shortcutModalWasBlocking by remember { mutableStateOf(shortcutBlockedByModal) }
     LaunchedEffect(shortcutBlockedByModal) {
         val wasBlocking = shortcutModalWasBlocking
@@ -2882,11 +2909,15 @@ fun BitChordDesktopApp() {
         if (wasBlocking && !shortcutBlockedByModal) {
             yield()
             shortcutDispatcher.reset()
-            if (!shortcutEditorFocused && !overlays.shortcuts) {
-                runCatching { shortcutRootFocusRequester.requestFocus() }
+            repeat(3) {
+                if (shortcutEditorFocused || overlays.shortcuts || shortcutBlockedByModal) return@LaunchedEffect
+                if (runCatching { shortcutRootFocusRequester.requestFocus() }.getOrDefault(false)) return@LaunchedEffect
+                androidx.compose.runtime.withFrameNanos { }
+            }
             }
         }
     }
+
 
     MaterialTheme(
         colorScheme = desktopColorScheme(),
