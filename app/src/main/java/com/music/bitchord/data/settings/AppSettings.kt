@@ -356,6 +356,13 @@ object AppSettings {
     /** Freezes the main player's mesh gradient instead of letting it drift/crossfade. */
     val reduceAnimation = MutableStateFlow(false)
 
+    /**
+     * Whether the welcome pages (party name, then YouTube sign-in) have been
+     * through. Absent rather than true for anyone updating from a build that
+     * had no onboarding, so they get it once too — they have no party name yet.
+     */
+    val onboardingComplete = MutableStateFlow(false)
+
     /** Requests a sustained high-refresh UI. Off keeps Android's automatic policy. */
     val highPerformanceMode = MutableStateFlow(false)
 
@@ -821,6 +828,7 @@ object AppSettings {
         repeatMode.value = prefs.getInt(KEY_REPEAT_MODE, Player.REPEAT_MODE_OFF)
         showNerdStats.value = prefs.getBoolean(KEY_NERD_STATS, false)
         reduceAnimation.value = prefs.getBoolean(KEY_REDUCE_ANIMATION, false)
+        onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
         highPerformanceMode.value = prefs.getBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
         performanceRefreshRate.value = normalizePerformanceRefreshRate(
             prefs.getInt(KEY_PERFORMANCE_REFRESH_RATE, DEFAULT_PERFORMANCE_REFRESH_RATE),
@@ -1183,6 +1191,11 @@ object AppSettings {
         val editor = prefs.edit().putBoolean(KEY_REDUCE_ANIMATION, value)
         if (value) editor.putBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
         editor.apply()
+    }
+
+    fun setOnboardingComplete() {
+        onboardingComplete.value = true
+        prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETE, true).apply()
     }
 
     fun setStopOnTaskRemoved(value: Boolean) {
@@ -1949,6 +1962,7 @@ object AppSettings {
     private const val KEY_NERD_STATS = "show_nerd_stats"
     private const val KEY_CACHE_LIMIT = "audio_cache_limit_bytes"
     private const val KEY_REDUCE_ANIMATION = "reduce_animation"
+    private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
     private const val KEY_HIGH_PERFORMANCE_MODE = "high_performance_mode"
     private const val KEY_PERFORMANCE_REFRESH_RATE = "performance_refresh_rate"
     private const val KEY_STOP_ON_TASK_REMOVED = "stop_on_task_removed"

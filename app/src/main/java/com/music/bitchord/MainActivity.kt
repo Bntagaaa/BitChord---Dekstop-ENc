@@ -18,6 +18,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
@@ -295,6 +299,7 @@ import com.music.bitchord.ui.screens.LibraryScreen
 import com.music.bitchord.ui.screens.MoodGenrePlaylistsScreen
 import com.music.bitchord.ui.screens.SearchScreen
 import com.music.bitchord.data.settings.SongSort
+import com.music.bitchord.ui.onboarding.OnboardingScreen
 import com.music.bitchord.ui.replay.ReplayScreen
 import com.music.bitchord.ui.replay.cards
 import com.music.bitchord.ui.replay.ReplayShareSheet
@@ -678,8 +683,16 @@ private fun BitChordApp(
 
     // The modal player owns light status glyphs and its own contrast scrim.
     // Every other surface follows the theme; Replay's page and stories remain
-    // dark artwork either way.
-    SystemBarIcons(dark = !darkTheme && !showNowPlaying && !showReplay && replayStory == null)
+    // dark artwork either way. So is the welcome, drawn over all of it.
+    val onboardingComplete by AppSettings.onboardingComplete.collectAsStateWithLifecycle()
+    // Held through the slide away as well, so the glyphs don't turn dark over
+    // the mesh while it is still on its way off the screen.
+    val onboardingShown = remember { MutableTransitionState(!onboardingComplete) }
+    onboardingShown.targetState = !onboardingComplete
+    val onboardingVisible = onboardingShown.currentState || onboardingShown.targetState
+    SystemBarIcons(
+        dark = !darkTheme && !showNowPlaying && !showReplay && replayStory == null && !onboardingVisible,
+    )
 
     val homeState by viewModel.home.collectAsStateWithLifecycle()
     val homeLoadingMore by viewModel.homeLoadingMore.collectAsStateWithLifecycle()
@@ -4688,6 +4701,27 @@ private fun BitChordApp(
             }
         }
 
+        // ---- Welcome (once; under the sign-in WebView it can open) ----
+        // There from the first frame, so no way in; on the way out it drops
+        // like a dismissed sheet onto the app it was standing in front of.
+        AnimatedVisibility(
+            visibleState = onboardingShown,
+            enter = EnterTransition.None,
+            exit = slideOutVertically(
+                tween<IntOffset>(durationMillis = 560, easing = OnboardingDismissEasing),
+            ) { it },
+        ) {
+            OnboardingScreen(
+                signedIn = signedIn,
+                initialName = remember {
+                    ListenTogether.nickname().ifBlank { account?.name.orEmpty() }
+                },
+                onNameChosen = ListenTogether::setNickname,
+                onSignIn = { webSession = WebSessionMode.SIGN_IN },
+                onFinish = AppSettings::setOnboardingComplete,
+            )
+        }
+
         // ---- Google sign-in (full screen WebView) ----
         webSession?.let { mode ->
             BackHandler { webSession = null }
@@ -4777,8 +4811,8 @@ private fun BitChordApp(
             }
         }
 
-        // ---- Update available (once per launch) ----
-        if (showUpdateDialog) {
+        // ---- Update available (once per launch; held until the welcome is done) ----
+        if (showUpdateDialog && onboardingComplete) {
             updateNotice?.let { update ->
                 UpdateAvailableDialog(
                     version = update.version,
@@ -5196,6 +5230,9 @@ private fun BitChordApp(
 
     }
 }
+
+/** UIKit's sheet curve: leaves at once, settles long — a sheet let go of, not pushed. */
+private val OnboardingDismissEasing = CubicBezierEasing(0.32f, 0.72f, 0f, 1f)
 
 private fun tween(durationMillis: Int) =
     androidx.compose.animation.core.tween<Float>(durationMillis)
