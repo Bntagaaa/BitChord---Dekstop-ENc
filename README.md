@@ -1,158 +1,131 @@
 <div align="center">
 
-<br/>
-<br/>
+<img src="Logo.png" alt="Original BitChord logo" width="140" />
 
-<img src="Logo.png" alt="BitChord app icon" width="200" />
+# BitChord Desktop — Revived
 
-# BitChord
+**Keeping the original BitChord desktop experience alive.**
 
-### Aesthetic YouTube Music Client
+An independent, community-maintained continuation of the native **BitChord Desktop** app for **Windows and Linux**, built with Kotlin and Compose Multiplatform.
 
-<br/>
+![Status](https://img.shields.io/badge/status-revival%20in%20progress-DAA520?style=flat-square)
+![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-6677AA?style=flat-square)
+[![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-555555?style=flat-square)](LICENSE)
 
-[![Latest release](https://img.shields.io/github/v/release/kushagrasinghx/BitChord?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/releases)
-[![License](https://img.shields.io/github/license/kushagrasinghx/BitChord?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/blob/main/LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/kushagrasinghx/BitChord/total?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/releases)
-[![Listening now](https://api.bitchord.kushagrasingh.in/api/stats/live/badge.svg)](https://api.bitchord.kushagrasingh.in/api/stats/live)
-
-<br/>
-
-[**Download**](#download) · [**Features**](#features) · [**Contributing**](#contributing) · [**Support**](#support) · [**Disclaimer**](#disclaimer)
-
-<br/>
-
-<a href="https://fmhy.net/mobile#youtube-music" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/available/fmhy/cozy.svg" alt="Featured on FMHY" height="55"/></a>
-<a href="https://trendshift.io/repositories/177639?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-177639" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/177639/daily?language=Kotlin" alt="kushagrasinghx%2FBitChord | Trendshift" width="250" height="55"/></a>
-<a href="https://trendshift.io/repositories/177639?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-177639" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/177639/weekly?language=Kotlin" alt="kushagrasinghx%2FBitChord | Trendshift" width="250" height="55"/></a>
+[**Downloads**](#downloads) · [**Features**](#features) · [**Build**](#building-from-source) · [**Roadmap**](#roadmap) · [**Credits**](#credits--upstream)
 
 </div>
 
 > [!IMPORTANT]
-> BitChord is not affiliated with, endorsed by, or connected to YouTube or Google in any way. Use it at your own discretion.
+> **Unofficial community revival.** This repository is a fork of [BitChord by @kushagrasinghx](https://github.com/kushagrasinghx/BitChord). It is **not an official continuation** and is not endorsed, maintained, or supported by the original creator or upstream contributors. All credit for the original project belongs to its creators and contributors.
+
+## Why this project exists
+
+The original BitChord project is moving its desktop experience to a **web player**. Its maintainer proposed retiring the native desktop application in [upstream PR #874](https://github.com/kushagrasinghx/BitChord/pull/874).
+
+We love what the original team built and believe the native desktop client is worth preserving. **BitChord Desktop — Revived** aims to maintain and improve that existing application, not replace or compete with the original BitChord project.
+
+Our focus is straightforward:
+
+- **Preserve** the Kotlin/Compose desktop client and its native desktop integrations.
+- **Stabilize** playback, window behavior, and everyday desktop usability.
+- **Improve** keyboard navigation, search, and Windows/Linux compatibility.
+- **Keep it open** to contributions, with transparent attribution to upstream.
+
+The original [BitChord repository](https://github.com/kushagrasinghx/BitChord) remains the home of the main project, including Android and its web-player direction.
+
+## Project status
+
+> [!WARNING]
+> **Revival in progress.** This is an early community effort, not a claim that all desktop bugs are fixed or that a new stable release is ready. Features and fixes developed on experimental branches may not yet be present in the default branch or downloadable builds.
+
+| Area | Current direction |
+| --- | --- |
+| Windows | Preserve and stabilize the native desktop app |
+| Linux | Maintain desktop support, including window-manager compatibility |
+| macOS | Not currently a configured/supported desktop target |
+| Releases | Community testing builds first; stable releases after verification |
+| Upstream updates | Review and selectively port compatible fixes rather than blindly merging desktop removal |
+
+## Features
+
+The existing desktop codebase includes:
+
+- **YouTube Music** search, browsing, and playback.
+- **Local library** support and downloads.
+- **Lyrics** with synced display and multiple provider integrations.
+- **Audio features** including crossfade, equalizer, and Automix (beta).
+- **Integrations** such as Spotify library access, Discord Rich Presence, and scrobbling.
+- **Native desktop controls** and media integrations for supported operating systems.
+
+Availability and reliability can vary by build, operating system, and upstream service changes. We are actively prioritizing stability over adding features that are not yet dependable.
+
+## Downloads
+
+**Community test builds:** [View this fork's Releases](https://github.com/Bntagaaa/BitChord---Dekstop-ENc/releases).
+
+The currently published `1.8.0-test` packages are **older experimental Windows builds**, *not* a verified stable release of the revived project. Please treat them as test artifacts.
+
+Looking for the original BitChord project instead? Visit the [official upstream repository](https://github.com/kushagrasinghx/BitChord).
+
+## Building from source
+
+The existing desktop target uses **Java 21** and **Compose Multiplatform**.
+
+**Windows** (PowerShell or Command Prompt):
+
+```powershell
+.\gradlew.bat :desktopApp:run
+```
+
+**Linux**:
+
+```bash
+./gradlew :desktopApp:run
+```
+
+Linux requires the appropriate system graphics/audio libraries and native dependencies. See [DESKTOP.md](DESKTOP.md) for the inherited desktop setup and packaging notes. **Note:** portions of that document still refer to historical upstream releases and are being reviewed for this fork.
+
+## Roadmap
+
+Our initial priorities (not promises of completed work):
+
+- [ ] Establish a protected, buildable baseline for the preserved desktop client.
+- [ ] Investigate and fix playback stalls and decoder lifecycle issues.
+- [ ] Improve native window behavior on Windows.
+- [ ] Address Linux maximize/window-manager issues, including Wayland compositors.
+- [ ] Refine keyboard shortcuts, focus recovery, and Quick Search.
+- [ ] Set up independent Windows/Linux build checks and properly labeled releases.
+
+Issues and feature branches may contain work in progress; only tested and merged changes should be described as shipped.
+
+## Contributing
+
+Contributions, bug reports, and testing are welcome. Please open an issue with your operating system, exact reproduction steps, logs if available, and the build or commit tested. Keep pull requests focused and note which environments you tested.
+
+Existing documentation includes [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Some inherited upstream workflow instructions may still need adaptation for this community fork.
+
+## Credits & upstream
+
+**BitChord was originally created by [@kushagrasinghx](https://github.com/kushagrasinghx).** The original concept, app, much of the desktop architecture, visual design, and countless features come from the work of the upstream creator and contributors.
+
+A huge thank-you to everyone who made BitChord possible:
+
+- **Original project and source:** [kushagrasinghx/BitChord](https://github.com/kushagrasinghx/BitChord)
+- **Original contributors:** [View upstream contributors](https://github.com/kushagrasinghx/BitChord/graphs/contributors)
+- **Original project documentation and third-party acknowledgements:** [Upstream README](https://github.com/kushagrasinghx/BitChord/blob/main/README.md)
+- **Support the original creator:** [Original creator's Ko-fi](https://ko-fi.com/kushagrasinghx)
+
+This fork does **not** claim authorship of the original BitChord project. Revival maintainers are responsible for their own changes and releases; upstream contributors should not be contacted for support with this fork.
+
+## License & disclaimer
+
+This project retains the original **[GNU General Public License v3.0](LICENSE)**. Modified versions and redistributions must comply with its terms, including applicable attribution, license notices, and corresponding-source obligations.
+
+BitChord Desktop — Revived is an independent third-party client. It is not affiliated with or endorsed by **YouTube, Google, Spotify**, or any other referenced service. Users are responsible for complying with relevant laws and third-party terms of service.
 
 ---
 
 <div align="center">
-
-<img src="Banner.png" alt="BitChord banner" width="100%" />
-
-<h1><a id="features"></a>Features</h1>
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-
-#### Playback
-- **Search, browse and play** anything available on YouTube Music.
-- **Hi-Res lossless audio** — FLAC/ALAC from a configured module source, with YouTube Music as fallback.
-- **Gapless playback with true crossfade**, adjustable 0–12s.
-- **Automix [Beta]** — DJ-style transitions with beat-matching and tempo-stretching.
-- **Offline downloads** — save tracks with embedded metadata.
-- **Local music library** integration.
-- **Background playback** via a proper foreground media session.
-- **Apple-like lyrics animation** — credit to [binimum](https://github.com/binimum/am-lyrics).
-
-#### Connectivity & Accounts
-- **Sign in with your Google account** for personalized content.
-- **Spotify integration** — connect your account to play your playlists and Liked Songs.
-- **Discord Rich Presence** — in-app login, live track/artist/album and progress.
-- **Scrobbling** to Last.fm and ListenBrainz.
-- **Pluggable sources** — add, edit, test and health-check module sources.
-
-    </td>
-    <td width="50%" valign="top">
-
-#### Experience
-- **Animated album canvas** — motion artwork on the now-playing screen.
-- **Word-synced lyrics** — word/syllable-level highlighting from multiple sources.
-- **Lyrics providers** — credit to [lrc.red](https://lrc.red), [BiniLyrics](https://github.com/binimum), [BetterLyrics](https://github.com/better-lyrics/better-lyrics), [PaxSenix](https://lyrics.paxsenix.org), [LyricsPlus](https://github.com/ibratabian17/YouLyPlus), [SimpMusic](https://github.com/maxrave-dev/SimpMusic), [Unison](https://unison.boidu.dev), [Megalobiz](https://www.megalobiz.com), [KuGou](https://www.kugou.com), [LRCLIB](https://lrclib.net), [Musixmatch](https://www.musixmatch.com) and [Genius](https://genius.com).
-- **Dynamic, artwork-driven theming** — Material palette extracted from album art.
-- **Frosted-glass UI** — Telegram-style translucent bars via Haze, Material 3 theming.
-
-#### Controls & Tweaks
-- **Per-network audio quality** — separate quality ceilings for Wi-Fi and mobile data.
-- **Playback speed control** (0.5×–2.0×) and **skip silence**.
-- **Sleep timer** — fixed presets or "stop after this track".
-- **System equalizer** integration.
-- **Stats for nerds** — codec, bit depth, sample rate, and more on the now-playing screen.
-
-    </td>
-  </tr>
-</table>
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="download"></a>Download</h1>
-
-<a href="https://github.com/kushagrasinghx/BitChord/releases" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/android/cozy.svg" alt="Download for Android" height="55"/></a>
-<a href="https://github.com/kushagrasinghx/BitChord/releases" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/windows/cozy.svg" alt="Download for Windows" height="55"/></a>
-
-Grab the latest signed APK from the [Releases](https://github.com/kushagrasinghx/BitChord/releases) page. Sideloading requires enabling "Install unknown apps" for whichever app you download it with.
-
-For the Windows and Linux desktop app, see [DESKTOP.md](DESKTOP.md).
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="contributing"></a>Contributing</h1>
-
-We welcome contributions to BitChord! Please review our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before submitting a Pull Request.
-
-[**Contributing Guide**](CONTRIBUTING.md) · [**Code of Conduct**](CODE_OF_CONDUCT.md) · [**Maintainers**](MAINTAINERS.md) · [**Additional Docs**](ADDITIONAL.md)
-
-### Thanks to all contributors ❤
-
-<a href="https://github.com/kushagrasinghx/BitChord/graphs/contributors">
-  <img src="https://raw.githubusercontent.com/kushagrasinghx/BitChord/contributors/contributors.svg" />
-</a>
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="support"></a>Support</h1>
-
-BitChord is free and always will be — if it's earned a spot in your rotation, you can chip in here:
-
-<a href="https://ko-fi.com/kushagrasinghx" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/donate/kofi-singular-alt/cozy.svg" alt="Support me on Ko-fi" height="55"/></a>
-<a href="https://paypal.me/kuxhagrasingh" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/donate/paypal-plural/cozy.svg" alt="Support us on PayPal" height="55"/></a>
-
-<br/>
-<img src="upi_support.jpg" alt="UPI Support" width="250" />
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="disclaimer"></a>Disclaimer & Legal Notice</h1>
-
-BitChord is an independent, community-driven third-party audio player and client. It is **not** associated with Google LLC, YouTube Music, Deezer, Telegram, or any of their parent companies.
-
-* **No Media Hosting:** BitChord does not host, upload, or store copyrighted music files. It operates strictly as an interface to scan local device storage or stream media directly from public, public-facing, or user-authenticated APIs.
-* **Fair Use & API Usage:** This software is created solely for personal research, educational, and fair-use purposes. The user is entirely responsible for ensuring their usage aligns with their local copyright laws and YouTube Terms of Service.
-* **No Ad-Blocking Guarantee:** While BitChord focuses on providing a clean listening environment, it does not guarantee permanent bypasses or modifications to commercial third-party platform conditions.
-* **Copyleft:** BitChord is free software under the GPLv3. The license does not let anyone forbid others from selling or redistributing copies, but any distribution must come with the Corresponding Source under the same license.
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="license"></a>License</h1>
-
-This project is licensed under the **GNU General Public License v3.0 (GPLv3)**. See the [LICENSE](LICENSE) file for details.
-
+  <sub>Built on the work of the original BitChord community. Preserved with respect, continued with care.</sub>
 </div>
