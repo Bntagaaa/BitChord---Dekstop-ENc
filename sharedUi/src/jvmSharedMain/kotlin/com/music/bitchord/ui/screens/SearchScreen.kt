@@ -23,15 +23,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -47,6 +50,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -152,6 +156,11 @@ fun SearchScreen(
      * about the results, and the switcher would just push them down.
      */
     sourceSwitcher: (@Composable () -> Unit)? = null,
+    /** Desktop can keep its own field implementation while sharing the stable page state. */
+    searchField: (@Composable (FocusRequester) -> Unit)? = null,
+    /** Keep the browse landing mounted while editing, so the input never loses focus on empty/non-empty transitions. */
+    showLanding: Boolean = false,
+    landingContent: (@Composable () -> Unit)? = null,
 ) {
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -199,18 +208,22 @@ fun SearchScreen(
         // the search field sits cleanly below the bar instead of overlapping it.
         Column(modifier = Modifier.padding(top = topPadding)) {
             if (showField) {
-                SearchField(
-                    query = query,
-                    onQueryChange = onQueryChange,
-                    onSubmit = onSubmit,
-                    focusRequester = focusRequester,
-                    placeholder = if (searchingLibrary) {
-                        stringResource(Res.string.search_library_hint)
-                    } else {
-                        stringResource(Res.string.search_hint)
-                    },
-                    modifier = Modifier.padding(start = PAGE_GUTTER, end = PAGE_GUTTER, bottom = 4.dp),
-                )
+                if (searchField != null) {
+                    searchField(focusRequester)
+                } else {
+                    SearchField(
+                        query = query,
+                        onQueryChange = onQueryChange,
+                        onSubmit = onSubmit,
+                        focusRequester = focusRequester,
+                        placeholder = if (searchingLibrary) {
+                            stringResource(Res.string.search_library_hint)
+                        } else {
+                            stringResource(Res.string.search_hint)
+                        },
+                        modifier = Modifier.padding(start = PAGE_GUTTER, end = PAGE_GUTTER, bottom = 4.dp),
+                    )
+                }
             }
             if (sourceSwitcher != null) {
                 AnimatedVisibility(
@@ -232,6 +245,77 @@ fun SearchScreen(
             }
         }
 
+        if (showLanding && landingContent != null) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                landingContent()
+                if (suggesting && query.isNotBlank() && (suggestions.size > 1 || showTypeahead)) {
+                    Box(
+                        Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.TopCenter,
+                    ) {
+                        Box(
+                            Modifier.widthIn(max = 540.dp).fillMaxWidth().padding(horizontal = 24.dp),
+                            contentAlignment = Alignment.TopStart,
+                        ) {
+                            Surface(
+                                modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth().padding(top = 8.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xF027272B),
+                                shadowElevation = 12.dp,
+                            ) {
+                            Column(
+                                Modifier
+                                    .heightIn(max = 420.dp)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(vertical = 6.dp),
+                            ) {
+                                suggestions.drop(1).take(3).forEach { term ->
+                                    SuggestionRow(
+                                        term = term,
+                                        isQueryAction = false,
+                                        onFill = { onQueryChange(term) },
+                                        onClick = {
+                                            onSuggestionClick(term)
+                                            focusManager.clearFocus()
+                                        },
+                                    )
+                                }
+                                if (showTypeahead) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = PAGE_GUTTER),
+                                        thickness = 0.5.dp,
+                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                    )
+                                    typeaheadResults.take(5).forEach { result ->
+                                        when (result) {
+                                            is SearchResult.Track -> TypeaheadSongRow(
+                                                song = result.song,
+                                                onClick = { onTopResultPlay(result.song) },
+                                                onLongPress = onTypeaheadLongPress?.let { { it(result.song) } },
+                                                isCurrent = result.song.isSameTrackAs(currentSong),
+                                                isPlaying = isPlaying && result.song.isSameTrackAs(currentSong),
+                                            )
+                                            is SearchResult.Browse -> BrowseRow(
+                                                item = result.item,
+                                                onClick = { onBrowseClick(result.item) },
+                                            )
+                                            is SearchResult.TopTrack -> TypeaheadSongRow(
+                                                song = result.song,
+                                                onClick = { onTopResultPlay(result.song) },
+                                                onLongPress = onTypeaheadLongPress?.let { { it(result.song) } },
+                                                isCurrent = result.song.isSameTrackAs(currentSong),
+                                                isPlaying = isPlaying && result.song.isSameTrackAs(currentSong),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        }
+                    }
+                }
+            }
+        } else {
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -368,6 +452,7 @@ fun SearchScreen(
                     }
                 }
             }
+        }
         }
     }
 }
