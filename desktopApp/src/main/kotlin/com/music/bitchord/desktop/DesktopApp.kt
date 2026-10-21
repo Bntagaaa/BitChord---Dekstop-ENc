@@ -2468,9 +2468,8 @@ fun BitChordDesktopApp() {
         )
     }
 
-    LaunchedEffect(destination, exploreReloads, query, searchCommitted) {
-        val showingBrowseLanding = destination == DesktopDestination.SEARCH &&
-            query.isBlank() && !searchCommitted
+    LaunchedEffect(destination, exploreReloads, searchCommitted) {
+        val showingBrowseLanding = destination == DesktopDestination.SEARCH && !searchCommitted
         if ((destination == DesktopDestination.EXPLORE || showingBrowseLanding) &&
             (exploreState is UiState.Loading || exploreReloads > 0)
         ) {
@@ -3187,57 +3186,7 @@ fun BitChordDesktopApp() {
                         true
                     }
                     .focusable(),
-                topBar = { compact ->
-                    DesktopTopBar(
-                        compact = compact,
-                        song = selectedSong,
-                        isPlaying = playback.isPlaying,
-                        isLoading = playback.isLoading,
-                        previousEnabled = liveQueue.hasPrevious ||
-                            playback.positionMs > BACK_RESTARTS_AFTER_MS,
-                        progress = if (playback.durationMs > 0L) {
-                            playback.positionMs.toFloat() / playback.durationMs.toFloat()
-                        } else {
-                            0f
-                        },
-                        volume = playback.volume,
-                        shuffle = shuffle,
-                        repeatMode = repeatMode,
-                        onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
-                        onPrevious = ::playPrevious,
-                        onNext = ::playNext,
-                        onShuffleChange = ::setShuffle,
-                        onRepeatModeChange = {
-                            repeatMode = it
-                            persistence.saveString("repeat_mode", it.name)
-                        },
-                        onOpenNowPlaying = {
-                            releaseShortcutTextFocus()
-                            overlays.nowPlaying = true
-                        },
-                        onVolumeChange = {
-                            volume = it
-                            persistence.saveString("volume", it.toString())
-                        },
-                        onOpenAudioOutput = { overlays.audioOutput = true },
-                        // A second click on the same button puts the column away, as in Apple Music.
-                        onOpenLyrics = {
-                            releaseShortcutTextFocus()
-                            overlays.toggleSidePanel(DesktopSidePanel.LYRICS)
-                        },
-                        onOpenQueue = {
-                            releaseShortcutTextFocus()
-                            overlays.toggleSidePanel(DesktopSidePanel.QUEUE)
-                        },
-                        sidePanel = overlays.sidePanel,
-                        accountAvatar = activeAccount?.avatar
-                            ?: activeAccount?.profiles?.firstOrNull()?.avatar,
-                        onOpenAccounts = { DesktopTrackLog.log("accounts: opening the switcher"); overlays.accounts = true },
-                        canGoBack = navHistory.isNotEmpty(),
-                        onBack = ::goBack,
-                    )
-                },
-                sidebar = {
+remove old top playback toolbar                sidebar = {
                     DesktopSidebar(
                         destination = destination,
                         settingsOpen = overlays.settingsPage != null,
@@ -4028,9 +3977,8 @@ fun BitChordDesktopApp() {
                             onRefresh = ::loadHome,
                             pullState = rememberPullToRefreshState(),
                             contentPadding = sharedPagePadding,
-                            title = null,
-                            signedIn = youtubeSignedIn,
-                            onSignIn = { overlays.accounts = true },
+                            title = "Listen Now",
+                            signedIn = true,
                             onItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) },
                             onLoadMore = ::loadMoreHome,
                             loadingMore = homeLoadingMore,
@@ -4062,45 +4010,6 @@ fun BitChordDesktopApp() {
                             contentPadding = sharedPagePadding,
                             showTitle = false,
                         )
-                        destination == DesktopDestination.SEARCH && query.isBlank() && !searchCommitted -> Column(Modifier.fillMaxSize()) {
-                            val landingSearchFocus = remember { FocusRequester() }
-                            LaunchedEffect(searchFocusRequested) {
-                                if (searchFocusRequested) {
-                                    runCatching { landingSearchFocus.requestFocus() }
-                                    searchFocusRequested = false
-                                }
-                            }
-                            Box(
-                                Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 14.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                DesktopSearchField(
-                                    query = query,
-                                    onQueryChange = { text ->
-                                        searchFocusRequested = true
-                                        editQuery(text)
-                                    },
-                                    onSearch = ::search,
-                                    focusRequester = landingSearchFocus,
-                                    modifier = Modifier.widthIn(max = 440.dp).padding(horizontal = 24.dp),
-                                    placeholder = "Artists, Songs, Lyrics, and More",
-                                    pill = true,
-                                )
-                            }
-                            ExploreScreen(
-                                state = exploreState,
-                                listState = exploreListState,
-                                onCategoryClick = ::openMoodGenre,
-                                onRetry = { exploreReloads++ },
-                                refreshing = false,
-                                onRefresh = { exploreReloads++ },
-                                pullState = rememberPullToRefreshState(),
-                                contentPadding = sharedPagePadding,
-                                modifier = Modifier.weight(1f),
-                                showTitle = false,
-                                showSectionHeadings = true,
-                            )
-                        }
                         destination == DesktopDestination.SEARCH -> SearchScreen(
                             query = query,
                             onQueryChange = ::editQuery,
@@ -4189,6 +4098,38 @@ fun BitChordDesktopApp() {
                             contentPadding = sharedPagePadding,
                             topPadding = 0.dp,
                             showField = true,
+                            searchField = { focusRequester ->
+                                Box(
+                                    Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 14.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    DesktopSearchField(
+                                        query = query,
+                                        onQueryChange = ::editQuery,
+                                        onSearch = ::search,
+                                        focusRequester = focusRequester,
+                                        modifier = Modifier.widthIn(max = 540.dp).padding(horizontal = 24.dp),
+                                        placeholder = "Artists, Songs, Lyrics, and More",
+                                        pill = true,
+                                    )
+                                }
+                            },
+                            showLanding = !searchCommitted,
+                            landingContent = {
+                                ExploreScreen(
+                                    state = exploreState,
+                                    listState = exploreListState,
+                                    onCategoryClick = ::openMoodGenre,
+                                    onRetry = { exploreReloads++ },
+                                    refreshing = false,
+                                    onRefresh = { exploreReloads++ },
+                                    pullState = rememberPullToRefreshState(),
+                                    contentPadding = sharedPagePadding,
+                                    modifier = Modifier.fillMaxSize(),
+                                    showTitle = false,
+                                    showSectionHeadings = true,
+                                )
+                            },
                         )
                         destination == DesktopDestination.LIBRARY && libraryShowAll != null -> Column(Modifier.fillMaxSize()) {
                             // The phone keeps the grid's sort beside it, in the bar above; here it sits
@@ -4884,12 +4825,20 @@ private fun DesktopMiniPlayer(
     onOpenQueue: () -> Unit,
 ) {
     val shape = RoundedCornerShape(16.dp)
+    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+    val dockSurface = if (reduceDynamicBlur) {
+        Modifier
+            .background(Color(0xFF202124), shape)
+            .border(0.5.dp, DesktopBarEdge, shape)
+    } else {
+        Modifier.desktopBarGlass(shape)
+    }
     Surface(
         modifier = Modifier
             .widthIn(max = 760.dp)
             .fillMaxWidth()
             .clip(shape)
-            .desktopBarGlass(shape),
+            .then(dockSurface),
         shape = shape,
         color = Color.Transparent,
         tonalElevation = 0.dp,
@@ -4989,7 +4938,7 @@ internal fun DesktopSearchField(
     Box(
         modifier
             .fillMaxWidth()
-            .height(36.dp)
+            .height(if (pill) 42.dp else 36.dp)
             .clip(searchShape)
             .background(Color.White.copy(alpha = 0.07f))
             .border(1.dp, Color.White.copy(alpha = 0.10f), searchShape)
@@ -5037,6 +4986,25 @@ internal fun DesktopSearchField(
                         }
                         innerTextField()
                     }
+                    if (pill && query.isNotEmpty()) {
+                        Box(
+                            Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    onQueryChange("")
+                                    focusRequester.requestFocus()
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Rounded.Close,
+                                "Clear search",
+                                tint = DesktopSecondary,
+                                modifier = Modifier.size(17.dp),
+                            )
+                        }
+                    }
                 }
             },
         )
@@ -5054,7 +5022,6 @@ private fun DesktopFrame(
      */
     /** Receives true when its solid base should be left clear for the system material. */
     backdrop: @Composable (transparentBase: Boolean) -> Unit,
-    topBar: @Composable (Boolean) -> Unit,
     sidebar: @Composable () -> Unit,
     bottomBar: @Composable (Boolean) -> Unit,
     /** The column on the far side of the page — the lyrics or the queue, when one is open. */
@@ -5064,7 +5031,6 @@ private fun DesktopFrame(
 ) {
     // Held out here rather than inside the constraints box.
     val haze = remember { HazeState() }
-    val maximized by DesktopWindowMode.maximized.collectAsState()
     // The decorated peer and Compose client remain opaque. DWM styling affects the native caption.
     CompositionLocalProvider(LocalDesktopHaze provides haze) {
         Box(modifier.fillMaxSize().background(containerColor)) {
@@ -5079,7 +5045,6 @@ private fun DesktopFrame(
                         Row(Modifier.fillMaxSize()) {
                             if (!compact) sidebar()
                             Column(Modifier.weight(1f).fillMaxHeight()) {
-                            if (maximized) topBar(compact)
                             Row(Modifier.fillMaxWidth().weight(1f)) {
                                 Box(
                                     Modifier
@@ -5093,13 +5058,11 @@ private fun DesktopFrame(
                                                 end = 0.dp,
                                                 // Room for the bar that floats over this, so the
                                                 // last row can still be scrolled clear of it.
-                                                bottom = if (compact || !maximized) 112.dp else 16.dp,
+                                                bottom = 112.dp,
                                             ),
                                         )
                                     }
-                                    if (compact || !maximized) {
-                                        Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(compact) }
-                                    }
+                                    Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(compact) }
                                 }
                                 Box(
                                     Modifier
