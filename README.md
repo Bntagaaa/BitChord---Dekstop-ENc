@@ -4,9 +4,9 @@
 
 # BitChord Desktop — Revived
 
-**Keeping the original BitChord desktop experience alive.**
+**The community-led continuation of BitChord for PC.**
 
-An independent, community-maintained continuation of the native **BitChord Desktop** app for **Windows and Linux**, built with Kotlin and Compose Multiplatform.
+BitChord Desktop — Revived exists to continue development of the original native **BitChord Desktop** application after the upstream desktop app was discontinued. Built on the original Kotlin and Compose Multiplatform codebase, this project aims to keep the Windows and Linux desktop experience moving forward—not simply preserve it as-is.
 
 ![Status](https://img.shields.io/badge/status-revival%20in%20progress-DAA520?style=flat-square)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-6677AA?style=flat-square)
@@ -17,22 +17,23 @@ An independent, community-maintained continuation of the native **BitChord Deskt
 </div>
 
 > [!IMPORTANT]
-> **Unofficial community revival.** This repository is a fork of [BitChord by @kushagrasinghx](https://github.com/kushagrasinghx/BitChord). It is **not an official continuation** and is not endorsed, maintained, or supported by the original creator or upstream contributors. All credit for the original project belongs to its creators and contributors.
+> **Independent community project.** This repository continues development of the original PC/desktop app after its discontinuation upstream. It is a fork of [BitChord by @kushagrasinghx](https://github.com/kushagrasinghx/BitChord), but it is **not an official continuation** and is not endorsed, maintained, or supported by the original creator or upstream maintainers. We respect the original work, preserve its attribution and license, and welcome community contributions.
 
 ## Why this project exists
 
-The original BitChord project is moving its desktop experience to a **web player**. Its maintainer proposed retiring the native desktop application in [upstream PR #874](https://github.com/kushagrasinghx/BitChord/pull/874).
+The original project has discontinued its native desktop app as it shifts its desktop direction toward the **Web Player**. See the upstream maintainer's [PR to remove the desktop app](https://github.com/kushagrasinghx/BitChord/pull/874).
 
-We love what the original team built and believe the native desktop client is worth preserving. **BitChord Desktop — Revived** aims to maintain and improve that existing application, not replace or compete with the original BitChord project.
+We want to continue the PC app's development as a community project. The goal is not to freeze an old snapshot or create a competing replacement for BitChord. Instead, we want to **keep the native desktop edition alive while learning from the ongoing development of BitChord on other platforms**.
 
-Our focus is straightforward:
+### Our direction
 
-- **Preserve** the Kotlin/Compose desktop client and its native desktop integrations.
-- **Stabilize** playback, window behavior, and everyday desktop usability.
-- **Improve** keyboard navigation, search, and Windows/Linux compatibility.
-- **Keep it open** to contributions, with transparent attribution to upstream.
+- **Continue the PC app:** maintain the existing Kotlin/Compose desktop application and its Windows/Linux integrations.
+- **Bring useful improvements across platforms:** review features, fixes, UI ideas, and behavior developed for BitChord's mobile and web experiences, then adapt them for desktop when they make technical and UX sense.
+- **Build with the community:** use feedback, bug reports, testing, and contributions to decide what to improve next.
+- **Protect reliability:** prioritize playback, keyboard navigation, window management, and platform-specific stability before claiming new features are ready.
+- **Respect the original project:** preserve upstream credit and license notices, and clearly distinguish community changes from official upstream releases.
 
-The original [BitChord repository](https://github.com/kushagrasinghx/BitChord) remains the home of the main project, including Android and its web-player direction.
+The original [BitChord repository](https://github.com/kushagrasinghx/BitChord) remains the home of the upstream project, including its mobile development and web-player direction. This revival is independent; we will selectively port compatible work rather than assume every change from another platform can be copied directly.
 
 ## Project foundation
 
@@ -46,7 +47,7 @@ BitChord Desktop — Revived builds on the original native desktop codebase crea
 | Desktop targets | Windows and Linux |
 | Revival release branch | [release/v1.8.1-revived.1](https://github.com/Bntagaaa/BitChord-Desktop-Revived/tree/release/v1.8.1-revived.1) |
 
-Revival version numbers track development of this community fork. A version labeled `v1.8.1-revived.1` **does not imply that every upstream v1.8.1 change has been integrated**. We review upstream changes selectively to preserve the native desktop client.
+Revival version numbers track this community fork's own development. A version labeled `v1.8.1-revived.1` **does not imply that every upstream v1.8.1 change has been integrated**. We review improvements from upstream, mobile, and web development selectively, adapting them to desktop rather than assuming platform-specific code is interchangeable.
 
 ## Project status
 
@@ -59,7 +60,9 @@ Revival version numbers track development of this community fork. A version labe
 | Linux | Maintain desktop support, including window-manager compatibility |
 | macOS | Not currently a configured/supported desktop target |
 | Releases | Community testing builds first; stable releases after verification |
-| Upstream updates | Review and selectively port compatible fixes rather than blindly merging desktop removal |
+| Cross-platform development | Review and adapt useful mobile/web improvements where technically compatible |
+| Community | Prioritize user feedback, testing, and contributions |
+| Upstream updates | Selectively port compatible changes while preserving desktop-specific behavior |
 
 ## Features
 
@@ -102,14 +105,15 @@ Linux requires the appropriate system graphics/audio libraries and native depend
 
 ## Roadmap
 
-Our initial priorities (not promises of completed work):
+Our priorities (not promises of completed work):
 
-- [ ] Establish a protected, buildable baseline for the preserved desktop client.
-- [ ] Investigate and fix playback stalls and decoder lifecycle issues.
-- [ ] Improve native window behavior on Windows.
-- [ ] Address Linux maximize/window-manager issues, including Wayland compositors.
-- [ ] Refine keyboard shortcuts, focus recovery, and Quick Search.
-- [ ] Set up independent Windows/Linux build checks and properly labeled releases.
+- [ ] Maintain a reliable, buildable baseline for the original desktop client.
+- [ ] Review useful mobile and web improvements for possible desktop adoption.
+- [ ] Investigate playback stalls and decoder lifecycle issues.
+- [ ] Improve native window behavior on Windows and Linux, including Wayland compositors.
+- [ ] Refine keyboard shortcuts, focus recovery, Quick Search, and desktop-specific workflows.
+- [ ] Make it easy for the community to report issues, test builds, and contribute fixes.
+- [ ] Maintain independent Windows/Linux build checks and clearly labeled community releases.
 
 Issues and feature branches may contain work in progress; only tested and merged changes should be described as shipped.
 
