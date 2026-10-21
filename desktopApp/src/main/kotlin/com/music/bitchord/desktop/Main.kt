@@ -35,6 +35,8 @@ fun main() {
         DesktopTrackLog.log("$tag/$level: $message" + (error?.let { " (${it.message})" } ?: ""))
     }
     LyricsTranslation.cacheDir = DesktopMediaCache.directory.toFile()
+    // Install the shared JavaFX cookie jar before either sign-in or PoToken WebViews start.
+    DesktopWebCookies.install()
     // Spotify's account library shares the web-player token implementation used by Canvas.
     SpotifyLibrary.auth = SpotifyLibrary.Auth {
         DesktopSpotifyToken.accessToken()?.let { SpotifyLibrary.Tokens(it, DesktopSpotifyToken.clientToken()) }
