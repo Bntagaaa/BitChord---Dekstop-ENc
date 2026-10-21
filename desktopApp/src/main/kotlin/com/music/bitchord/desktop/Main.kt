@@ -39,7 +39,7 @@ fun main() {
     LyricsTranslation.cacheDir = DesktopMediaCache.directory.toFile()
     // Spotify's account library shares the web-player token implementation used by Canvas.
     SpotifyLibrary.auth = SpotifyLibrary.Auth {
-        DesktopSpotifyToken.accessToken()?.let { SpotifyLibrary.Tokens(it, DesktopSpotifyToken.clientToken()) }
+        DesktopSpotifyLibraryAuth.tokens()
     }
     // YouTube playback is the phone's StreamResolver over InnerTubeX, with BotGuard PoTokens
     // minted in JavaFX's WebView where the phone uses Android's.
