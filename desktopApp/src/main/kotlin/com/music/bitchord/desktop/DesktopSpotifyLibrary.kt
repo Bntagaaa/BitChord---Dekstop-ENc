@@ -50,7 +50,7 @@ private const val MATCH_PARALLELISM = 4
 /** A card on the Spotify grid, opening a [DesktopCollection] of its tracks. */
 internal fun SpotifyPlaylist.toShelfItem() = ShelfItem(
     title = name,
-    subtitle = owner ?: SPOTIFY_SHELF,
+    subtitle = owner.orEmpty(),
     thumbnailUrl = imageUrl,
     videoId = null,
     browseId = SPOTIFY_PAGE_PREFIX + id,
