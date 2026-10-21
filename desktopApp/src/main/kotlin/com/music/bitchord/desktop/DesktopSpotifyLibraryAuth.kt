@@ -1,7 +1,6 @@
 package com.music.bitchord.desktop
 
 import com.music.bitchord.data.Http
-import com.music.bitchord.data.canvas.CANVAS_UA
 import com.music.bitchord.data.spotify.SpotifyLibrary
 import javafx.application.Platform
 import javafx.concurrent.Worker
