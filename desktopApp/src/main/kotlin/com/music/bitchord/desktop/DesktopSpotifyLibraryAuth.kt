@@ -7,6 +7,7 @@ import javafx.concurrent.Worker
 import javafx.scene.web.WebEngine
 import netscape.javascript.JSObject
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -115,6 +116,10 @@ internal object DesktopSpotifyLibraryAuth {
 
         try {
             Platform.runLater {
+                if (!result.isActive) {
+                    engineReady.cancel()
+                    return@runLater
+                }
                 try {
                     DesktopWebCookies.put(
                         URI("https://open.spotify.com/"),
@@ -185,10 +190,14 @@ internal object DesktopSpotifyLibraryAuth {
                 engineReady.await()
                 result.await()
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (failure: Throwable) {
             DesktopTrackLog.log("spotify: token WebEngine failed: " + (failure.message ?: failure.javaClass.simpleName))
             return null
         } finally {
+            result.cancel()
+            engineReady.cancel()
             runCatching {
                 Platform.runLater {
                     engineRef[0]?.let { engine ->
