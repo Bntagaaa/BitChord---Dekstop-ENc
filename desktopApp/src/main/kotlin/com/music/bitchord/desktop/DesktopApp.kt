@@ -4677,7 +4677,7 @@ private fun DesktopBottomChrome(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (compact && song != null) {
+        if (song != null) {
             DesktopMiniPlayer(
                 song = song,
                 isPlaying = isPlaying,
@@ -4686,7 +4686,7 @@ private fun DesktopBottomChrome(
                 onNext = onNext,
             )
         }
-        DesktopFloatingNavigation(destination, onDestinationSelected)
+        if (compact) DesktopFloatingNavigation(destination, onDestinationSelected)
     }
 }
 
