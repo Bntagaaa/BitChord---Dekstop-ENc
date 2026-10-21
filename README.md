@@ -34,6 +34,20 @@ Our focus is straightforward:
 
 The original [BitChord repository](https://github.com/kushagrasinghx/BitChord) remains the home of the main project, including Android and its web-player direction.
 
+## Project foundation
+
+BitChord Desktop — Revived builds on the original native desktop codebase created by [@kushagrasinghx](https://github.com/kushagrasinghx) and developed with the [BitChord contributors](https://github.com/kushagrasinghx/BitChord/graphs/contributors). This is an **independent, community-maintained fork**, not an official upstream release.
+
+| | |
+| --- | --- |
+| Original project | [kushagrasinghx/BitChord](https://github.com/kushagrasinghx/BitChord) |
+| Community continuation | [Bntagaaa/BitChord-Desktop-Revived](https://github.com/Bntagaaa/BitChord-Desktop-Revived) |
+| Technology | Kotlin, Compose Multiplatform, Gradle |
+| Desktop targets | Windows and Linux |
+| Revival release branch | [release/v1.8.1-revived.1](https://github.com/Bntagaaa/BitChord-Desktop-Revived/tree/release/v1.8.1-revived.1) |
+
+Revival version numbers track development of this community fork. A version labeled `v1.8.1-revived.1` **does not imply that every upstream v1.8.1 change has been integrated**. We review upstream changes selectively to preserve the native desktop client.
+
 ## Project status
 
 > [!WARNING]
@@ -62,7 +76,7 @@ Availability and reliability can vary by build, operating system, and upstream s
 
 ## Downloads
 
-**Community test builds:** [View this fork's Releases](https://github.com/Bntagaaa/BitChord---Dekstop-ENc/releases).
+**Community test builds:** [View this fork's Releases](https://github.com/Bntagaaa/BitChord-Desktop-Revived/releases).
 
 The currently published `1.8.0-test` packages are **older experimental Windows builds**, *not* a verified stable release of the revived project. Please treat them as test artifacts.
 
