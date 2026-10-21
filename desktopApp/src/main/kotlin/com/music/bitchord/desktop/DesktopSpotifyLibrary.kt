@@ -34,6 +34,7 @@ import com.music.bitchord.data.spotify.SpotifyLibrary
 import com.music.bitchord.data.spotify.SpotifyPlaylist
 import com.music.bitchord.data.spotify.SpotifyTrack
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -81,8 +82,25 @@ internal suspend fun loadSpotifyPlaylist(
         runCatching { SpotifyLibrary.cover(playlistId) }.getOrNull()
             ?.let { cover -> update { it.copy(thumbnailUrl = cover) } }
     }
-    val tracks = SpotifyLibrary.tracks(playlistId) { soFar ->
-        update { it.copy(songs = soFar.map(SpotifyTrack::asPendingSong), loading = false) }
+    // SpotifyLibrary calls onPage from its IO dispatcher. Forward those snapshots through a
+    // channel so Compose state is only changed on the desktop UI coroutine.
+    val pages = Channel<List<SpotifyTrack>>(Channel.UNLIMITED)
+    val pageConsumer = launch {
+        for (soFar in pages) {
+            if (!isOpen()) {
+                pages.cancel()
+                break
+            }
+            update { it.copy(songs = soFar.map(SpotifyTrack::asPendingSong), loading = false) }
+        }
+    }
+    val tracks = try {
+        SpotifyLibrary.tracks(playlistId) { soFar ->
+            pages.trySend(soFar.toList())
+        }
+    } finally {
+        pages.close()
+        pageConsumer.join()
     }
     check(tracks.isNotEmpty()) { "This Spotify playlist has no tracks." }
     val gate = Semaphore(MATCH_PARALLELISM)
