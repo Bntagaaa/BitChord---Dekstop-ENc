@@ -2467,8 +2467,10 @@ fun BitChordDesktopApp() {
         )
     }
 
-    LaunchedEffect(destination, exploreReloads) {
-        if (destination == DesktopDestination.EXPLORE &&
+    LaunchedEffect(destination, exploreReloads, query, searchCommitted) {
+        val showingBrowseLanding = destination == DesktopDestination.SEARCH &&
+            query.isBlank() && !searchCommitted
+        if ((destination == DesktopDestination.EXPLORE || showingBrowseLanding) &&
             (exploreState is UiState.Loading || exploreReloads > 0)
         ) {
             loadExplore()
@@ -4083,6 +4085,7 @@ fun BitChordDesktopApp() {
                                     focusRequester = landingSearchFocus,
                                     modifier = Modifier.widthIn(max = 440.dp).padding(horizontal = 24.dp),
                                     placeholder = "Artists, Songs, Lyrics, and More",
+                                    pill = true,
                                 )
                             }
                             ExploreScreen(
@@ -4855,7 +4858,7 @@ private fun DesktopMiniPlayer(
     val shape = RoundedCornerShape(16.dp)
     Surface(
         modifier = Modifier
-            .widthIn(max = 920.dp)
+            .widthIn(max = 760.dp)
             .fillMaxWidth()
             .clip(shape)
             .desktopBarGlass(shape),
@@ -4950,8 +4953,9 @@ internal fun DesktopSearchField(
     focusRequester: FocusRequester = remember { FocusRequester() },
     onFocusChanged: (Boolean) -> Unit = {},
     placeholder: String = "Search",
+    pill: Boolean = false,
 ) {
-    val searchShape = RoundedCornerShape(7.dp)
+    val searchShape = if (pill) RoundedCornerShape(percent = 50) else RoundedCornerShape(7.dp)
     val onShortcutFocusChanged = LocalDesktopShortcutTextFocus.current
     val shortcutModalVisible = LocalDesktopShortcutModalVisible.current
     Box(
