@@ -4122,7 +4122,7 @@ fun BitChordDesktopApp() {
                             onTypeaheadLongPress = ::openMenu,
                             contentPadding = sharedPagePadding,
                             topPadding = 0.dp,
-                            showField = false,
+                            showField = true,
                         )
                         destination == DesktopDestination.LIBRARY && libraryShowAll != null -> Column(Modifier.fillMaxSize()) {
                             // The phone keeps the grid's sort beside it, in the bar above; here it sits
@@ -4541,29 +4541,7 @@ private fun DesktopSidebar(
     focusSearch: Boolean,
     onSearchFocused: () -> Unit,
 ) {
-    val searchFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(focusSearch) {
-        if (focusSearch) {
-            runCatching { searchFocusRequester.requestFocus() }
-            onSearchFocused()
-        }
-    }
-    val windowInfo = LocalWindowInfo.current
-    var searchFocused by remember { mutableStateOf(false) }
-    var restoreSearchFocus by remember { mutableStateOf(false) }
-
-    LaunchedEffect(windowInfo.isWindowFocused) {
-        if (!windowInfo.isWindowFocused) {
-            restoreSearchFocus = searchFocused
-        } else if (restoreSearchFocus) {
-            // Let the desktop window finish its activation before asking Compose to put the native
-            // text input target back in focus.
-            yield()
-            searchFocusRequester.requestFocus()
-            restoreSearchFocus = false
-        }
-    }
-
+    // Search owns its input on the Search page; the sidebar is navigation only.
     Box(
         Modifier
             .width(220.dp)
@@ -4574,14 +4552,7 @@ private fun DesktopSidebar(
         Column(
             Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),
         ) {
-            DesktopSearchField(
-                query = query,
-                onQueryChange = onQueryChange,
-                onSearch = onSearch,
-                focusRequester = searchFocusRequester,
-                onFocusChanged = { searchFocused = it },
-            )
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(8.dp))
             DesktopSidebarItem(BitChordIcons.Home, DesktopStrings["home", "Home"], destination == DesktopDestination.LISTEN_NOW) {
                 onDestinationSelected(DesktopDestination.LISTEN_NOW)
             }
