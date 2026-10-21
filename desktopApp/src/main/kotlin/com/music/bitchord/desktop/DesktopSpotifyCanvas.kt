@@ -52,8 +52,9 @@ internal object DesktopSpotifyCanvas {
 
     private data class TrackHit(val uri: String, val title: String, val artist: String, val album: String?)
 
-    fun search(title: String, artist: String, album: String?): DesktopCanvasArtwork? {
-        val token = DesktopSpotifyToken.accessToken() ?: return null
+    suspend fun search(title: String, artist: String, album: String?): DesktopCanvasArtwork? {
+        val tokens = DesktopSpotifyLibraryAuth.tokens() ?: return null
+        val token = tokens.bearer
         val hit = searchTrack(title, artist, album, token) ?: return null
         val canvasUrl = fetchCanvasUrl(hit.uri, token) ?: return null
         return DesktopCanvasArtwork(
@@ -67,8 +68,9 @@ internal object DesktopSpotifyCanvas {
 
     /** A release's canvas, read off its first track — Spotify hangs Canvas off tracks, not
      * releases, so there is no album-level lookup to make directly. */
-    fun searchAlbum(album: String, artist: String): DesktopCanvasArtwork? {
-        val token = DesktopSpotifyToken.accessToken() ?: return null
+    suspend fun searchAlbum(album: String, artist: String): DesktopCanvasArtwork? {
+        val tokens = DesktopSpotifyLibraryAuth.tokens() ?: return null
+        val token = tokens.bearer
         val items = get(
             url("$SEARCH_URL", listOf("q" to "$album $artist", "type" to "album", "limit" to "10")),
             token,
@@ -242,7 +244,7 @@ internal object DesktopSpotifyCanvas {
      * a 429 that reads exactly like rate limiting. Omitted rather than fatal when minting fails. */
     private fun authHeaders(token: String): Map<String, String> = buildMap {
         put("Authorization", "Bearer $token")
-        DesktopSpotifyToken.clientToken()?.let { put("Client-Token", it) }
+        DesktopSpotifyLibraryAuth.cachedClientToken()?.let { put("Client-Token", it) }
     }
 
     private fun get(url: String, token: String): JsonObject? =
