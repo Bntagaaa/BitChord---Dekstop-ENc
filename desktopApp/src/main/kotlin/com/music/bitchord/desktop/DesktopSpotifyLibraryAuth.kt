@@ -131,7 +131,9 @@ internal object DesktopSpotifyLibraryAuth {
                     engine.userAgent = CANVAS_UA
                     engine.userDataDirectory = profile.toFile()
 
-                    val bridge = TokenBridge(result)
+                    val bridge = DesktopSpotifyTokenBridge { payload ->
+                        acceptTokenPayload(payload, result)
+                    }
                     var reloadAttempted = false
 
                     fun installHook() {
@@ -206,21 +208,19 @@ internal object DesktopSpotifyLibraryAuth {
     }
 
     /** Receives raw /api/token response bodies from the Spotify page. */
-    private class TokenBridge(private val result: CompletableDeferred<HarvestedToken?>) {
-        fun onTokenPayload(payload: String?) {
-            if (payload.isNullOrBlank() || result.isCompleted) return
-            runCatching {
-                val root = json.parseToJsonElement(payload).jsonObject
-                val token = root["accessToken"]?.jsonPrimitive?.contentOrNull
-                val anonymous = root["isAnonymous"]?.jsonPrimitive?.contentOrNull
-                    ?.toBooleanStrictOrNull() ?: false
-                if (token.isNullOrBlank() || anonymous) return
-                val expiresAt = root["accessTokenExpirationTimestampMs"]?.jsonPrimitive?.contentOrNull
-                    ?.toLongOrNull()?.takeIf { it > System.currentTimeMillis() }
-                    ?: (System.currentTimeMillis() + DEFAULT_TOKEN_LIFETIME_MS)
-                val clientId = root["clientId"]?.jsonPrimitive?.contentOrNull
-                result.complete(HarvestedToken(token, expiresAt, clientId))
-            }
+    private fun acceptTokenPayload(payload: String?, result: CompletableDeferred<HarvestedToken?>) {
+        if (payload.isNullOrBlank() || result.isCompleted) return
+        runCatching {
+            val root = json.parseToJsonElement(payload).jsonObject
+            val token = root["accessToken"]?.jsonPrimitive?.contentOrNull
+            val anonymous = root["isAnonymous"]?.jsonPrimitive?.contentOrNull
+                ?.toBooleanStrictOrNull() ?: false
+            if (token.isNullOrBlank() || anonymous) return
+            val expiresAt = root["accessTokenExpirationTimestampMs"]?.jsonPrimitive?.contentOrNull
+                ?.toLongOrNull()?.takeIf { it > System.currentTimeMillis() }
+                ?: (System.currentTimeMillis() + DEFAULT_TOKEN_LIFETIME_MS)
+            val clientId = root["clientId"]?.jsonPrimitive?.contentOrNull
+            result.complete(HarvestedToken(token, expiresAt, clientId))
         }
     }
 
@@ -344,4 +344,10 @@ internal object DesktopSpotifyLibraryAuth {
         }
     }
 
+}
+
+
+/** Public JVM bridge surface required by JavaFX's JavaScript-to-Java bridge. */
+internal class DesktopSpotifyTokenBridge(private val handler: (String?) -> Unit) {
+    fun onTokenPayload(payload: String?) = handler(payload)
 }
