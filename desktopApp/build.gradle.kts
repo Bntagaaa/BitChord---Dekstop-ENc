@@ -18,11 +18,13 @@ val targetOs: String = (providers.gradleProperty("bitchord.target").orNull ?: wh
     else -> error("BitChord desktop supports Linux and Windows only")
 }).lowercase()
 
-// Windows installer metadata requires MAJOR.MINOR.BUILD even though the app's public version is
-// intentionally displayed without a patch number (1.7 rather than 1.7.0).
-// The build number is the desktop version code; it also keeps "-beta1" out of the numeric installer version.
+// Native installer formats require numeric versions even when a build uses a descriptive
+// label such as "spotify-test". Keep that public label for the app/archive, but derive a valid
+// MAJOR.MINOR.BUILD version for Deb/Exe/Msi metadata.
 val desktopVersionCode = 29
-val nativePackageVersion = appVersion.substringBefore('-').split('.').take(2).joinToString(".") + ".$desktopVersionCode"
+val numericAppVersion = Regex("""^\\d+(?:\\.\\d+)*""").find(appVersion)?.value
+val nativeVersionParts = numericAppVersion?.split('.')?.take(2) ?: listOf("1", "8")
+val nativePackageVersion = "${nativeVersionParts[0]}.${nativeVersionParts.getOrElse(1) { "0" }}.$desktopVersionCode"
 
 // FFmpeg decodes audio; see DesktopAudioDecoder.
 val javacppVersion = "1.5.12"
