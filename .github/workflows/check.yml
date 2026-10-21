@@ -31,11 +31,13 @@ jobs:
 
       - run: chmod +x gradlew
 
+      # Regression coverage for the packaging failure: the app may use a descriptive
+      # test label, but native installer metadata must remain a valid numeric version.
       - name: Tests
-        run: ./gradlew :shared:jvmTest :desktopApp:test
+        run: ./gradlew :shared:jvmTest :desktopApp:test "-Pbitchord.version=test-visua"
 
       - name: Build the distributable
-        run: ./gradlew :desktopApp:createDistributable
+        run: ./gradlew :desktopApp:createDistributable "-Pbitchord.version=test-visua"
 
       - name: The analyser is in the jar
         run: |
@@ -75,11 +77,12 @@ jobs:
       - name: CMake version
         run: cmake --version
 
+      # Keep Windows' EXE/MSI metadata valid for the same descriptive build labels.
       - name: Tests
-        run: .\gradlew.bat :shared:jvmTest :desktopApp:test
+        run: .\gradlew.bat :shared:jvmTest :desktopApp:test "-Pbitchord.version=test-visua"
 
       - name: Build the distributable
-        run: .\gradlew.bat :desktopApp:createDistributable
+        run: .\gradlew.bat :desktopApp:createDistributable "-Pbitchord.version=test-visua"
 
       - name: The analyser is in the jar
         shell: bash

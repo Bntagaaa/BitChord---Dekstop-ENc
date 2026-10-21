@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Package version (without leading v)"
+        description: "App/artifact version (numeric prefix recommended; labels like test-visua use a valid fallback installer version)"
         required: false
         default: "1.8.0-test"
       run_tests:
