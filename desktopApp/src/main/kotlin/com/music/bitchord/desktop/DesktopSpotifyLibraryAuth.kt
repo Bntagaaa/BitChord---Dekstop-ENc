@@ -62,6 +62,10 @@ internal object DesktopSpotifyLibraryAuth {
         SpotifyLibrary.Tokens(bearer, clientToken())
     }
 
+    /** Cached companion header for the synchronous HTTP helpers in the Canvas provider. */
+    fun cachedClientToken(): String? =
+        cachedClientToken?.takeIf { System.currentTimeMillis() < clientTokenExpiresAtMs - 30_000 }
+
     private fun useCookie(cookie: String) {
         if (cachedCookie == cookie) return
         synchronized(this) {
