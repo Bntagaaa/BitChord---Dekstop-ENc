@@ -4746,15 +4746,15 @@ private fun DesktopMiniPlayer(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(percent = 50)
+    val shape = RoundedCornerShape(18.dp)
     Row(
         Modifier
-            .widthIn(max = 440.dp)
+            .widthIn(max = 920.dp)
             .fillMaxWidth()
             .clip(shape)
             .desktopBarGlass(shape)
             .clickable(onClick = onExpand)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         DesktopArtwork(song.thumbnailUrl, Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)), px = ROW_ART_PX)
