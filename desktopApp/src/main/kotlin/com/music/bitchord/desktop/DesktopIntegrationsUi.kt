@@ -117,7 +117,10 @@ internal fun DesktopLastfmLoginDialog(onDismiss: () -> Unit) {
 @Composable
 internal fun DesktopSpotifyCanvasDialog(onDismiss: () -> Unit, onSaved: (String) -> Unit) {
     var token by remember { mutableStateOf(DesktopSpotifyToken.cookie()) }
+    var signingIn by remember { mutableStateOf(false) }
+    var signInError by remember { mutableStateOf<String?>(null) }
     val focus = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
     fun save() {
@@ -126,19 +129,46 @@ internal fun DesktopSpotifyCanvasDialog(onDismiss: () -> Unit, onSaved: (String)
         onDismiss()
     }
 
+    fun signIn() {
+        if (signingIn) return
+        signingIn = true
+        signInError = null
+        scope.launch {
+            runCatching { DesktopWebSignIn.captureSpotify() }
+                .onSuccess { captured ->
+                    token = captured
+                    DesktopSpotifyToken.setCookie(captured)
+                    onSaved(captured)
+                    onDismiss()
+                }
+                .onFailure { failure ->
+                    signInError = failure.message ?: "Could not sign in to Spotify"
+                }
+            signingIn = false
+        }
+    }
+
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 420) {
         DialogHeading(
-            title = DesktopStrings["spotify_canvas_setup", "Spotify Canvas setup"],
-            message = DesktopStrings["spotify_canvas_setup_description", "To use Spotify Canvas, provide your Spotify sp_dc cookie."],
+            title = DesktopStrings["spotify_canvas_setup", "Connect Spotify"],
+            message = signInError
+                ?: DesktopStrings["spotify_canvas_setup_description", "Connect your Spotify account to show playlists and Spotify Canvas."],
+            isError = signInError != null,
         )
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)),
+            horizontalArrangement = Arrangement.Start,
+        ) {
+            TextButton(onClick = ::signIn, enabled = !signingIn) {
+                Text(
+                    if (signingIn) "Waiting for Spotify sign-in…" else "Sign in to Spotify",
+                    color = DesktopSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
         Text(
-            DesktopStrings[
-                "spotify_canvas_setup_steps",
-                "1. Sign in at open.spotify.com in a browser.\n" +
-                    "2. Open Developer Tools, then Application and Cookies.\n" +
-                    "3. Copy the value of the sp_dc cookie.\n" +
-                    "4. Paste it below.",
-            ],
+            "Or connect manually: sign in at open.spotify.com, open Developer Tools → Application → Cookies, then paste the value of the sp_dc cookie below.",
             modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 4.dp),
             style = MaterialTheme.typography.bodySmall,
             color = DesktopSecondary,
@@ -162,8 +192,8 @@ internal fun DesktopSpotifyCanvasDialog(onDismiss: () -> Unit, onSaved: (String)
         }
         DialogActions(
             confirm = DesktopStrings["save", "Save"],
-            confirmEnabled = true,
-            busy = false,
+            confirmEnabled = token.isNotBlank(),
+            busy = signingIn,
             onConfirm = ::save,
             onDismiss = onDismiss,
         )
