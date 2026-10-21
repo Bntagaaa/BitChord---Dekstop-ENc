@@ -26,6 +26,8 @@ import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 
 fun main() {
+    // Before any WebView exists, so sign-in and PoToken pages share the same cookie jar.
+    DesktopWebCookies.install()
     // The player is the phone's, from the shared UI module; this is what it reads underneath.
     PlayerPlatform.install(DesktopPlayerHost)
     com.music.bitchord.ui.AppUi.install(DesktopAppUiHost)
@@ -35,8 +37,6 @@ fun main() {
         DesktopTrackLog.log("$tag/$level: $message" + (error?.let { " (${it.message})" } ?: ""))
     }
     LyricsTranslation.cacheDir = DesktopMediaCache.directory.toFile()
-    // Install the shared JavaFX cookie jar before either sign-in or PoToken WebViews start.
-    DesktopWebCookies.install()
     // Spotify's account library shares the web-player token implementation used by Canvas.
     SpotifyLibrary.auth = SpotifyLibrary.Auth {
         DesktopSpotifyToken.accessToken()?.let { SpotifyLibrary.Tokens(it, DesktopSpotifyToken.clientToken()) }
