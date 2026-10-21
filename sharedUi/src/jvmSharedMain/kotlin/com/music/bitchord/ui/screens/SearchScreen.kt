@@ -252,12 +252,16 @@ fun SearchScreen(
                         Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.TopCenter,
                     ) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(0.78f).padding(top = 8.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            color = Color(0xF027272B),
-                            shadowElevation = 12.dp,
+                        Box(
+                            Modifier.widthIn(max = 540.dp).fillMaxWidth().padding(horizontal = 24.dp),
+                            contentAlignment = Alignment.TopStart,
                         ) {
+                            Surface(
+                                modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth().padding(top = 8.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xF027272B),
+                                shadowElevation = 12.dp,
+                            ) {
                             Column(
                                 Modifier
                                     .heightIn(max = 420.dp)
@@ -305,6 +309,7 @@ fun SearchScreen(
                                     }
                                 }
                             }
+                        }
                         }
                     }
                 }
