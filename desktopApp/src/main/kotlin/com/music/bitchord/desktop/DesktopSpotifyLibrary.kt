@@ -73,6 +73,7 @@ internal fun SpotifyTrack.asPendingSong() = Song(
  */
 internal suspend fun loadSpotifyPlaylist(
     playlistId: String,
+    isOpen: () -> Boolean,
     update: ((DesktopCollection) -> DesktopCollection) -> Unit,
 ) = coroutineScope {
     launch {
@@ -88,6 +89,7 @@ internal suspend fun loadSpotifyPlaylist(
     tracks.forEachIndexed { index, track ->
         launch {
             gate.withPermit {
+                if (!isOpen()) return@withPermit
                 val match = runCatching { SpotifyImporter.matchTrack(track) }.getOrNull()
                 val row = match?.copy(thumbnailUrl = match.thumbnailUrl ?: track.imageUrl)
                     ?: track.asPendingSong().copy(videoId = SPOTIFY_MISSING_PREFIX + track.id)
