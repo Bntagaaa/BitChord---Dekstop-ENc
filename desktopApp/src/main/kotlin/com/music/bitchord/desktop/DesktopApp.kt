@@ -1119,7 +1119,10 @@ fun BitChordDesktopApp() {
         if (pending.browseId.startsWith("spotify:playlist:")) {
             val playlistId = pending.browseId.removePrefix("spotify:playlist:")
             runCatching {
-                loadSpotifyPlaylist(playlistId) { transform ->
+                loadSpotifyPlaylist(
+                    playlistId = playlistId,
+                    isOpen = { openedCollection?.browseId == pending.browseId },
+                ) { transform ->
                     val current = openedCollection
                     if (current?.browseId == pending.browseId) openedCollection = transform(current)
                 }
