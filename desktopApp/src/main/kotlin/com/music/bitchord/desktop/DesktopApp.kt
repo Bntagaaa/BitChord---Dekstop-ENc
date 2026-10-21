@@ -2643,7 +2643,7 @@ fun BitChordDesktopApp() {
      * The account's library, re-read whenever the session behind it changes — signing in, switching
      * channel, signing out.
      */
-    LaunchedEffect(activeAccountId, activeProfileId, sessionRevision) {
+    LaunchedEffect(activeAccountId, activeProfileId, sessionRevision, spotifyCanvasCookie) {
         youtubeSignedIn = DesktopYouTubeAuth.isSignedIn
         if (!DesktopYouTubeAuth.isSignedIn) {
             val spotifyShelf = if (DesktopSpotifyToken.cookie().isNotBlank()) {
