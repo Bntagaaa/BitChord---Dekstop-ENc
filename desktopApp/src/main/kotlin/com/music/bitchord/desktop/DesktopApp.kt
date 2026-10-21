@@ -17,6 +17,7 @@ import com.music.bitchord.ui.replay.ReplayCreditCard
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import com.music.bitchord.data.YtMusicRepository
+import com.music.bitchord.data.spotify.SpotifyLibrary
 import com.music.bitchord.data.model.EntityType
 import com.music.bitchord.data.model.SearchHistoryEntity
 import com.music.bitchord.ui.LocalPullToRefreshEnabled
@@ -284,6 +285,8 @@ import com.music.bitchord.data.model.ROW_ART_PX
 import com.music.bitchord.data.model.SearchFilter
 import com.music.bitchord.data.model.SearchResult
 import com.music.bitchord.data.model.ShelfItem
+import com.music.bitchord.data.model.SPOTIFY_MISSING_PREFIX
+import com.music.bitchord.data.model.SPOTIFY_PENDING_PREFIX
 import com.music.bitchord.data.model.PlaybackSourceType
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.SubscriptionState
@@ -882,9 +885,21 @@ fun BitChordDesktopApp() {
 
     fun playSongs(songs: List<Song>, startIndex: Int = 0, source: DesktopQueueSource? = null) {
         if (songs.isEmpty()) return
+        val selected = songs.getOrNull(startIndex.coerceIn(songs.indices))
+        if (selected?.videoId?.startsWith(SPOTIFY_PENDING_PREFIX) == true ||
+            selected?.videoId?.startsWith(SPOTIFY_MISSING_PREFIX) == true
+        ) {
+            DesktopPlayerHost.showMessage("This Spotify track could not be matched to a playable song.")
+            return
+        }
         if (partyTrackChangeBlocked()) return
-        val playable = songs.map(::canonicalSong).map { it.withSource(source) }
-        val at = startIndex.coerceIn(playable.indices)
+        val playableSongs = songs.filterNot {
+            it.videoId.startsWith(SPOTIFY_PENDING_PREFIX) || it.videoId.startsWith(SPOTIFY_MISSING_PREFIX)
+        }
+        if (playableSongs.isEmpty()) return
+        val playable = playableSongs.map(::canonicalSong).map { it.withSource(source) }
+        val selectedId = selected?.videoId
+        val at = playable.indexOfFirst { it.videoId == selectedId }.takeIf { it >= 0 } ?: 0
         if (DesktopListenTogether.state.value.inParty) {
             liveQueue = DesktopQueue(partyPlaybackQueue(playable[at]), index = 0)
             preShuffleOrder = emptyList()
@@ -1048,7 +1063,8 @@ fun BitChordDesktopApp() {
                 title = fallback?.title.orEmpty(),
                 subtitle = fallback?.subtitle.orEmpty(),
                 thumbnailUrl = fallback?.thumbnailUrl,
-                type = fallback?.type?.takeIf { it != BrowseType.OTHER } ?: browseTypeOf(browseId),
+                type = if (browseId.startsWith("spotify:playlist:")) BrowseType.PLAYLIST
+                    else fallback?.type?.takeIf { it != BrowseType.OTHER } ?: browseTypeOf(browseId),
                 songs = emptyList(),
                 loading = true,
             ),
@@ -1061,6 +1077,21 @@ fun BitChordDesktopApp() {
     LaunchedEffect(openedCollection?.browseId, openedCollection?.loading, collectionReloads) {
         val pending = openedCollection?.takeIf { it.loading } ?: return@LaunchedEffect
         collectionError = null
+        if (pending.browseId.startsWith("spotify:playlist:")) {
+            val playlistId = pending.browseId.removePrefix("spotify:playlist:")
+            runCatching {
+                loadSpotifyPlaylist(playlistId) { transform ->
+                    val current = openedCollection
+                    if (current?.browseId == pending.browseId) openedCollection = transform(current)
+                }
+            }.onFailure { failure ->
+                if (openedCollection?.browseId == pending.browseId) {
+                    collectionError = failure.message ?: "Could not open Spotify playlist"
+                    openedCollection = openedCollection?.copy(loading = false)
+                }
+            }
+            return@LaunchedEffect
+        }
         DesktopSearchClient.browse(
             browseId = pending.browseId,
             fallback = BrowseItem(
@@ -2613,7 +2644,14 @@ fun BitChordDesktopApp() {
     LaunchedEffect(activeAccountId, activeProfileId, sessionRevision) {
         youtubeSignedIn = DesktopYouTubeAuth.isSignedIn
         if (!DesktopYouTubeAuth.isSignedIn) {
-            libraryState = UiState.Success(LibraryPage(emptyList(), emptyList(), emptyList()))
+            val spotifyShelf = if (DesktopSpotifyToken.cookie().isNotBlank()) {
+                runCatching { SpotifyLibrary.playlists() }.getOrNull()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { HomeShelf(SPOTIFY_SHELF, it.map { playlist -> playlist.toShelfItem() }) }
+            } else null
+            libraryState = UiState.Success(
+                LibraryPage(emptyList(), emptyList(), listOfNotNull(spotifyShelf)),
+            )
             return@LaunchedEffect
         }
         libraryState = UiState.Loading
@@ -2621,6 +2659,21 @@ fun BitChordDesktopApp() {
             onSuccess = { page ->
                 // The continuation is a job to run, not page state — it is consumed below.
                 libraryState = UiState.Success(page.copy(likedContinuation = null))
+                // Spotify is an optional shelf, independent of YouTube Music's own library.
+                // Resolve it off the first paint so the ordinary library remains responsive.
+                if (DesktopSpotifyToken.cookie().isNotBlank()) {
+                    scope.launch {
+                        runCatching { SpotifyLibrary.playlists() }.onSuccess { spotifyPlaylists ->
+                            val currentPage = (libraryState as? UiState.Success)?.data ?: return@onSuccess
+                            val shelves = currentPage.shelves.filterNot { it.title == SPOTIFY_SHELF }
+                            val spotifyShelf = HomeShelf(SPOTIFY_SHELF, spotifyPlaylists.map { it.toShelfItem() })
+                            libraryState = UiState.Success(currentPage.copy(shelves = shelves + spotifyShelf))
+                            DesktopTrackLog.log("spotify: loaded ${spotifyPlaylists.size} playlists")
+                        }.onFailure { failure ->
+                            DesktopTrackLog.log("spotify: library unavailable: ${failure.message}")
+                        }
+                    }
+                }
                 DesktopTrackLog.log(
                     "library: ${page.likedSongs.size} liked, ${page.librarySongs.size} added, " +
                         "shelves ${page.shelves.joinToString { "${it.title}=${it.items.size}" }}",
