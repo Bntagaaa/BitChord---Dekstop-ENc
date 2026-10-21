@@ -1124,7 +1124,9 @@ fun BitChordDesktopApp() {
      */
     fun shareCollection(collection: DesktopCollection) {
         val id = collection.browseId
-        val url = when (collection.type) {
+        val url = if (id.startsWith("spotify:playlist:")) {
+            "https://open.spotify.com/playlist/${id.removePrefix("spotify:playlist:")}"
+        } else when (collection.type) {
             BrowseType.PLAYLIST -> "https://music.youtube.com/playlist?list=${id.removePrefix("VL")}"
             BrowseType.ALBUM -> "https://music.youtube.com/browse/$id"
             else -> return
