@@ -88,6 +88,11 @@ internal object DesktopSpotifyLibraryAuth {
             val stillNow = System.currentTimeMillis()
             cachedAccessToken?.let { if (stillNow < accessTokenExpiresAtMs - 30_000) return@withLock it }
 
+            // A token refresh may follow a web-player release; do not reuse its old client token
+            // or version/device tuple with the newly harvested bearer.
+            cachedClientToken = null
+            clientTokenExpiresAtMs = 0L
+            cachedSession = null
             val harvested = harvestViaWebEngine(cookie)
             if (harvested == null) {
                 DesktopTrackLog.log("spotify: web-player token harvest failed or timed out")
