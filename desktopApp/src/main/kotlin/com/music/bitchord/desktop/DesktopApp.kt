@@ -3186,7 +3186,7 @@ fun BitChordDesktopApp() {
                         true
                     }
                     .focusable(),
-remove old top playback toolbar                sidebar = {
+                sidebar = {
                     DesktopSidebar(
                         destination = destination,
                         settingsOpen = overlays.settingsPage != null,
