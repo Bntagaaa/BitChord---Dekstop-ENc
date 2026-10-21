@@ -4907,7 +4907,7 @@ private fun DesktopFrame(
                         Row(Modifier.fillMaxSize()) {
                             if (!compact) sidebar()
                             Column(Modifier.weight(1f).fillMaxHeight()) {
-                            topBar(compact)
+                            if (maximized) topBar(compact)
                             Row(Modifier.fillMaxWidth().weight(1f)) {
                                 Box(
                                     Modifier
@@ -4921,12 +4921,12 @@ private fun DesktopFrame(
                                                 end = 0.dp,
                                                 // Room for the bar that floats over this, so the
                                                 // last row can still be scrolled clear of it.
-                                                bottom = if (compact) 128.dp else 16.dp,
+                                                bottom = if (compact || !maximized) 112.dp else 16.dp,
                                             ),
                                         )
                                     }
-                                    if (compact) {
-                                        Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(true) }
+                                    if (compact || !maximized) {
+                                        Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(compact) }
                                     }
                                 }
                                 Box(
