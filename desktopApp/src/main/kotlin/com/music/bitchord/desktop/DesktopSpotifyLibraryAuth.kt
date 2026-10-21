@@ -89,6 +89,7 @@ internal object DesktopSpotifyLibraryAuth {
                 DesktopTrackLog.log("spotify: web-player token harvest failed or timed out")
                 return@withLock null
             }
+            if (cachedCookie != cookie) return@withLock null
             cachedAccessToken = harvested.token
             accessTokenExpiresAtMs = harvested.expiresAt
             harvested.clientId?.let { cachedClientId = it }
@@ -175,15 +176,19 @@ internal object DesktopSpotifyLibraryAuth {
                 }
             }
 
-            engineReady.await()
-            return withTimeoutOrNull(TOKEN_TIMEOUT_MS) { result.await() }
+            return withTimeoutOrNull(TOKEN_TIMEOUT_MS) {
+                engineReady.await()
+                result.await()
+            }
         } catch (failure: Throwable) {
             DesktopTrackLog.log("spotify: token WebEngine failed: " + (failure.message ?: failure.javaClass.simpleName))
             return null
         } finally {
-            Platform.runLater {
-                engineRef[0]?.let { engine ->
-                    runCatching { engine.load("about:blank") }
+            runCatching {
+                Platform.runLater {
+                    engineRef[0]?.let { engine ->
+                        runCatching { engine.load("about:blank") }
+                    }
                 }
             }
             withContext(Dispatchers.IO) {
@@ -335,5 +340,4 @@ internal object DesktopSpotifyLibraryAuth {
         }
     }
 
-    private const val HOOK_SCRIPT_PLACEHOLDER = ""
 }
