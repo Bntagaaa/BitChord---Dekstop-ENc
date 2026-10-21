@@ -498,7 +498,6 @@ private enum class DesktopRepeatMode {
 fun BitChordDesktopApp() {
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
-    val maximized by DesktopWindowMode.maximized.collectAsState()
     val shortcutRootFocusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { shortcutRootFocusRequester.requestFocus() }
     // Filled once the audio engine exists. Local playback helpers use this single hook so every
@@ -3196,7 +3195,7 @@ fun BitChordDesktopApp() {
                         accountName = activeAccount?.name?.takeIf(String::isNotBlank) ?: "Sign in",
                         accountAvatar = activeAccount?.avatar
                             ?: activeAccount?.profiles?.firstOrNull()?.avatar,
-                        showAccountInSidebar = !maximized,
+                        showAccountInSidebar = true,
                         onOpenAccounts = {
                             DesktopTrackLog.log("accounts: opening the switcher")
                             overlays.accounts = true
