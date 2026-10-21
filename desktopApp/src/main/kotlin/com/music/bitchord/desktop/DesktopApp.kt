@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import com.music.bitchord.data.YtMusicRepository
 import com.music.bitchord.data.spotify.SpotifyLibrary
+import com.music.bitchord.data.spotify.SpotifyPlaylist
+import com.music.bitchord.data.spotify.SPOTIFY_PAGE_PREFIX
 import com.music.bitchord.data.model.EntityType
 import com.music.bitchord.data.model.SearchHistoryEntity
 import com.music.bitchord.ui.LocalPullToRefreshEnabled
@@ -471,6 +473,7 @@ private enum class DesktopDestination(val id: String, val label: String) {
     LISTEN_NOW("listen-now", "Home"),
     EXPLORE("explore", "Explore"),
     LIBRARY("library", "Library"),
+    SPOTIFY("spotify", "Spotify"),
     SEARCH("search", "Search"),
     HISTORY("history", "History"),
     DOWNLOADS("downloads", "Downloads"),
@@ -558,6 +561,7 @@ fun BitChordDesktopApp() {
     val searchListState = rememberLazyListState()
     val libraryListState = rememberLazyListState()
     val libraryGridState = rememberLazyGridState()
+    val spotifyGridState = rememberLazyGridState()
     /** A Library shelf's "Show all", open as a grid in place of the page. */
     var libraryShowAll by remember { mutableStateOf<HomeShelf?>(null) }
     /** Where the one back button in the top bar goes: every place visited, oldest first. */
@@ -668,7 +672,42 @@ fun BitChordDesktopApp() {
     var legacyMeshGradient by remember { mutableStateOf(persistence.boolean("legacy_mesh_gradient", false)) }
     var animatedCanvas by remember { mutableStateOf(persistence.boolean("animated_canvas", true)) }
     var spotifyCanvasCookie by remember { mutableStateOf(DesktopSpotifyToken.cookie()) }
+    var spotifyPlaylists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
+    var spotifyLoading by remember { mutableStateOf(false) }
+    var spotifyError by remember { mutableStateOf<String?>(null) }
+    var spotifyReloads by remember { mutableStateOf(0) }
+    var spotifyLoadedCookie by remember { mutableStateOf<String?>(null) }
     var showNerdStats by remember { mutableStateOf(persistence.boolean("show_nerd_stats", false)) }
+    LaunchedEffect(destination, spotifyCanvasCookie, spotifyReloads) {
+        if (destination != DesktopDestination.SPOTIFY) return@LaunchedEffect
+        val requestedCookie = spotifyCanvasCookie
+        if (requestedCookie.isBlank()) {
+            spotifyPlaylists = emptyList()
+            spotifyLoadedCookie = null
+            spotifyError = null
+            spotifyLoading = false
+            return@LaunchedEffect
+        }
+        if (spotifyLoadedCookie != requestedCookie) spotifyPlaylists = emptyList()
+        spotifyLoading = true
+        spotifyError = null
+        runCatching { SpotifyLibrary.playlists() }.fold(
+            onSuccess = { loaded ->
+                if (destination == DesktopDestination.SPOTIFY && spotifyCanvasCookie == requestedCookie) {
+                    spotifyPlaylists = loaded
+                    spotifyLoadedCookie = requestedCookie
+                }
+            },
+            onFailure = { failure ->
+                if (destination == DesktopDestination.SPOTIFY && spotifyCanvasCookie == requestedCookie) {
+                    spotifyError = failure.message ?: "Could not load Spotify library"
+                }
+            },
+        )
+        if (destination == DesktopDestination.SPOTIFY && spotifyCanvasCookie == requestedCookie) {
+            spotifyLoading = false
+        }
+    }
     var syncedLyrics by remember {
         mutableStateOf(persistence.boolean(DesktopLyricsClient.KEY_SYNCED_LYRICS, true))
     }
@@ -2643,17 +2682,10 @@ fun BitChordDesktopApp() {
      * The account's library, re-read whenever the session behind it changes — signing in, switching
      * channel, signing out.
      */
-    LaunchedEffect(activeAccountId, activeProfileId, sessionRevision, spotifyCanvasCookie) {
+    LaunchedEffect(activeAccountId, activeProfileId, sessionRevision) {
         youtubeSignedIn = DesktopYouTubeAuth.isSignedIn
         if (!DesktopYouTubeAuth.isSignedIn) {
-            val spotifyShelf = if (DesktopSpotifyToken.cookie().isNotBlank()) {
-                runCatching { SpotifyLibrary.playlists() }.getOrNull()
-                    ?.takeIf { it.isNotEmpty() }
-                    ?.let { HomeShelf(SPOTIFY_SHELF, it.map { playlist -> playlist.toShelfItem() }) }
-            } else null
-            libraryState = UiState.Success(
-                LibraryPage(emptyList(), emptyList(), listOfNotNull(spotifyShelf)),
-            )
+            libraryState = UiState.Success(LibraryPage(emptyList(), emptyList(), emptyList()))
             return@LaunchedEffect
         }
         libraryState = UiState.Loading
@@ -2661,21 +2693,6 @@ fun BitChordDesktopApp() {
             onSuccess = { page ->
                 // The continuation is a job to run, not page state — it is consumed below.
                 libraryState = UiState.Success(page.copy(likedContinuation = null))
-                // Spotify is an optional shelf, independent of YouTube Music's own library.
-                // Resolve it off the first paint so the ordinary library remains responsive.
-                if (DesktopSpotifyToken.cookie().isNotBlank()) {
-                    scope.launch {
-                        runCatching { SpotifyLibrary.playlists() }.onSuccess { spotifyPlaylists ->
-                            val currentPage = (libraryState as? UiState.Success)?.data ?: return@onSuccess
-                            val shelves = currentPage.shelves.filterNot { it.title == SPOTIFY_SHELF }
-                            val spotifyShelf = HomeShelf(SPOTIFY_SHELF, spotifyPlaylists.map { it.toShelfItem() })
-                            libraryState = UiState.Success(currentPage.copy(shelves = shelves + spotifyShelf))
-                            DesktopTrackLog.log("spotify: loaded ${spotifyPlaylists.size} playlists")
-                        }.onFailure { failure ->
-                            DesktopTrackLog.log("spotify: library unavailable: ${failure.message}")
-                        }
-                    }
-                }
                 DesktopTrackLog.log(
                     "library: ${page.likedSongs.size} liked, ${page.librarySongs.size} added, " +
                         "shelves ${page.shelves.joinToString { "${it.title}=${it.items.size}" }}",
@@ -4179,6 +4196,28 @@ fun BitChordDesktopApp() {
                             topPadding = 0.dp,
                             showField = false,
                         )
+                        destination == DesktopDestination.SPOTIFY -> DesktopSpotifyLibraryPage(
+                            playlists = spotifyPlaylists,
+                            connected = spotifyCanvasCookie.isNotBlank(),
+                            loading = spotifyLoading,
+                            error = spotifyError,
+                            gridState = spotifyGridState,
+                            contentPadding = sharedPagePadding,
+                            onConnect = { overlays.settingsPage = DesktopSettingsPage.SPOTIFY_CANVAS },
+                            onRetry = { spotifyReloads++ },
+                            onOpenPlaylist = { playlist ->
+                                openCollection(
+                                    browseId = SPOTIFY_PAGE_PREFIX + playlist.id,
+                                    fallback = BrowseItem(
+                                        browseId = SPOTIFY_PAGE_PREFIX + playlist.id,
+                                        title = playlist.name,
+                                        subtitle = playlist.owner.orEmpty(),
+                                        thumbnailUrl = playlist.imageUrl,
+                                        type = BrowseType.PLAYLIST,
+                                    ),
+                                )
+                            },
+                        )
                         destination == DesktopDestination.LIBRARY && libraryShowAll != null -> Column(Modifier.fillMaxSize()) {
                             // The phone keeps the grid's sort beside it, in the bar above; here it sits
                             // at the end of the row the way back is on.
@@ -4645,6 +4684,9 @@ private fun DesktopSidebar(
             }
             DesktopSidebarItem(BitChordIcons.Library, "Library", destination == DesktopDestination.LIBRARY) {
                 onDestinationSelected(DesktopDestination.LIBRARY)
+            }
+            DesktopSidebarItem(BitChordIcons.Library, "Spotify", destination == DesktopDestination.SPOTIFY) {
+                onDestinationSelected(DesktopDestination.SPOTIFY)
             }
             DesktopSidebarItem(BitChordIcons.Search, "Search", destination == DesktopDestination.SEARCH) {
                 onDestinationSelected(DesktopDestination.SEARCH)
