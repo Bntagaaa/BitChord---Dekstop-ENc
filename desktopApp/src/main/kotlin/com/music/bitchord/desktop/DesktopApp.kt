@@ -539,6 +539,7 @@ fun BitChordDesktopApp() {
     // False while the query is being set *by* the app.
     var searchTyping by remember { mutableStateOf(false) }
     var searchLoading by remember { mutableStateOf(false) }
+    var searchRequestGeneration by remember { mutableStateOf(0) }
     var searchError by remember { mutableStateOf<String?>(null) }
     var homeState by remember { mutableStateOf<UiState<List<HomeShelf>>>(UiState.Loading) }
     // The home feed is paged: `FEmusic_home` answers with a couple of shelves and a token, and
@@ -2026,10 +2027,14 @@ fun BitChordDesktopApp() {
 
     /** Typing, from the page's field or the sidebar's: the typeahead follows, and an empty field goes back to recents. */
     fun editQuery(text: String) {
+        // Editing invalidates any request for the previous query. Keep the same field mounted and
+        // return to the browse landing so suggestions can float over the category grid.
+        searchRequestGeneration++
+        searchLoading = false
         query = text
         searchTyping = true
+        searchCommitted = false
         if (text.isBlank()) {
-            searchCommitted = false
             searchRows = emptyList()
             searchError = null
         }
@@ -2041,6 +2046,9 @@ fun BitChordDesktopApp() {
         destination = DesktopDestination.SEARCH
         searchTyping = false
         searchSuggestions = emptyList()
+        val submittedQuery = query
+        val submittedFilter = searchFilter
+        val requestGeneration = ++searchRequestGeneration
         // Submitting is picking the first track the typeahead offered, as on the phone — or, with
         // none, the first the results bring back.
         val typedHit = searchTypeahead.firstNotNullOfOrNull { row ->
@@ -2057,28 +2065,36 @@ fun BitChordDesktopApp() {
         searchError = null
         scope.launch {
             try {
-                DesktopMusicSources.search(query, searchFilter).fold(
+                DesktopMusicSources.search(submittedQuery, submittedFilter).fold(
                     onSuccess = { rows ->
-                        searchRows = rows
-                        if (typedHit == null) {
-                            rows.firstNotNullOfOrNull { row ->
-                                when (row) {
-                                    is SearchResult.TopTrack -> row.song
-                                    is SearchResult.Track -> row.song
-                                    else -> null
-                                }
-                            }?.let(::recordSongSearch)
+                        if (requestGeneration == searchRequestGeneration) {
+                            searchRows = rows
+                            if (typedHit == null) {
+                                rows.firstNotNullOfOrNull { row ->
+                                    when (row) {
+                                        is SearchResult.TopTrack -> row.song
+                                        is SearchResult.Track -> row.song
+                                        else -> null
+                                    }
+                                }?.let(::recordSongSearch)
+                            }
                         }
                     },
-                    onFailure = { searchError = it.message ?: "Search failed" },
+                    onFailure = {
+                        if (requestGeneration == searchRequestGeneration) {
+                            searchError = it.message ?: "Search failed"
+                        }
+                    },
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
-                searchError = failure.message ?: "Search failed"
+                if (requestGeneration == searchRequestGeneration) {
+                    searchError = failure.message ?: "Search failed"
+                }
             } finally {
-                // OBS and other desktop capture tools can briefly interrupt focus/coroutines.
-                searchLoading = false
+                // Older requests must never clear the loading state of a newer query.
+                if (requestGeneration == searchRequestGeneration) searchLoading = false
             }
         }
     }
@@ -2089,10 +2105,12 @@ fun BitChordDesktopApp() {
             searchSuggestions = emptyList()
             return@LaunchedEffect
         }
+        val requestedQuery = query
         delay(SUGGESTION_DEBOUNCE_MS)
-        DesktopSearchClient.searchSuggestions(query)
-            .onSuccess { if (searchTyping) searchSuggestions = it }
-            .onFailure { searchSuggestions = emptyList() }
+        if (!searchTyping || query != requestedQuery) return@LaunchedEffect
+        DesktopSearchClient.searchSuggestions(requestedQuery)
+            .onSuccess { if (searchTyping && query == requestedQuery) searchSuggestions = it }
+            .onFailure { if (searchTyping && query == requestedQuery) searchSuggestions = emptyList() }
     }
 
     // Its own pass, on its own delay: a search costs far more than a completion, so it waits for a
@@ -2102,10 +2120,12 @@ fun BitChordDesktopApp() {
             searchTypeahead = emptyList()
             return@LaunchedEffect
         }
+        val requestedQuery = query
         delay(TYPEAHEAD_MEDIA_DEBOUNCE_MS)
-        DesktopSearchClient.searchTypeahead(query)
-            .onSuccess { if (searchTyping) searchTypeahead = it.take(TYPEAHEAD_MEDIA_LIMIT) }
-            .onFailure { searchTypeahead = emptyList() }
+        if (!searchTyping || query != requestedQuery) return@LaunchedEffect
+        DesktopSearchClient.searchTypeahead(requestedQuery)
+            .onSuccess { if (searchTyping && query == requestedQuery) searchTypeahead = it.take(TYPEAHEAD_MEDIA_LIMIT) }
+            .onFailure { if (searchTyping && query == requestedQuery) searchTypeahead = emptyList() }
     }
 
     fun runSearch(term: String) {
