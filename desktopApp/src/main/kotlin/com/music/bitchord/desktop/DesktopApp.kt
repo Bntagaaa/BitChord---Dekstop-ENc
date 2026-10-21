@@ -2031,6 +2031,8 @@ fun BitChordDesktopApp() {
         // return to the browse landing so suggestions can float over the category grid.
         searchRequestGeneration++
         searchLoading = false
+        searchSuggestions = emptyList()
+        searchTypeahead = emptyList()
         query = text
         searchTyping = true
         searchCommitted = false
