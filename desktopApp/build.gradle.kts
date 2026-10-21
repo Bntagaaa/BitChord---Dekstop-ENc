@@ -22,7 +22,7 @@ val targetOs: String = (providers.gradleProperty("bitchord.target").orNull ?: wh
 // label such as "spotify-test". Keep that public label for the app/archive, but derive a valid
 // MAJOR.MINOR.BUILD version for Deb/Exe/Msi metadata.
 val desktopVersionCode = 29
-val numericAppVersion = Regex("""^\\d+(?:\\.\\d+)*""").find(appVersion)?.value
+val numericAppVersion = Regex("""^\d+(?:\.\d+)*""").find(appVersion)?.value
 val nativeVersionParts = numericAppVersion?.split('.')?.take(2) ?: listOf("1", "8")
 val nativePackageVersion = "${nativeVersionParts[0]}.${nativeVersionParts.getOrElse(1) { "0" }}.$desktopVersionCode"
 
