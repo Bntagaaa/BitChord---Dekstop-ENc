@@ -4892,6 +4892,7 @@ private fun DesktopFrame(
 ) {
     // Held out here rather than inside the constraints box.
     val haze = remember { HazeState() }
+    val maximized by DesktopWindowMode.maximized.collectAsState()
     // The decorated peer and Compose client remain opaque. DWM styling affects the native caption.
     CompositionLocalProvider(LocalDesktopHaze provides haze) {
         Box(modifier.fillMaxSize().background(containerColor)) {
