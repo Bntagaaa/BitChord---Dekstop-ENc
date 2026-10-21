@@ -67,6 +67,8 @@ fun ExploreScreen(
     modifier: Modifier = Modifier,
     /** The big "Explore" heading; the desktop's pages carry none. */
     showTitle: Boolean = true,
+    /** Render each server-provided category section with its own heading. */
+    showSectionHeadings: Boolean = false,
 ) {
     PullToRefresh(
         refreshing = refreshing,
@@ -104,13 +106,40 @@ fun ExploreScreen(
                         MessageState(state.message, actionLabel = stringResource(Res.string.retry), onAction = onRetry)
                     }
                     is UiState.Success -> {
-                        // Moods and genres read as one grid; the server's
-                        // grouping only decides the order.
-                        val rows = state.data.flatMap(MoodGenreSection::items)
-                            .distinctBy { it.browseId to it.params }
-                            .chunked(columns)
-                        items(rows, key = { row -> row.first().let { "${it.browseId}|${it.params}" } }) { row ->
-                            MoodGenreRow(row = row, columns = columns, onCategoryClick = onCategoryClick)
+                        if (showSectionHeadings) {
+                            state.data.forEach { section ->
+                                item(key = "mood-section:${section.title}") {
+                                    Text(
+                                        text = section.title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                        modifier = Modifier.padding(
+                                            start = PAGE_GUTTER,
+                                            end = PAGE_GUTTER,
+                                            top = 14.dp,
+                                            bottom = 10.dp,
+                                        ),
+                                    )
+                                }
+                                val rows = section.items
+                                    .distinctBy { it.browseId to it.params }
+                                    .chunked(columns)
+                                items(
+                                    rows,
+                                    key = { row -> "${section.title}:${row.first().browseId}|${row.first().params}" },
+                                ) { row ->
+                                    MoodGenreRow(row = row, columns = columns, onCategoryClick = onCategoryClick)
+                                }
+                            }
+                        } else {
+                            // The default Explore page keeps moods and genres in one continuous grid.
+                            val rows = state.data.flatMap(MoodGenreSection::items)
+                                .distinctBy { it.browseId to it.params }
+                                .chunked(columns)
+                            items(rows, key = { row -> row.first().let { "${it.browseId}|${it.params}" } }) { row ->
+                                MoodGenreRow(row = row, columns = columns, onCategoryClick = onCategoryClick)
+                            }
                         }
                     }
                 }
