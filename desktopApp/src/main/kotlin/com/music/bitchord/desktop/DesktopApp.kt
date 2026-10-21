@@ -498,6 +498,7 @@ private enum class DesktopRepeatMode {
 fun BitChordDesktopApp() {
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
+    val maximized by DesktopWindowMode.maximized.collectAsState()
     val shortcutRootFocusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { shortcutRootFocusRequester.requestFocus() }
     // Filled once the audio engine exists. Local playback helpers use this single hook so every
@@ -3243,20 +3244,18 @@ fun BitChordDesktopApp() {
                         accountPlaylists = sidebarAccountPlaylists,
                         localPlaylists = playlists,
                         openedCollectionId = openedCollection?.browseId,
-                        query = query,
-                        onQueryChange = { text ->
-                            editQuery(text)
-                            if (destination != DesktopDestination.SEARCH || overlays.settingsPage != null) {
-                                selectDestination(DesktopDestination.SEARCH)
-                            }
+                        accountName = activeAccount?.name?.takeIf(String::isNotBlank) ?: "Sign in",
+                        accountAvatar = activeAccount?.avatar
+                            ?: activeAccount?.profiles?.firstOrNull()?.avatar,
+                        showAccountInSidebar = !maximized,
+                        onOpenAccounts = {
+                            DesktopTrackLog.log("accounts: opening the switcher")
+                            overlays.accounts = true
                         },
-                        onSearch = ::search,
                         onDestinationSelected = ::selectDestination,
                         onOpenAccountPlaylist = { openShelfItem(it, PLAYLISTS_SHELF) },
                         onOpenLocalPlaylist = ::openPlaylist,
                         onOpenSettings = ::openSettings,
-                        focusSearch = searchFocusRequested,
-                        onSearchFocused = { searchFocusRequested = false },
                     )
                 },
                 bottomBar = { compact ->
@@ -4597,16 +4596,14 @@ private fun DesktopSidebar(
     accountPlaylists: List<ShelfItem>,
     localPlaylists: List<DesktopPlaylist>,
     openedCollectionId: String?,
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit,
+    accountName: String,
+    accountAvatar: String?,
+    showAccountInSidebar: Boolean,
+    onOpenAccounts: () -> Unit,
     onDestinationSelected: (DesktopDestination) -> Unit,
     onOpenAccountPlaylist: (ShelfItem) -> Unit,
     onOpenLocalPlaylist: (DesktopPlaylist) -> Unit,
     onOpenSettings: () -> Unit,
-    /** Search was picked: the sidebar's box is the page's field, so it takes the focus. */
-    focusSearch: Boolean,
-    onSearchFocused: () -> Unit,
 ) {
     // Search owns its input on the Search page; the sidebar is navigation only.
     Box(
@@ -4683,6 +4680,37 @@ private fun DesktopSidebar(
             }
             HorizontalDivider(color = desktopChromeDivider())
             Spacer(Modifier.height(8.dp))
+            if (showAccountInSidebar) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onOpenAccounts)
+                        .padding(horizontal = 4.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            accountName,
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            if (accountName == "Sign in") "Connect account" else "Account",
+                            color = DesktopSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+            }
             DesktopSidebarItem(Icons.Rounded.Settings, "Settings", settingsOpen) {
                 onOpenSettings()
             }
