@@ -22,9 +22,8 @@ import java.time.Duration
 /**
  * Spotify's Canvas: the short looping clip shown behind a track in their own app.
  *
- * Needs the listener's `sp_dc` cookie, which is the one thing here that identifies an account —
- * see [DesktopSpotifyToken] for how a bearer is minted from it, and why that is the fragile part
- * on a desktop with no embedded browser.
+ * Needs the listener's `sp_dc` cookie. [DesktopSpotifyLibraryAuth] harvests the authenticated
+ * bearer and client token from Spotify's real web player inside JavaFX WebEngine, as mobile does.
  */
 internal object DesktopSpotifyCanvas {
 
@@ -313,15 +312,6 @@ private fun ByteArrayOutputStream.writeVarint(value: Long) {
     }
 }
 
-/**
- * The bearer Spotify's own web player mints for itself.
- *
- * Android loads the real player in an offscreen WebView and reads the token it mints, because a
- * request signed here is answered with a token the downstream endpoints then refuse. A desktop
- * build has no embedded browser to do that in, so this takes the only route left: the web player's
- * own `/api/token`, signed with the TOTP it derives from a secret published in its bundle. When
- * Spotify declines, the canvas chain simply falls through to its other three sources.
- */
 /**
  * Persistent Spotify session cookie. Bearer and client tokens are minted from the real web player
  * by DesktopSpotifyLibraryAuth, matching the mobile v1.8.1 implementation.
