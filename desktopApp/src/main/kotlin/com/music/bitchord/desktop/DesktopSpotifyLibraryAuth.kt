@@ -38,7 +38,7 @@ import java.util.UUID
  */
 internal object DesktopSpotifyLibraryAuth {
     private const val BRIDGE_NAME = "BitChordSpotifyTokenBridge"
-    private const val TOKEN_TIMEOUT_MS = 25_000L
+    private const val TOKEN_TIMEOUT_MS = 15_000L
     private const val DEFAULT_TOKEN_LIFETIME_MS = 3_600_000L
     private const val CLIENT_TOKEN_URL = "https://clienttoken.spotify.com/v1/clienttoken"
 
@@ -110,9 +110,15 @@ internal object DesktopSpotifyLibraryAuth {
             cachedClientToken = null
             clientTokenExpiresAtMs = 0L
             cachedSession = null
-            val harvested = harvestViaWebEngine(cookie)
+            val harvested = harvestViaWebEngine(cookie) ?: run {
+                // JavaFX WebKit may expose the document only after the Spotify player has
+                // fetched its token (or cannot execute its modern scripts at all).
+                // A locally installed Chromium is a fallback, not another account login.
+                DesktopTrackLog.log("spotify: JavaFX token capture unavailable; trying local Chromium")
+                DesktopSpotifyChromiumToken.harvest(cookie)?.let(::parseTokenPayload)
+            }
             if (harvested == null) {
-                DesktopTrackLog.log("spotify: web-player token harvest failed or timed out")
+                DesktopTrackLog.log("spotify: no authenticated web-player token was obtained")
                 return@withLock null
             }
             if (cachedCookie != cookie) return@withLock null
@@ -263,21 +269,28 @@ internal object DesktopSpotifyLibraryAuth {
         }
     }
 
-    /** Receives raw /api/token response bodies from the Spotify page. */
-    private fun acceptTokenPayload(payload: String?, result: CompletableDeferred<HarvestedToken?>) {
-        if (payload.isNullOrBlank() || result.isCompleted) return
-        runCatching {
+    /** Accept only authenticated Spotify tokens; anonymous player tokens cannot read playlists. */
+    private fun parseTokenPayload(payload: String?): HarvestedToken? {
+        if (payload.isNullOrBlank()) return null
+        return runCatching {
             val root = json.parseToJsonElement(payload).jsonObject
             val token = root["accessToken"]?.jsonPrimitive?.contentOrNull
+                ?.takeIf { it.isNotBlank() } ?: return@runCatching null
             val anonymous = root["isAnonymous"]?.jsonPrimitive?.contentOrNull
                 ?.toBooleanStrictOrNull() ?: false
-            if (token.isNullOrBlank() || anonymous) return
+            if (anonymous) return@runCatching null
             val expiresAt = root["accessTokenExpirationTimestampMs"]?.jsonPrimitive?.contentOrNull
                 ?.toLongOrNull()?.takeIf { it > System.currentTimeMillis() }
                 ?: (System.currentTimeMillis() + DEFAULT_TOKEN_LIFETIME_MS)
             val clientId = root["clientId"]?.jsonPrimitive?.contentOrNull
-            result.complete(HarvestedToken(token, expiresAt, clientId))
-        }
+            HarvestedToken(token, expiresAt, clientId)
+        }.getOrNull()
+    }
+
+    /** Receives raw /api/token response bodies from the Spotify page. */
+    private fun acceptTokenPayload(payload: String?, result: CompletableDeferred<HarvestedToken?>) {
+        if (result.isCompleted) return
+        parseTokenPayload(payload)?.let { result.complete(it) }
     }
 
     private val HOOK_SCRIPT = """
