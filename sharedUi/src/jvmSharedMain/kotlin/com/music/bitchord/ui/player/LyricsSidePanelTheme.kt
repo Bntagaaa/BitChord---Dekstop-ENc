@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Color
  * Desktop side-panel appearance. The main player and Android continue to use white artwork
  * lyrics; desktop provides a contrasting palette only inside its standalone lyrics sidebar.
  */
-internal data class LyricsPanelColors(
+data class LyricsPanelColors(
     val primary: Color = Color.White,
     val secondary: Color = Color.White.copy(alpha = 0.65f),
     val inactive: Color = Color.White,
@@ -16,4 +16,4 @@ internal data class LyricsPanelColors(
     val isLight: Boolean = false,
 )
 
-internal val LocalLyricsPanelColors = staticCompositionLocalOf { LyricsPanelColors() }
+val LocalLyricsPanelColors = staticCompositionLocalOf { LyricsPanelColors() }
