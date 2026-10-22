@@ -141,6 +141,7 @@ dependencies {
     implementation("org.graalvm.js:js-language:24.1.2")
 
     testImplementation(kotlin("test"))
+    testImplementation(compose.desktop.uiTestJUnit4)
 }
 
 kotlin {

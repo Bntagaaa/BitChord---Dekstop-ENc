@@ -4352,6 +4352,8 @@ fun BitChordDesktopApp() {
                             onTopResultPlay = { song ->
                                 recordSongSearch(song)
                                 playSong(song, source = DesktopQueueSource(DesktopStrings["search", "Search"], PlaybackSourceType.SEARCH))
+                                searchSession.dismissSuggestions()
+                                releaseShortcutTextFocus()
                             },
                             onTopResultPlaylist = { song ->
                                 recordSongSearch(song)
@@ -4401,6 +4403,7 @@ fun BitChordDesktopApp() {
                             onHistoryClear = DesktopSearchHistory::clear,
                             onTypeaheadLongPress = ::openMenu,
                             contentPadding = sharedPagePadding,
+                            modifier = Modifier.desktopSearchFocus(searchSession),
                             topPadding = 0.dp,
                             showField = true,
                             searchField = { focusRequester ->
@@ -4424,12 +4427,12 @@ fun BitChordDesktopApp() {
                                 }
                             },
                             showLanding = !searchCommitted,
-                            landingSuggestionsEnabled = searchInputFocused,
+                            landingSuggestionsEnabled = searchTyping,
                             onLandingOutsidePress = {
                                 // Observe, don't consume, the click: the first press may also
                                 // open a mood card or scroll the Explore landing underneath.
                                 if (searchInputFocused || searchTyping) {
-                                    searchSession.focus(false)
+                                    searchSession.dismissSuggestions()
                                     searchSuggestions = emptyList()
                                     searchTypeahead = emptyList()
                                     searchFocusRequested = false
@@ -4441,6 +4444,7 @@ fun BitChordDesktopApp() {
                                 fullSearchHaze, RoundedCornerShape(14.dp), searchBlurReduced,
                             ),
                             landingPanelColor = Color.Transparent,
+                            landingPanelShadowElevation = 0.dp,
                             landingContent = {
                                 ExploreScreen(
                                     state = exploreState,

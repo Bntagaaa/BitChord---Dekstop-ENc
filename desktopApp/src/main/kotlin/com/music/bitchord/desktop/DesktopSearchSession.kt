@@ -29,7 +29,14 @@ internal class DesktopSearchSession<T> {
 
     fun focus(focused: Boolean) {
         inputFocused.value = focused
-        typing.value = focused && !committed.value && query.value.isNotBlank()
+        // A result can receive focus on mouse-down, before its onClick runs on mouse-up.
+        // Keep it mounted during that transfer; dismissal belongs to the whole Search
+        // focus group, an outside press, or a completed result action.
+        if (focused) typing.value = !committed.value && query.value.isNotBlank()
+    }
+
+    fun dismissSuggestions() {
+        typing.value = false
     }
 
     fun reset() {
