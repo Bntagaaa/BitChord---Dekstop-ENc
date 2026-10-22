@@ -52,6 +52,7 @@ import androidx.compose.runtime.SideEffect
 import com.music.bitchord.data.model.QueueTier
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -174,6 +175,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -184,6 +186,9 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Typography
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -537,6 +542,7 @@ fun BitChordDesktopApp() {
     var personalPositionStash by remember { mutableStateOf(0L) }
     var personalPlayingStash by remember { mutableStateOf(false) }
     val persistence = remember { DesktopPersistence() }
+    var sidebarCollapsed by remember { mutableStateOf(persistence.string("sidebar_collapsed", "false") == "true") }
     val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
     val searchSession = remember { DesktopSearchSession<SearchResult>() }
@@ -3418,6 +3424,11 @@ fun BitChordDesktopApp() {
                     .focusable(),
                 sidebar = {
                     DesktopSidebar(
+                        collapsed = sidebarCollapsed,
+                        onToggleCollapse = {
+                            sidebarCollapsed = !sidebarCollapsed
+                            persistence.saveString("sidebar_collapsed", sidebarCollapsed.toString())
+                        },
                         destination = destination,
                         settingsOpen = overlays.settingsPage != null,
                         accountPlaylists = sidebarAccountPlaylists,
