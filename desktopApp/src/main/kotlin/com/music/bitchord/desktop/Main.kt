@@ -1,5 +1,6 @@
 package com.music.bitchord.desktop
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import com.music.bitchord.ui.player.PlayerPlatform
 import com.music.bitchord.data.DebugLog
@@ -14,6 +15,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -137,8 +140,17 @@ private fun desktopMain() = application {
                 )
             }
         }
-        DesktopFlyoutHost {
-            BitChordDesktopApp()
+        // Apply app-wide UI scale inside Compose, preserving native window frame sizing
+        // and the monitor/accessibility font scale. Flyouts share the same density.
+        val uiScalePercent by DesktopUiScaleSettings.percent.collectAsState()
+        val systemDensity = LocalDensity.current
+        val uiDensity = remember(systemDensity, uiScalePercent) {
+            Density(systemDensity.density * (uiScalePercent / 100f), systemDensity.fontScale)
+        }
+        CompositionLocalProvider(LocalDensity provides uiDensity) {
+            DesktopFlyoutHost {
+                BitChordDesktopApp()
+            }
         }
     }
 }

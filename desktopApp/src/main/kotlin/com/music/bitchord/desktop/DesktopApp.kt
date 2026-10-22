@@ -164,6 +164,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -6508,6 +6509,51 @@ private fun DesktopSettingsScreen(
             }
             if (section == DesktopSettingsSection.APPEARANCE) item {
                 SettingsGroup(DesktopStrings["appearance", "Appearance"]) {
+                    val uiScalePercent by DesktopUiScaleSettings.percent.collectAsState()
+                    val uiScaleTitle = DesktopStrings["d_ui_scale", "UI scale"]
+                    val uiScaleSubtitle = DesktopStrings[
+                        "d_ui_scale_subtitle",
+                        "Zoom text, controls, and panels throughout BitChord.",
+                    ]
+                    if (settingsRowVisible(uiScaleTitle, uiScaleSubtitle)) {
+                        var uiScaleMenuOpen by remember { mutableStateOf(false) }
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(uiScaleTitle, fontWeight = FontWeight.Medium)
+                                Text(uiScaleSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Box {
+                                OutlinedButton(onClick = { uiScaleMenuOpen = true }) {
+                                    Text("$uiScalePercent%")
+                                    Spacer(Modifier.width(4.dp))
+                                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null)
+                                }
+                                DropdownMenu(
+                                    expanded = uiScaleMenuOpen,
+                                    onDismissRequest = { uiScaleMenuOpen = false },
+                                ) {
+                                    DesktopUiScaleSettings.options.forEach { percent ->
+                                        DropdownMenuItem(
+                                            text = { Text("$percent%") },
+                                            trailingIcon = if (percent == uiScalePercent) {
+                                                { Icon(BitChordIcons.Check, contentDescription = null) }
+                                            } else {
+                                                null
+                                            },
+                                            onClick = {
+                                                uiScaleMenuOpen = false
+                                                DesktopUiScaleSettings.setPercent(percent)
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
                     val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
                     SettingsToggle(

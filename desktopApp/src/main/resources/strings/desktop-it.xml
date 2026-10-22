@@ -89,4 +89,6 @@
     <string name="d_translation_unavailable">Traduzione non disponibile</string>
     <string name="d_what_the_translate_button_translates_into">In quale lingua traduce il pulsante Traduci del testo</string>
     <string name="d_off">Disattivato</string>
+    <string name="d_ui_scale">Scala dell'interfaccia</string>
+    <string name="d_ui_scale_subtitle">Ingrandisci o riduci testo, controlli e pannelli in BitChord.</string>
 </resources>
