@@ -81,7 +81,7 @@ internal fun DesktopReplayPage(
     contentPadding: PaddingValues,
 ) {
     // The mesh behind this page is painted by the frame, so the chrome is tinted by it too.
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(DesktopTheme.palette.replaySurface)) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
             item("heading") {
                 // No arrow of its own: the top bar's back is the way out, as the gesture is on
@@ -94,12 +94,12 @@ internal fun DesktopReplayPage(
                             DesktopStrings["replay", "Replay"],
                             style = MaterialTheme.typography.displayMedium,
                             fontWeight = FontWeight.W800,
-                            color = Color.White,
+                            color = DesktopForeground,
                         )
                         Text(
                             summary.label.ifBlank { period.chip },
                             style = MaterialTheme.typography.titleMedium,
-                            color = Color.White.copy(alpha = 0.6f),
+                            color = DesktopForeground.copy(alpha = 0.6f),
                         )
                         Spacer(Modifier.height(14.dp))
                         PeriodPicker(period, onPeriodChange)
@@ -124,6 +124,7 @@ internal fun DesktopReplayPage(
                             holder = holder,
                             memberSince = summary.memberSince(),
                             onClick = {},
+                            lightMode = DesktopTheme.isLight,
                             modifier = Modifier.width(300.dp),
                         )
                     }
@@ -161,14 +162,14 @@ private fun PeriodPicker(selected: DesktopReplayPeriod, onSelect: (DesktopReplay
     Row(
         Modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.10f))
+            .background(DesktopTheme.palette.subtleFill)
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         DesktopReplayPeriod.entries.forEach { period ->
             val active = period == selected
             val background by animateColorAsState(
-                if (active) Color.White.copy(alpha = 0.92f) else Color.Transparent,
+                if (active) DesktopAccent else Color.Transparent,
                 tween(160),
                 label = "periodChip",
             )
@@ -176,7 +177,7 @@ private fun PeriodPicker(selected: DesktopReplayPeriod, onSelect: (DesktopReplay
                 period.chip,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.W700,
-                color = if (active) Color.Black else Color.White.copy(alpha = 0.75f),
+                color = if (active) DesktopOnAccent else DesktopForeground.copy(alpha = 0.75f),
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
                     .background(background)
@@ -204,7 +205,7 @@ private fun LazyListScope.chart(
             title,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.W800,
-            color = Color.White,
+            color = DesktopForeground,
             modifier = Modifier.padding(start = GUTTER, end = GUTTER, top = 8.dp, bottom = 10.dp),
         )
     }
@@ -236,14 +237,14 @@ private fun ChartRow(row: DesktopReplayRow, circular: Boolean, onClick: () -> Un
                 row.title,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.W600,
-                color = Color.White,
+                color = DesktopForeground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 listOfNotNull(row.subtitle, formatListening(row.ms)).joinToString(" · "),
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.55f),
+                color = DesktopForeground.copy(alpha = 0.55f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -252,7 +253,7 @@ private fun ChartRow(row: DesktopReplayRow, circular: Boolean, onClick: () -> Un
             Text(
                 row.plays.toString(),
                 style = MaterialTheme.typography.labelMedium,
-                color = Color.White.copy(alpha = 0.45f),
+                color = DesktopForeground.copy(alpha = 0.45f),
             )
         }
     }
@@ -266,7 +267,7 @@ private fun RankBadge(rank: Int) {
         rank.toString(),
         style = if (rank == 1) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.W800,
-        color = if (rank == 1) DesktopAccent else Color.White.copy(alpha = 0.45f),
+        color = if (rank == 1) DesktopAccent else DesktopForeground.copy(alpha = 0.45f),
         modifier = Modifier.width(28.dp),
     )
 }
@@ -299,7 +300,7 @@ private fun Habits(summary: DesktopReplaySummary) {
             DesktopStrings["d_listening_shape", "Listening shape"],
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.W800,
-            color = Color.White,
+            color = DesktopForeground,
             modifier = Modifier.padding(top = 8.dp, bottom = 10.dp),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -323,7 +324,7 @@ private fun StatTile(label: String, value: String, modifier: Modifier = Modifier
     Column(
         modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(Color.White.copy(alpha = 0.09f))
+            .background(DesktopTheme.palette.cardInsetFill)
             .padding(vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -331,12 +332,12 @@ private fun StatTile(label: String, value: String, modifier: Modifier = Modifier
             value,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.W800,
-            color = Color.White,
+            color = DesktopForeground,
         )
         Text(
             label,
             style = MaterialTheme.typography.labelSmall,
-            color = Color.White.copy(alpha = 0.55f),
+            color = DesktopForeground.copy(alpha = 0.55f),
             letterSpacing = 1.sp,
         )
     }
@@ -347,7 +348,7 @@ private fun Note(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
         style = MaterialTheme.typography.bodyMedium,
-        color = Color.White.copy(alpha = 0.6f),
+        color = DesktopForeground.copy(alpha = 0.6f),
         modifier = modifier,
     )
 }
@@ -361,14 +362,14 @@ private fun EmptyReplay(period: DesktopReplayPeriod) {
         Icon(
             Icons.Rounded.Schedule,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.4f),
+            tint = DesktopForeground.copy(alpha = 0.4f),
             modifier = Modifier.size(44.dp),
         )
         Spacer(Modifier.height(16.dp))
         Text(
             DesktopStrings["not_enough_listening", "Not enough listening yet"],
             style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
+            color = DesktopForeground,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(8.dp))
@@ -378,7 +379,7 @@ private fun EmptyReplay(period: DesktopReplayPeriod) {
                 else -> "Play some music and your Replay will build itself."
             },
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.6f),
+            color = DesktopForeground.copy(alpha = 0.6f),
             textAlign = TextAlign.Center,
         )
     }
