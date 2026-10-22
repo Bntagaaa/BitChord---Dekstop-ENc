@@ -4905,6 +4905,8 @@ internal fun DesktopToolbarButton(
 
 @Composable
 private fun DesktopSidebar(
+    collapsed: Boolean,
+    onToggleCollapse: () -> Unit,
     destination: DesktopDestination,
     settingsOpen: Boolean,
     accountPlaylists: List<ShelfItem>,
@@ -4919,11 +4921,17 @@ private fun DesktopSidebar(
     onOpenLocalPlaylist: (DesktopPlaylist) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
+    val width by animateDpAsState(
+        targetValue = if (collapsed) 72.dp else 220.dp,
+        animationSpec = tween(durationMillis = 180),
+        label = "Sidebar width",
+    )
     // Search owns its input on the Search page; the sidebar is navigation only.
     Box(
         Modifier
-            .width(220.dp)
+            .width(width)
             .fillMaxHeight()
+            .clipToBounds()
             .background(DesktopTheme.palette.sidebarSurface)
             .desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f),
     ) {
@@ -4931,7 +4939,19 @@ private fun DesktopSidebar(
         Column(
             Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),
         ) {
-            Row(
+            if (collapsed) {
+                Box(Modifier.fillMaxWidth().height(35.dp), contentAlignment = Alignment.Center) {
+                    IconButton(onClick = onToggleCollapse) {
+                        Image(
+                            painter = painterResource(Res.drawable.bitchord_logo_original),
+                            contentDescription = "Expand sidebar",
+                            colorFilter = ColorFilter.tint(DesktopForeground),
+                            modifier = Modifier.width(28.dp).height(18.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            } else Row(
                 Modifier.fillMaxWidth().padding(start = 9.dp, top = 1.dp, bottom = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -4942,23 +4962,26 @@ private fun DesktopSidebar(
                     modifier = Modifier.width(28.dp).height(18.dp),
                 )
                 Spacer(Modifier.width(8.dp))
-                Text("BitChord", color = DesktopForeground, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text("BitChord", modifier = Modifier.weight(1f), color = DesktopForeground, fontWeight = FontWeight.Bold, fontSize = 17.sp, maxLines = 1)
+                IconButton(onClick = onToggleCollapse, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Rounded.ChevronLeft, "Collapse sidebar", tint = DesktopSecondary, modifier = Modifier.size(20.dp))
+                }
             }
-            DesktopSidebarItem(BitChordIcons.Home, DesktopStrings["home", "Home"], !settingsOpen && destination == DesktopDestination.LISTEN_NOW) {
+            DesktopSidebarItem(BitChordIcons.Home, DesktopStrings["home", "Home"], !settingsOpen && destination == DesktopDestination.LISTEN_NOW, collapsed = collapsed) {
                 onDestinationSelected(DesktopDestination.LISTEN_NOW)
             }
             DesktopSidebarItem(BitChordIcons.Search, "Search",
-                !settingsOpen && (destination == DesktopDestination.SEARCH || destination == DesktopDestination.EXPLORE)) {
+                !settingsOpen && (destination == DesktopDestination.SEARCH || destination == DesktopDestination.EXPLORE), collapsed = collapsed) {
                 onDestinationSelected(DesktopDestination.SEARCH)
             }
             // Spotify lives inside Library, so keep Library selected while Spotify is open.
-            DesktopSidebarItem(BitChordIcons.Library, "Library", !settingsOpen && (destination == DesktopDestination.LIBRARY || destination == DesktopDestination.SPOTIFY)) {
+            DesktopSidebarItem(BitChordIcons.Library, "Library", !settingsOpen && (destination == DesktopDestination.LIBRARY || destination == DesktopDestination.SPOTIFY), collapsed = collapsed) {
                 onDestinationSelected(DesktopDestination.LIBRARY)
             }
             Spacer(Modifier.height(6.dp))
             HorizontalDivider(color = desktopChromeDivider())
             Spacer(Modifier.height(12.dp))
-            DesktopSidebarItem(BitChordIcons.Clock, "History", !settingsOpen && destination == DesktopDestination.HISTORY) {
+            DesktopSidebarItem(BitChordIcons.Clock, "History", !settingsOpen && destination == DesktopDestination.HISTORY, collapsed = collapsed) {
                 onDestinationSelected(DesktopDestination.HISTORY)
             }
             val queued by DesktopDownloadQueue.active.collectAsState()
@@ -4966,17 +4989,23 @@ private fun DesktopSidebar(
                 BitChordIcons.Download,
                 if (queued.isEmpty()) "Downloads" else "Downloads · ${queued.size}",
                 !settingsOpen && destination == DesktopDestination.DOWNLOADS,
+                collapsed = collapsed,
             ) {
                 onDestinationSelected(DesktopDestination.DOWNLOADS)
             }
-            DesktopSidebarItem(BitChordIcons.Library, "Local Music", !settingsOpen && destination == DesktopDestination.LOCAL_MUSIC) {
+            DesktopSidebarItem(BitChordIcons.Library, "Local Music", !settingsOpen && destination == DesktopDestination.LOCAL_MUSIC, collapsed = collapsed) {
                 onDestinationSelected(DesktopDestination.LOCAL_MUSIC)
             }
             Spacer(Modifier.height(6.dp))
             HorizontalDivider(color = desktopChromeDivider())
             Spacer(Modifier.height(12.dp))
             val playlistNavState = rememberLazyListState()
-            LazyColumn(
+            if (collapsed) {
+                DesktopSidebarItem(Icons.AutoMirrored.Rounded.PlaylistPlay, "Browse playlists", false, collapsed = true) {
+                    onToggleCollapse()
+                }
+                Spacer(Modifier.weight(1f))
+            } else LazyColumn(
                 state = playlistNavState,
                 modifier = Modifier.fillMaxWidth().weight(1f).desktopTopScrollFade(playlistNavState),
                 contentPadding = PaddingValues(bottom = 8.dp),
@@ -5009,7 +5038,11 @@ private fun DesktopSidebar(
             HorizontalDivider(color = desktopChromeDivider())
             Spacer(Modifier.height(8.dp))
             if (showAccountInSidebar) {
-                Row(
+                if (collapsed) {
+                    Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.Center) {
+                        DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
+                    }
+                } else Row(
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
@@ -5039,7 +5072,7 @@ private fun DesktopSidebar(
                 }
                 Spacer(Modifier.height(4.dp))
             }
-            DesktopSidebarItem(Icons.Rounded.Settings, "Settings", settingsOpen) {
+            DesktopSidebarItem(Icons.Rounded.Settings, "Settings", settingsOpen, collapsed = collapsed) {
                 onOpenSettings()
             }
         }
@@ -5059,8 +5092,31 @@ private fun DesktopSidebarItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     selected: Boolean,
+    collapsed: Boolean = false,
     onClick: () -> Unit,
 ) {
+    if (collapsed) {
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+            tooltip = { PlainTooltip { Text(label) } },
+            state = rememberTooltipState(),
+        ) {
+            Box(
+                Modifier.fillMaxWidth().height(42.dp)
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(if (selected) DesktopTheme.palette.navAccent.copy(alpha = 0.12f) else Color.Transparent)
+                    .clickable(onClick = onClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (selected) Box(
+                    Modifier.align(Alignment.CenterStart).width(3.dp).height(18.dp)
+                        .background(DesktopTheme.palette.navAccent),
+                )
+                Icon(icon, label, tint = if (selected) DesktopTheme.palette.navAccent else DesktopSecondary, modifier = Modifier.size(20.dp))
+            }
+        }
+        return
+    }
     Row(
         Modifier
             .fillMaxWidth()
