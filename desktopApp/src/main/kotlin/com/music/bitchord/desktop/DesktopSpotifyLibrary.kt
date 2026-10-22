@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -176,7 +177,10 @@ internal fun DesktopSpotifyLibraryPage(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(error, color = MaterialTheme.colorScheme.error)
-                Button(onClick = onRetry) { Text("Retry") }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(onClick = onRetry, enabled = !loading) { Text("Retry") }
+                    OutlinedButton(onClick = onConnect) { Text("Reconnect Spotify") }
+                }
             }
             else -> {
                 if (error != null) {
