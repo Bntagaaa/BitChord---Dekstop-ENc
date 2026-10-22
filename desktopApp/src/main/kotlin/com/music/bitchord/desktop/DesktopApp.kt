@@ -4913,6 +4913,7 @@ private fun DesktopSidebar(
         Modifier
             .width(220.dp)
             .fillMaxHeight()
+            .background(DesktopTheme.palette.sidebarSurface)
             .desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f),
     ) {
         Column(Modifier.fillMaxSize()) {
