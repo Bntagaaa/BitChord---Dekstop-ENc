@@ -4641,6 +4641,7 @@ private fun DesktopTopBar(
     val currentProgress by rememberUpdatedState(progress)
 
     // This is the application toolbar. Windows owns a separate system caption above it.
+    // Render the whole bar as a flat, opaque theme surface even if dynamic blur is enabled.
     Box(Modifier.fillMaxWidth().height(64.dp)) {
         Box(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
@@ -4648,7 +4649,7 @@ private fun DesktopTopBar(
                 Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .desktopWindowGlass(DesktopChromeEdge.BOTTOM)
+                    .background(DesktopTheme.palette.chromeSurface)
                     .padding(start = 14.dp, end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
