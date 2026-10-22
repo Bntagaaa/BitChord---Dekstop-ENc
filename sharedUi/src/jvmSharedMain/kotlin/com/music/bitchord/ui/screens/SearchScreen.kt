@@ -14,6 +14,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import com.music.bitchord.ui.components.longPressMenuClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,10 +58,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextOverflow
@@ -165,7 +171,12 @@ fun SearchScreen(
     /** Desktop supplies its frosted/solid surface, following the existing Remove Blur switch. */
     landingPanelDecoration: Modifier = Modifier,
     landingPanelColor: Color = Color(0xFF27272B),
+    /** Desktop typeahead is visible only while the Search input actually owns focus. */
+    landingSuggestionsEnabled: Boolean = true,
+    /** Observes presses on the browse landing without consuming category clicks or scrolling. */
+    onLandingOutsidePress: (() -> Unit)? = null,
 ) {
+    val currentOnLandingOutsidePress by rememberUpdatedState(onLandingOutsidePress)
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -188,7 +199,8 @@ fun SearchScreen(
     // MainViewModel.suggestions. Nothing below it is worth showing while it is
     // up: the results are for whatever was searched before this edit began,
     // and so are the filter tabs above them.
-    val suggesting = suggestions.isNotEmpty() && !searchingLibrary
+    val suggesting = suggestions.isNotEmpty() && !searchingLibrary &&
+        (!showLanding || landingSuggestionsEnabled)
     // Live media results arrive from the parallel typeahead pipeline; show
     // them only while the user is still typing (suggestions visible), so they
     // appear as a dropdown beneath the text completions rather than floating
@@ -251,13 +263,20 @@ fun SearchScreen(
 
         if (showLanding && landingContent != null) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                // When editing, remove the browse artwork from the compositor entirely.
-                // A Haze-backed dropdown must not reproject mood titles/cards over its results.
-                // The search field lives outside this branch and never loses its focus/state.
-                if (query.isBlank()) {
+                // Keep the browse landing visible and interactive even while typing.
+                // Observing Initial-pass presses lets the first click reach a mood card
+                // while the Search field simultaneously releases keyboard focus.
+                Box(
+                    Modifier.matchParentSize().then(
+                        if (onLandingOutsidePress != null) Modifier.pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                currentOnLandingOutsidePress?.invoke()
+                            }
+                        } else Modifier,
+                    ),
+                ) {
                     landingContent()
-                } else {
-                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
                 }
                 if (suggesting && query.isNotBlank() && (suggestions.size > 1 || showTypeahead)) {
                     Box(
