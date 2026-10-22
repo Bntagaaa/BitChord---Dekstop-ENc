@@ -217,6 +217,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -4655,6 +4656,8 @@ private fun DesktopTopBar(
                 Image(
                     painter = painterResource(Res.drawable.logo_mark),
                     contentDescription = "BitChord",
+                    // The source SVG is white; tint its opaque paths for both appearance modes.
+                    colorFilter = ColorFilter.tint(DesktopForeground),
                     modifier = Modifier.size(width = 28.dp, height = 18.dp),
                 )
                 Spacer(Modifier.width(14.dp))
@@ -4923,6 +4926,7 @@ private fun DesktopSidebar(
                 Image(
                     painter = painterResource(Res.drawable.bitchord_logo_original),
                     contentDescription = null,
+                    colorFilter = ColorFilter.tint(DesktopForeground),
                     modifier = Modifier.width(28.dp).height(18.dp),
                 )
                 Spacer(Modifier.width(8.dp))
@@ -5743,7 +5747,7 @@ private fun DesktopStatChip(icon: androidx.compose.ui.graphics.vector.ImageVecto
     Row(
         Modifier
             .clip(CircleShape)
-            .background(DesktopSubtleFill)
+            .background(if (DesktopTheme.mode == DesktopThemeMode.DARK) DesktopGlass.copy(alpha = 0.55f) else DesktopSubtleFill)
             .border(0.5.dp, DesktopBarEdge, CircleShape)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
