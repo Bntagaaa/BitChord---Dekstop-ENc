@@ -4900,12 +4900,13 @@ private fun DesktopSidebar(
     onOpenLocalPlaylist: (DesktopPlaylist) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    // Search owns its input on the Search page; the sidebar is navigation only.
+    // Keep navigation dark and fully opaque, regardless of the global blur preference.
+    // Avoid an expensive always-visible hazeEffect and the reflective gradient it produces.
     Box(
         Modifier
             .width(220.dp)
             .fillMaxHeight()
-            .desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f),
+            .background(DesktopSurface),
     ) {
         Column(Modifier.fillMaxSize()) {
         Column(
@@ -5424,8 +5425,8 @@ private fun DesktopFrame(
     modifier: Modifier = Modifier,
     /**
      * The open page's own colours, painted across the whole window rather than only the content
-     * area, so the title bar, top bar and sidebar take their tint from the page they are framing
-     * instead of staying a flat slab beside it.
+     * area, so the title bar and top bar can take their tint from the page they frame.
+     * The navigation sidebar deliberately stays solid and dark.
      */
     /** Receives true when its solid base should be left clear for the system material. */
     backdrop: @Composable (transparentBase: Boolean) -> Unit,
@@ -7560,8 +7561,8 @@ internal fun Modifier.desktopBarGlass(shape: Shape): Modifier =
 internal enum class DesktopChromeEdge { NONE, BOTTOM, END }
 
 /**
- * The same pane for the window's own chrome — square-edged, and a shade denser, because the sidebar
- * and top bar carry far more text than a floating bar does.
+ * The same pane for the window's own chrome — square-edged and a shade denser, because the top
+ * bar and other chrome controls carry more text than a floating bar does.
  *
  * [edge] names the side the page is on. The pane's tint is dissolved across the last [fade] of it so
  * the two meet in a gradient rather than on a line.
