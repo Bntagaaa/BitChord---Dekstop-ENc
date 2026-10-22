@@ -24,6 +24,9 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import com.music.bitchord.ui.player.LyricsPanelColors
+import com.music.bitchord.ui.player.LocalLyricsPanelColors
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,9 +72,10 @@ internal fun DesktopSidePanelColumn(
                 Box(Modifier.fillMaxSize()) {
                     // The lyrics stand on the window itself, as in Apple Music; the queue is a list
                     // and takes the sidebar's glass.
-                    if (which == DesktopSidePanel.QUEUE) {
-                        Box(Modifier.fillMaxSize().desktopChromeGlass())
-                    }
+                    Box(Modifier.fillMaxSize().background(
+                        if (which == DesktopSidePanel.LYRICS) DesktopTheme.palette.lyricsSurface
+                        else DesktopTheme.palette.sidebarSurface,
+                    ))
                     Column(Modifier.fillMaxSize()) {
                         Row(
                             modifier = Modifier
@@ -108,7 +112,18 @@ internal fun DesktopSidePanelColumn(
                                     bottom = 14.dp,
                                 ),
                         ) {
-                            content(which)
+                            if (which == DesktopSidePanel.LYRICS && DesktopTheme.isLight) {
+                                CompositionLocalProvider(
+                                    LocalLyricsPanelColors provides LyricsPanelColors(
+                                        primary = Color(0xFF1B2230),
+                                        secondary = Color(0xFF596272),
+                                        inactive = Color(0xFF3E485A),
+                                        iconSurface = Color(0xFF243044),
+                                        selection = Color(0xFF1C273B),
+                                        isLight = true,
+                                    ),
+                                ) { content(which) }
+                            } else content(which)
                         }
                     }
                 }
