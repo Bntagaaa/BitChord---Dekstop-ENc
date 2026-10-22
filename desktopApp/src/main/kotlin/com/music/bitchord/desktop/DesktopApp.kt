@@ -23,6 +23,7 @@ import com.music.bitchord.ui.LocalPullToRefreshEnabled
 import com.music.bitchord.ui.screens.ExploreScreen
 import com.music.bitchord.ui.screens.HomeScreen
 import com.music.bitchord.ui.screens.LocalDesktopCompactHeadings
+import com.music.bitchord.ui.screens.desktopTopScrollFade
 import com.music.bitchord.ui.screens.CompactTrackRow
 import com.music.bitchord.ui.screens.LibraryGridPage
 import com.music.bitchord.ui.screens.LibraryLink
@@ -534,6 +535,8 @@ fun BitChordDesktopApp() {
     val shortcutDispatcher = remember { DesktopShortcutDispatcher() }
     val quickSearchState = remember { DesktopQuickSearchState<SearchResult> { quickSearchEntryKey(it) } }
     val quickSearchKeys = remember { DesktopQuickSearchKeys() }
+    // Search suggestions reuse the app-wide blur preference; no second toggle is created.
+    val searchBlurReduced by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
     val quickSearchFocusRequester = remember { FocusRequester() }
     var quickSearchRestorePending by remember { mutableStateOf(false) }
     val shortcutWindowInfo = LocalWindowInfo.current
@@ -3270,6 +3273,7 @@ fun BitChordDesktopApp() {
                     DesktopBottomChrome(
                         compact = compact,
                         destination = destination,
+                        settingsOpen = overlays.settingsPage != null,
                         song = selectedSong,
                         isPlaying = playback.isPlaying,
                         isLoading = playback.isLoading,
@@ -4163,14 +4167,16 @@ fun BitChordDesktopApp() {
                                 }
                             },
                             showLanding = !searchCommitted,
-                            landingPanelDecoration = if (DesktopAppearanceSettings.reduceDynamicBlur.collectAsState().value) {
-                                Modifier
-                                    .background(Color(0xFF27272B), RoundedCornerShape(14.dp))
+                            landingPanelDecoration = if (searchBlurReduced) {
+                                Modifier.clip(RoundedCornerShape(14.dp))
                                     .border(0.5.dp, DesktopBarEdge, RoundedCornerShape(14.dp))
                             } else {
-                                Modifier.desktopBarGlass(RoundedCornerShape(14.dp))
+                                Modifier.clip(RoundedCornerShape(14.dp))
+                                    .desktopBarGlass(RoundedCornerShape(14.dp))
                             },
-                            landingPanelColor = Color.Transparent,
+                            // Never use a fully transparent Surface: result text must stay above
+                            // the artwork/mood grid instead of bleeding through the frosted pane.
+                            landingPanelColor = if (searchBlurReduced) Color(0xFF27272B) else Color(0xE827272B),
                             landingContent = {
                                 ExploreScreen(
                                     state = exploreState,
@@ -4621,31 +4627,31 @@ private fun DesktopSidebar(
                 Spacer(Modifier.width(8.dp))
                 Text("BitChord", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             }
-            DesktopSidebarItem(BitChordIcons.Home, DesktopStrings["home", "Home"], destination == DesktopDestination.LISTEN_NOW) {
+            DesktopSidebarItem(BitChordIcons.Home, DesktopStrings["home", "Home"], !settingsOpen && destination == DesktopDestination.LISTEN_NOW) {
                 onDestinationSelected(DesktopDestination.LISTEN_NOW)
             }
             DesktopSidebarItem(BitChordIcons.Search, "Search",
-                destination == DesktopDestination.SEARCH || destination == DesktopDestination.EXPLORE) {
+                !settingsOpen && (destination == DesktopDestination.SEARCH || destination == DesktopDestination.EXPLORE)) {
                 onDestinationSelected(DesktopDestination.SEARCH)
             }
-            DesktopSidebarItem(BitChordIcons.Library, "Library", destination == DesktopDestination.LIBRARY) {
+            DesktopSidebarItem(BitChordIcons.Library, "Library", !settingsOpen && destination == DesktopDestination.LIBRARY) {
                 onDestinationSelected(DesktopDestination.LIBRARY)
             }
             Spacer(Modifier.height(6.dp))
             HorizontalDivider(color = desktopChromeDivider())
             Spacer(Modifier.height(12.dp))
-            DesktopSidebarItem(BitChordIcons.Clock, "History", destination == DesktopDestination.HISTORY) {
+            DesktopSidebarItem(BitChordIcons.Clock, "History", !settingsOpen && destination == DesktopDestination.HISTORY) {
                 onDestinationSelected(DesktopDestination.HISTORY)
             }
             val queued by DesktopDownloadQueue.active.collectAsState()
             DesktopSidebarItem(
                 BitChordIcons.Download,
                 if (queued.isEmpty()) "Downloads" else "Downloads · ${queued.size}",
-                destination == DesktopDestination.DOWNLOADS,
+                !settingsOpen && destination == DesktopDestination.DOWNLOADS,
             ) {
                 onDestinationSelected(DesktopDestination.DOWNLOADS)
             }
-            DesktopSidebarItem(BitChordIcons.Library, "Local Music", destination == DesktopDestination.LOCAL_MUSIC) {
+            DesktopSidebarItem(BitChordIcons.Library, "Local Music", !settingsOpen && destination == DesktopDestination.LOCAL_MUSIC) {
                 onDestinationSelected(DesktopDestination.LOCAL_MUSIC)
             }
             Spacer(Modifier.height(6.dp))
@@ -4659,14 +4665,14 @@ private fun DesktopSidebar(
                     DesktopSidebarItem(
                         Icons.AutoMirrored.Rounded.PlaylistPlay,
                         playlist.title,
-                        openedCollectionId == playlist.browseId,
+                        !settingsOpen && openedCollectionId == playlist.browseId,
                     ) { onOpenAccountPlaylist(playlist) }
                 }
                 items(localPlaylists, key = { "local:${it.id}" }) { playlist ->
                     DesktopSidebarItem(
                         Icons.AutoMirrored.Rounded.PlaylistPlay,
                         playlist.title,
-                        openedCollectionId == playlist.id,
+                        !settingsOpen && openedCollectionId == playlist.id,
                     ) { onOpenLocalPlaylist(playlist) }
                 }
                 if (accountPlaylists.isEmpty() && localPlaylists.isEmpty()) {
@@ -4770,6 +4776,7 @@ private fun DesktopSidebarItem(
 private fun DesktopBottomChrome(
     compact: Boolean,
     destination: DesktopDestination,
+    settingsOpen: Boolean,
     song: Song?,
     isPlaying: Boolean,
     isLoading: Boolean,
@@ -4821,13 +4828,14 @@ private fun DesktopBottomChrome(
                 onOpenQueue = onOpenQueue,
             )
         }
-        if (compact) DesktopFloatingNavigation(destination, onDestinationSelected)
+        if (compact) DesktopFloatingNavigation(destination, settingsOpen, onDestinationSelected)
     }
 }
 
 @Composable
 private fun DesktopFloatingNavigation(
     destination: DesktopDestination,
+    settingsOpen: Boolean,
     onDestinationSelected: (DesktopDestination) -> Unit,
 ) {
     // Mirror the full sidebar when the desktop window becomes compact: Search replaces Explore.
@@ -4836,9 +4844,13 @@ private fun DesktopFloatingNavigation(
         DesktopDestination.SEARCH to (BitChordIcons.Search to "Search"),
         DesktopDestination.LIBRARY to (BitChordIcons.Library to "Library"),
     )
-    val selected = when (destination) {
-        DesktopDestination.EXPLORE -> DesktopDestination.SEARCH // Support restored legacy routes.
-        else -> tabs.firstOrNull { it.first == destination }?.first ?: DesktopDestination.LIBRARY
+    val selected: DesktopDestination? = if (settingsOpen) {
+        null
+    } else {
+        when (destination) {
+            DesktopDestination.EXPLORE -> DesktopDestination.SEARCH // Support restored legacy routes.
+            else -> tabs.firstOrNull { it.first == destination }?.first
+        }
     }
     val shape = RoundedCornerShape(percent = 50)
     Surface(
