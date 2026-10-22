@@ -17,6 +17,8 @@ internal object DesktopAppearanceSettings {
     private val _reduceAnimation = flag(KEY_REDUCE_ANIMATION, false)
     private val _reduceDynamicBlur = flag(KEY_REDUCE_DYNAMIC_BLUR, false)
     private val _hideVolumeBar = flag(KEY_HIDE_VOLUME_BAR, false)
+    // New floating bottom player is the default. The original top player is opt-in.
+    private val _enableOldTopMusicPlayerStyle = flag(KEY_ENABLE_OLD_TOP_MUSIC_PLAYER_STYLE, false)
 
     /** Freezes the main player's gradient instead of drifting. */
     val reduceAnimation: StateFlow<Boolean> = _reduceAnimation
@@ -27,6 +29,9 @@ internal object DesktopAppearanceSettings {
     /** Removes the volume slider from the main player. */
     val hideVolumeBar: StateFlow<Boolean> = _hideVolumeBar
 
+    /** Restores the original desktop top player instead of the floating bottom dock. */
+    val enableOldTopMusicPlayerStyle: StateFlow<Boolean> = _enableOldTopMusicPlayerStyle
+
     /** Whether the lyrics pane carries its own log console. */
 
     fun setReduceAnimation(value: Boolean) = write(KEY_REDUCE_ANIMATION, value, _reduceAnimation)
@@ -34,6 +39,9 @@ internal object DesktopAppearanceSettings {
     fun setReduceDynamicBlur(value: Boolean) = write(KEY_REDUCE_DYNAMIC_BLUR, value, _reduceDynamicBlur)
 
     fun setHideVolumeBar(value: Boolean) = write(KEY_HIDE_VOLUME_BAR, value, _hideVolumeBar)
+
+    fun setEnableOldTopMusicPlayerStyle(value: Boolean) =
+        write(KEY_ENABLE_OLD_TOP_MUSIC_PLAYER_STYLE, value, _enableOldTopMusicPlayerStyle)
 
 
     private fun write(key: String, value: Boolean, into: MutableStateFlow<Boolean>) {
@@ -44,4 +52,5 @@ internal object DesktopAppearanceSettings {
     internal const val KEY_REDUCE_ANIMATION = "reduce_animation"
     internal const val KEY_REDUCE_DYNAMIC_BLUR = "reduce_dynamic_blur"
     internal const val KEY_HIDE_VOLUME_BAR = "hide_volume_bar"
+    internal const val KEY_ENABLE_OLD_TOP_MUSIC_PLAYER_STYLE = "enable_old_top_music_player_style"
 }
