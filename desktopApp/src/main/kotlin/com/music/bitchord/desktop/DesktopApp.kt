@@ -4657,8 +4657,10 @@ private fun DesktopSidebar(
             Spacer(Modifier.height(6.dp))
             HorizontalDivider(color = desktopChromeDivider())
             Spacer(Modifier.height(12.dp))
+            val playlistNavState = rememberLazyListState()
             LazyColumn(
-                modifier = Modifier.fillMaxWidth().weight(1f),
+                state = playlistNavState,
+                modifier = Modifier.fillMaxWidth().weight(1f).desktopTopScrollFade(playlistNavState),
                 contentPadding = PaddingValues(bottom = 8.dp),
             ) {
                 items(accountPlaylists, key = { "account:${it.browseId}" }) { playlist ->
@@ -5253,8 +5255,11 @@ private fun DesktopArtistPage(
                 // Android caps the top-songs block and pages it sideways so the release shelves are
                 // not buried under a hundred rows.
                 val top = artist.songs.take(MAX_ARTIST_SONGS)
+                val artistListState = rememberLazyListState()
                 Box(Modifier.fillMaxSize()) {
                     LazyColumn(
+                        state = artistListState,
+                        modifier = Modifier.fillMaxSize().desktopTopScrollFade(artistListState),
                         contentPadding = pagePadding(bottom = 32.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
@@ -5494,8 +5499,11 @@ private fun DesktopHistoryPage(
     contentPadding: PaddingValues,
     menu: (@Composable (Song) -> Unit)? = null,
 ) {
+    val historyListState = rememberLazyListState()
     DesktopPageScaffold(contentPadding) {
         LazyColumn(
+            state = historyListState,
+            modifier = Modifier.fillMaxSize().desktopTopScrollFade(historyListState),
             contentPadding = pagePadding(start = DesktopPageGutter, end = DesktopPageGutter, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
