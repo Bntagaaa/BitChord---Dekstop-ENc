@@ -447,7 +447,7 @@ private const val AUTOPLAY_EMPTY_REFRESH_DELAY_MS = 2_000L
 
 /** Material defaults and shared pages follow the selected desktop appearance. */
 internal fun desktopColorScheme() =
-    (if (DesktopTheme.mode == DesktopThemeMode.LIGHT) lightColorScheme() else darkColorScheme()).copy(
+    (if (DesktopTheme.isLight) lightColorScheme() else darkColorScheme()).copy(
         primary = DesktopAccent,
         onPrimary = DesktopOnAccent,
         primaryContainer = DesktopAccent.copy(alpha = 0.16f),
@@ -3261,9 +3261,8 @@ fun BitChordDesktopApp() {
                     )) {
                         DesktopPageBackdrop(
                             artworkUrl = replaySummary.songs.firstOrNull()?.song?.thumbnailUrl
-                                .takeIf { overlays.replay },
+                                .takeIf { overlays.replay && DesktopTheme.isDark },
                             transparentBase = transparentBase,
-                            darkFallback = overlays.replay,
                         )
                     }
                 },
@@ -5508,14 +5507,8 @@ private fun DesktopFrame(
  * ink so a page of text stays readable over it.
  */
 @Composable
-private fun DesktopPageBackdrop(artworkUrl: String?, transparentBase: Boolean, darkFallback: Boolean = false) {
-    // Replay uses white typography over artwork. Even an empty Replay needs a dark canvas,
-    // rather than white-on-light when no artwork has been played yet.
-    val fallbackColor = if (darkFallback && artworkUrl == null && DesktopTheme.mode == DesktopThemeMode.LIGHT) {
-        Color(0xFF111216)
-    } else {
-        DesktopBackground
-    }
+private fun DesktopPageBackdrop(artworkUrl: String?, transparentBase: Boolean) {
+    val fallbackColor = if (DesktopTheme.isLight) DesktopTheme.palette.replaySurface else DesktopBackground
     Box(
         Modifier
             .fillMaxSize()
@@ -5755,7 +5748,7 @@ private fun DesktopStatChip(icon: androidx.compose.ui.graphics.vector.ImageVecto
     Row(
         Modifier
             .clip(CircleShape)
-            .background(if (DesktopTheme.mode == DesktopThemeMode.DARK) DesktopGlass.copy(alpha = 0.55f) else DesktopSubtleFill)
+            .background(if (DesktopTheme.isDark) DesktopGlass.copy(alpha = 0.55f) else DesktopSubtleFill)
             .border(0.5.dp, DesktopBarEdge, CircleShape)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -6528,7 +6521,7 @@ private fun DesktopSettingsScreen(
             if (section == DesktopSettingsSection.APPEARANCE) item {
                 SettingsGroup(DesktopStrings["appearance", "Appearance"]) {
                     val themeTitle = "Theme"
-                    val themeSubtitle = "Choose how BitChord looks. Your selection is saved automatically."
+                    val themeSubtitle = "Follow your device appearance by default, or choose a theme."
                     if (settingsRowVisible(themeTitle, themeSubtitle)) {
                         Row(
                             Modifier.fillMaxWidth().padding(vertical = 12.dp),
@@ -7612,7 +7605,7 @@ internal fun Modifier.desktopChromeGlass(
     edge: DesktopChromeEdge = DesktopChromeEdge.NONE,
     fade: Float = 0.2f,
 ): Modifier = desktopFrosted(
-    opaque = DesktopSurface.copy(alpha = 0.88f),
+    opaque = DesktopTheme.palette.chromeSurface.copy(alpha = 0.88f),
     tintAlpha = 0.46f,
     edge = edge,
     fade = fade,
@@ -7646,15 +7639,15 @@ private fun Modifier.desktopFrosted(
     if (haze == null || reduceDynamicBlur) {
         return this.background(edge.dissolve(opaque, fade) ?: SolidColor(opaque))
     }
-    val dissolve = edge.dissolve(DesktopSurface, fade)
+    val dissolve = edge.dissolve(DesktopTheme.palette.chromeSurface, fade)
     return this.hazeEffect(state = haze) {
         // Spelled out rather than taken from a preset.
         blurEnabled = true
-        backgroundColor = DesktopSurface
+        backgroundColor = DesktopTheme.palette.chromeSurface
         blurRadius = 30.dp
         // Dark enough that white text on the pane always wins, translucent enough that the
         // colour of what is behind it still comes through.
-        tints = listOf(HazeTint(DesktopSurface.copy(alpha = tintAlpha)))
+        tints = listOf(HazeTint(DesktopTheme.palette.chromeSurface.copy(alpha = tintAlpha)))
         noiseFactor = 0.04f
         // Assigned either way: the scope belongs to the node and outlives the draw, so a pane that
         // stops dissolving — the leading stretch of the top bar, when the window grows back out of
