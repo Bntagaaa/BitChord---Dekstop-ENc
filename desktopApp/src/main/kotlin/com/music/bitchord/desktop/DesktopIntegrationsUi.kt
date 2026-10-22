@@ -150,9 +150,12 @@ internal fun DesktopSpotifyCanvasDialog(onDismiss: () -> Unit, onSaved: (String)
 
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 420) {
         DialogHeading(
-            title = DesktopStrings["spotify_canvas_setup", "Connect Spotify"],
-            message = signInError
-                ?: DesktopStrings["spotify_canvas_setup_description", "Connect your Spotify account to show playlists and Spotify Canvas."],
+            title = "Spotify account",
+            message = signInError ?: if (token.isNotBlank()) {
+                "Connected. You can switch accounts or update your saved Spotify session here."
+            } else {
+                "Connect your Spotify account to browse playlists and Liked Songs. Playback uses YouTube Music."
+            },
             isError = signInError != null,
         )
         Row(
@@ -161,7 +164,7 @@ internal fun DesktopSpotifyCanvasDialog(onDismiss: () -> Unit, onSaved: (String)
         ) {
             TextButton(onClick = ::signIn, enabled = !signingIn) {
                 Text(
-                    if (signingIn) "Waiting for Spotify sign-in…" else "Sign in to Spotify",
+                    if (signingIn) "Waiting for Spotify sign-in…" else if (token.isNotBlank()) "Switch Spotify account" else "Sign in to Spotify",
                     color = DesktopSecondary,
                     style = MaterialTheme.typography.bodySmall,
                 )
