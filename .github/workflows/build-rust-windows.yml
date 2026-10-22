@@ -57,6 +57,24 @@ jobs:
           workspaces: 'rust -> target'
           cache-on-failure: true
 
+      # This branch adds a Windows-only audio backend. Resolve it first so
+      # the release compilation itself can continue using --locked.
+      - name: Resolve Windows Cargo dependencies
+        run: |
+          cargo fetch
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve Windows dependencies' }
+          # Print a compressed lockfile marker so the updated lock can be
+          # reviewed and committed through the normal GitHub PR workflow.
+          $bytes = [System.IO.File]::ReadAllBytes('Cargo.lock')
+          $memory = [System.IO.MemoryStream]::new()
+          $gzip = [System.IO.Compression.GZipStream]::new($memory, [System.IO.Compression.CompressionMode]::Compress, $true)
+          $gzip.Write($bytes, 0, $bytes.Length)
+          $gzip.Dispose()
+          Write-Host 'BITCHORD_CARGO_LOCK_GZIP_BASE64_BEGIN'
+          Write-Host ([System.Convert]::ToBase64String($memory.ToArray()))
+          Write-Host 'BITCHORD_CARGO_LOCK_GZIP_BASE64_END'
+          $memory.Dispose()
+
       - name: Build native Windows release executable
         run: cargo build --release --locked -p bitchord-app
 
@@ -77,10 +95,10 @@ jobs:
           BitChord Native - experimental Rust foundation
 
           Run bitchord-app.exe to open the native Slint window.
-          This is not the full BitChord application: playback, login,
-          search, lyrics, downloads, and other features are not ported.
+          This is not the full BitChord application: online streaming, login,
+          lyrics, downloads, and many features are not ported.
 
-          The logo and font assets are embedded in the executable.
+          Local MP3, FLAC, WAV and Ogg Vorbis playback is experimental.\n          The logo and font assets are embedded in the executable.
           No Kotlin, Gradle, or JVM runtime is required.
           The repository's GPL-3.0 license is included as LICENSE.
           '@ | Set-Content -Path (Join-Path $dist 'README.txt') -Encoding utf8
