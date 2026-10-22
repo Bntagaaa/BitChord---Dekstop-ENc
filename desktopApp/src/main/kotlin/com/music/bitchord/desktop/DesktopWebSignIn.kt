@@ -93,6 +93,12 @@ internal object DesktopWebSignIn {
         private val confirm = Button("Use this profile")
         // The page's host, since the window has no address bar to show it.
         private val where = Label().apply { style = "-fx-text-fill: #aaaaaa;" }
+        private val guidance = Label().apply {
+            text = "If Google blocks this embedded browser, close it and choose Chrome/Edge in BitChord."
+            style = "-fx-text-fill: #aaaaaa; -fx-font-size: 11px;"
+            isWrapText = true
+            maxWidth = 460.0
+        }
         private var view: WebView? = null
         private var storage: Path? = null
         private var done = false
@@ -104,8 +110,18 @@ internal object DesktopWebSignIn {
             bar.padding = Insets(8.0)
             if (service == Service.YOUTUBE_MUSIC) {
                 confirm.isDefaultButton = true
-                confirm.setOnAction { youtubeSession()?.let { complete(Result.success(it)) } }
+                confirm.setOnAction {
+                    val signedIn = youtubeSession()
+                    if (signedIn != null) {
+                        complete(Result.success(signedIn))
+                    } else {
+                        guidance.text = "YouTube Music session is not ready yet. Finish Google sign-in " +
+                            "and select the correct profile, then try again. " +
+                            "If Google blocks this window, close it and use Chrome/Edge instead."
+                    }
+                }
                 bar.children += confirm
+                root.top = guidance.apply { padding = Insets(8.0) }
             }
             root.bottom = bar
             stage.scene = Scene(root, 480.0, 760.0)
@@ -145,7 +161,9 @@ internal object DesktopWebSignIn {
                 // Reaching YouTube Music only enables confirming: a multi-channel login may still be
                 // choosing its identity on this page.
                 Service.YOUTUBE_MUSIC ->
-                    confirm.isDisable = !url.startsWith("https://music.youtube.com") || youtubeSession() == null
+                    // The sign-in cookie can arrive after WebKit reports SUCCEEDED. Allow the
+                    // listener to retry checking it rather than permanently disabling the button.
+                    confirm.isDisable = !url.startsWith("https://music.youtube.com")
                 Service.SPOTIFY -> if (url.startsWith("https://open.spotify.com")) {
                     spotifySession()?.let { complete(Result.success(it)) }
                 }
