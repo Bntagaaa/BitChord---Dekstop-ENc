@@ -936,7 +936,7 @@ private fun ContentDrawScope.glowGrown(
                 // brightness down and leaves its neighbours — which have their
                 // own, a beat behind — where they are.
                 drawRect(
-                    color = LocalLyricsPanelColors.current.primary.copy(alpha = growth.bloom),
+                    color = Color.White.copy(alpha = growth.bloom),
                     blendMode = BlendMode.DstIn,
                 )
             }
@@ -1439,6 +1439,7 @@ private fun Modifier.lyricParticles(
  */
 @Composable
 private fun LyricsSkeleton(modifier: Modifier = Modifier) {
+    val skeletonInk = LocalLyricsPanelColors.current.primary
     val sweep = rememberInfiniteTransition(label = "lyricsSkeleton").animateFloat(
         initialValue = 0f,
         targetValue = 1f,
@@ -1477,9 +1478,9 @@ private fun LyricsSkeleton(modifier: Modifier = Modifier) {
                                     val startX = -band + sweep.value * (full + band * 2)
                                     val brush = Brush.horizontalGradient(
                                         colors = listOf(
-                                            LocalLyricsPanelColors.current.primary.copy(alpha = 0.10f),
-                                            LocalLyricsPanelColors.current.primary.copy(alpha = 0.26f),
-                                            LocalLyricsPanelColors.current.primary.copy(alpha = 0.10f),
+                                            skeletonInk.copy(alpha = 0.10f),
+                                            skeletonInk.copy(alpha = 0.26f),
+                                            skeletonInk.copy(alpha = 0.10f),
                                         ),
                                         startX = startX,
                                         endX = startX + band,
@@ -1867,6 +1868,7 @@ internal fun LyricsPanel(
                 label = "lyricAlpha",
             )
             if (line.isGap) {
+                val gapDotColor = LocalLyricsPanelColors.current.primary
                 // A break counts itself out rather than being marked: three
                 // dots lighting in turn across the interlude, so a long one
                 // reads as time running down instead of a symbol parked on
@@ -1940,7 +1942,7 @@ internal fun LyricsPanel(
                                 // fills across it, so they light left to right.
                                 val lit = (through * GAP_DOTS - dot).coerceIn(0f, 1f)
                                 drawCircle(
-                                    color = LocalLyricsPanelColors.current.primary.copy(
+                                    color = gapDotColor.copy(
                                         alpha = GAP_DOT_REST + (1f - GAP_DOT_REST) * lit,
                                     ),
                                     radius = radius,
