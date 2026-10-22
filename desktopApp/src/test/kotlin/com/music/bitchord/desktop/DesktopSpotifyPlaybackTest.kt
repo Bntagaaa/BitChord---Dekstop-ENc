@@ -34,6 +34,7 @@ class DesktopSpotifyPlaybackTest {
             videoId = SPOTIFY_MISSING_PREFIX + "original",
             title = "Track",
             artist = "Artist",
+            thumbnailUrl = null,
             durationText = "1:02:03",
         )
         assertEquals("original", song.unresolvedSpotifyTrack()?.id)
@@ -42,7 +43,7 @@ class DesktopSpotifyPlaybackTest {
 
     @Test
     fun youtubeVideoIdsAreNeverRematchedAsSpotify() {
-        val song = Song(videoId = "abc123", title = "Playable", artist = "Artist")
+        val song = Song(videoId = "abc123", title = "Playable", artist = "Artist", thumbnailUrl = null)
         assertNull(song.unresolvedSpotifyTrack())
     }
 
@@ -52,6 +53,7 @@ class DesktopSpotifyPlaybackTest {
             videoId = SPOTIFY_PENDING_PREFIX + "original",
             title = "Track",
             artist = "Artist",
+            thumbnailUrl = null,
             durationText = "unknown",
         )
         assertEquals(0, song.unresolvedSpotifyTrack()?.durationMs)
