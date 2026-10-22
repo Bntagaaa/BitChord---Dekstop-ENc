@@ -68,6 +68,32 @@ internal fun SpotifyTrack.asPendingSong() = Song(
 )
 
 /**
+ * A placeholder shown while Spotify tracks are being matched to YouTube Music.
+ * The original metadata is retained, so tapping a row can resolve it immediately instead
+ * of accidentally sending its Spotify id to the YouTube playback engine.
+ */
+internal fun Song.unresolvedSpotifyTrack(): SpotifyTrack? {
+    val spotifyId = when {
+        videoId.startsWith(SPOTIFY_PENDING_PREFIX) -> videoId.removePrefix(SPOTIFY_PENDING_PREFIX)
+        videoId.startsWith(SPOTIFY_MISSING_PREFIX) -> videoId.removePrefix(SPOTIFY_MISSING_PREFIX)
+        else -> return null
+    }
+    if (spotifyId.isBlank()) return null
+    val parts = durationText.orEmpty().split(':').map(String::toIntOrNull)
+    val seconds = if (parts.size in 2..3 && parts.all { it != null }) {
+        parts.fold(0L) { acc, piece -> acc * 60L + piece!! }
+    } else 0L
+    return SpotifyTrack(
+        id = spotifyId,
+        title = title,
+        artist = artist,
+        album = albumName,
+        durationMs = (seconds * 1_000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+        imageUrl = thumbnailUrl,
+    )
+}
+
+/**
  * Fills a Spotify playlist page the way the phone's `MainViewModel` does: Spotify's tracks as each
  * page of them arrives, then every row swapped in place for its YouTube Music match, or marked as
  * having none. [update] applies a change to the page if it is still the one open.
