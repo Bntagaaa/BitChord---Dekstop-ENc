@@ -531,6 +531,8 @@ fun BitChordDesktopApp() {
     var searchCommitted by remember { mutableStateOf(false) }
     var searchScrollReset by remember { mutableStateOf(0) }
     var searchFocusRequested by remember { mutableStateOf(false) }
+    // A typed query alone must never keep its dropdown open after Search loses focus.
+    var searchInputFocused by remember { mutableStateOf(false) }
     var shortcutEditorFocused by remember { mutableStateOf(false) }
     val shortcutDispatcher = remember { DesktopShortcutDispatcher() }
     val quickSearchState = remember { DesktopQuickSearchState<SearchResult> { quickSearchEntryKey(it) } }
@@ -4160,6 +4162,14 @@ fun BitChordDesktopApp() {
                                         onQueryChange = ::editQuery,
                                         onSearch = ::search,
                                         focusRequester = focusRequester,
+                                        onFocusChanged = { focused ->
+                                            searchInputFocused = focused
+                                            // A click back into a partially typed query reopens
+                                            // fresh suggestions without requiring another keystroke.
+                                            if (focused && !searchCommitted && query.isNotBlank()) {
+                                                searchTyping = true
+                                            }
+                                        },
                                         modifier = Modifier.widthIn(max = 540.dp).padding(horizontal = 24.dp),
                                         placeholder = "Artists, Songs, Lyrics, and More",
                                         pill = true,
@@ -4167,6 +4177,19 @@ fun BitChordDesktopApp() {
                                 }
                             },
                             showLanding = !searchCommitted,
+                            landingSuggestionsEnabled = searchInputFocused,
+                            onLandingOutsidePress = {
+                                // Observe, don't consume, the click: the first press may also
+                                // open a mood card or scroll the Explore landing underneath.
+                                if (searchInputFocused || searchTyping) {
+                                    searchInputFocused = false
+                                    searchTyping = false
+                                    searchSuggestions = emptyList()
+                                    searchTypeahead = emptyList()
+                                    searchFocusRequested = false
+                                    releaseShortcutTextFocus()
+                                }
+                            },
                             landingPanelDecoration = if (searchBlurReduced) {
                                 Modifier.clip(RoundedCornerShape(14.dp))
                                     .border(0.5.dp, DesktopBarEdge, RoundedCornerShape(14.dp))
