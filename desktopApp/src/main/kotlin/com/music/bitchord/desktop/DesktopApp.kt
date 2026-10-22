@@ -263,6 +263,15 @@ import androidx.compose.ui.unit.sp
 import bitchord.desktopapp.generated.resources.Res
 import bitchord.desktopapp.generated.resources.logo
 import bitchord.desktopapp.generated.resources.logo_mark
+import bitchord.desktopapp.generated.resources.player_transport_lyrics
+import bitchord.desktopapp.generated.resources.player_transport_next
+import bitchord.desktopapp.generated.resources.player_transport_pause
+import bitchord.desktopapp.generated.resources.player_transport_play
+import bitchord.desktopapp.generated.resources.player_transport_previous
+import bitchord.desktopapp.generated.resources.player_transport_repeat
+import bitchord.desktopapp.generated.resources.player_transport_repeat_one
+import bitchord.desktopapp.generated.resources.player_transport_shuffle
+import bitchord.desktopapp.generated.resources.player_transport_up_next
 import bitchord.desktopapp.generated.resources.sf_pro_display_bold
 import bitchord.desktopapp.generated.resources.sf_pro_display_heavy
 import bitchord.desktopapp.generated.resources.sf_pro_display_medium
@@ -4332,7 +4341,7 @@ private fun DesktopTopBar(
                     ) {
                         DesktopToolbarButton(onClick = { onShuffleChange(!shuffle) }, size = 32.dp) {
                             Icon(
-                                BitChordIcons.Shuffle,
+                                painterResource(Res.drawable.player_transport_shuffle),
                                 DesktopStrings["shuffle", "Shuffle"],
                                 tint = if (shuffle) DesktopAccent else DesktopSecondary,
                                 modifier = Modifier.size(18.dp),
@@ -4340,7 +4349,7 @@ private fun DesktopTopBar(
                         }
                         DesktopToolbarButton(onClick = onPrevious, enabled = previousEnabled, size = 32.dp) {
                             Icon(
-                                Icons.Rounded.FastRewind,
+                                painterResource(Res.drawable.player_transport_previous),
                                 DesktopStrings["widget_previous", "Previous"],
                                 tint = if (previousEnabled) Color.White else DesktopSecondary.copy(alpha = 0.40f),
                                 modifier = Modifier.size(21.dp),
@@ -4355,7 +4364,7 @@ private fun DesktopTopBar(
                                 )
                             } else {
                                 Icon(
-                                    if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                    painterResource(if (isPlaying) Res.drawable.player_transport_pause else Res.drawable.player_transport_play),
                                     if (isPlaying) "Pause" else "Play",
                                     tint = Color.White,
                                     modifier = Modifier.size(23.dp),
@@ -4364,7 +4373,7 @@ private fun DesktopTopBar(
                         }
                         DesktopToolbarButton(onClick = onNext, size = 32.dp) {
                             Icon(
-                                Icons.Rounded.FastForward,
+                                painterResource(Res.drawable.player_transport_next),
                                 DesktopStrings["widget_next", "Next"],
                                 tint = Color.White,
                                 modifier = Modifier.size(21.dp),
@@ -4375,22 +4384,18 @@ private fun DesktopTopBar(
                             size = 32.dp,
                         ) {
                             val tint = if (repeatMode != DesktopRepeatMode.OFF) DesktopAccent else DesktopSecondary
-                            if (repeatMode == DesktopRepeatMode.ONE) {
-                                Text(
-                                    "1",
-                                    color = tint,
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.semantics { contentDescription = "Repeat one" },
-                                )
-                            } else {
-                                Icon(
-                                    BitChordIcons.Repeat,
-                                    "Repeat ${repeatMode.label()}",
-                                    tint = tint,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
+                            Icon(
+                                painterResource(
+                                    if (repeatMode == DesktopRepeatMode.ONE) {
+                                        Res.drawable.player_transport_repeat_one
+                                    } else {
+                                        Res.drawable.player_transport_repeat
+                                    },
+                                ),
+                                "Repeat ${repeatMode.label()}",
+                                tint = tint,
+                                modifier = Modifier.size(18.dp),
+                            )
                         }
                     }
 
@@ -4502,7 +4507,7 @@ private fun DesktopTopBar(
                     }
                     DesktopToolbarButton(onClick = onOpenLyrics, size = 32.dp) {
                         Icon(
-                            BitChordIcons.LyricsQuote,
+                            painterResource(Res.drawable.player_transport_lyrics),
                             DesktopStrings["lyrics", "Lyrics"],
                             tint = if (sidePanel == DesktopSidePanel.LYRICS) Color.White else DesktopSecondary,
                             modifier = Modifier.size(19.dp),
@@ -4510,7 +4515,7 @@ private fun DesktopTopBar(
                     }
                     DesktopToolbarButton(onClick = onOpenQueue, size = 32.dp) {
                         Icon(
-                            BitChordIcons.Queue,
+                            painterResource(Res.drawable.player_transport_up_next),
                             DesktopStrings["queue", "Queue"],
                             tint = if (sidePanel == DesktopSidePanel.QUEUE) Color.White else DesktopSecondary,
                             modifier = Modifier.size(19.dp),
@@ -4874,28 +4879,35 @@ private fun DesktopMiniPlayer(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 DesktopToolbarButton(onClick = { onShuffleChange(!shuffle) }, size = 34.dp) {
-                    Icon(BitChordIcons.Shuffle, "Shuffle", tint = if (shuffle) DesktopAccent else DesktopSecondary, modifier = Modifier.size(18.dp))
+                    Icon(painterResource(Res.drawable.player_transport_shuffle), "Shuffle", tint = if (shuffle) DesktopAccent else DesktopSecondary, modifier = Modifier.size(18.dp))
                 }
                 DesktopToolbarButton(onClick = onPrevious, enabled = previousEnabled, size = 34.dp) {
-                    Icon(Icons.Rounded.FastRewind, "Previous", tint = if (previousEnabled) Color.White else DesktopSecondary.copy(alpha = 0.4f), modifier = Modifier.size(20.dp))
+                    Icon(painterResource(Res.drawable.player_transport_previous), "Previous", tint = if (previousEnabled) Color.White else DesktopSecondary.copy(alpha = 0.4f), modifier = Modifier.size(20.dp))
                 }
                 DesktopToolbarButton(onClick = onPlayPause, size = 36.dp) {
                     if (isLoading) {
                         CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
                     } else {
-                        Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (isPlaying) "Pause" else "Play", tint = Color.White, modifier = Modifier.size(23.dp))
+                        Icon(painterResource(if (isPlaying) Res.drawable.player_transport_pause else Res.drawable.player_transport_play), if (isPlaying) "Pause" else "Play", tint = Color.White, modifier = Modifier.size(23.dp))
                     }
                 }
                 DesktopToolbarButton(onClick = onNext, size = 34.dp) {
-                    Icon(Icons.Rounded.FastForward, "Next", tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(painterResource(Res.drawable.player_transport_next), "Next", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
                 DesktopToolbarButton(onClick = { onRepeatModeChange(repeatMode.next()) }, size = 34.dp) {
                     val tint = if (repeatMode == DesktopRepeatMode.OFF) DesktopSecondary else DesktopAccent
-                    if (repeatMode == DesktopRepeatMode.ONE) {
-                        Text("1", color = tint, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
-                    } else {
-                        Icon(BitChordIcons.Repeat, "Repeat ${repeatMode.label()}", tint = tint, modifier = Modifier.size(18.dp))
-                    }
+                    Icon(
+                        painterResource(
+                            if (repeatMode == DesktopRepeatMode.ONE) {
+                                Res.drawable.player_transport_repeat_one
+                            } else {
+                                Res.drawable.player_transport_repeat
+                            },
+                        ),
+                        "Repeat ${repeatMode.label()}",
+                        tint = tint,
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
                 Spacer(Modifier.width(8.dp))
                 DesktopArtwork(song.thumbnailUrl, Modifier.size(42.dp).clip(RoundedCornerShape(7.dp)), px = ROW_ART_PX)
@@ -4905,10 +4917,10 @@ private fun DesktopMiniPlayer(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
                     DesktopToolbarButton(onClick = onOpenLyrics, size = 32.dp) {
-                        Icon(BitChordIcons.LyricsQuote, "Lyrics", tint = if (sidePanel == DesktopSidePanel.LYRICS) Color.White else DesktopSecondary, modifier = Modifier.size(18.dp))
+                        Icon(painterResource(Res.drawable.player_transport_lyrics), "Lyrics", tint = if (sidePanel == DesktopSidePanel.LYRICS) Color.White else DesktopSecondary, modifier = Modifier.size(18.dp))
                     }
                     DesktopToolbarButton(onClick = onOpenQueue, size = 32.dp) {
-                        Icon(BitChordIcons.Queue, "Queue", tint = if (sidePanel == DesktopSidePanel.QUEUE) Color.White else DesktopSecondary, modifier = Modifier.size(18.dp))
+                        Icon(painterResource(Res.drawable.player_transport_up_next), "Queue", tint = if (sidePanel == DesktopSidePanel.QUEUE) Color.White else DesktopSecondary, modifier = Modifier.size(18.dp))
                     }
                     DesktopToolbarButton(onClick = onOpenAudioOutput, size = 32.dp) {
                         Icon(Icons.Rounded.Headphones, DesktopStrings["audio_output", "Audio output"], tint = DesktopSecondary, modifier = Modifier.size(18.dp))
