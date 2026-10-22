@@ -3263,6 +3263,7 @@ fun BitChordDesktopApp() {
                             artworkUrl = replaySummary.songs.firstOrNull()?.song?.thumbnailUrl
                                 .takeIf { overlays.replay },
                             transparentBase = transparentBase,
+                            darkFallback = overlays.replay,
                         )
                     }
                 },
@@ -5507,11 +5508,18 @@ private fun DesktopFrame(
  * ink so a page of text stays readable over it.
  */
 @Composable
-private fun DesktopPageBackdrop(artworkUrl: String?, transparentBase: Boolean) {
+private fun DesktopPageBackdrop(artworkUrl: String?, transparentBase: Boolean, darkFallback: Boolean = false) {
+    // Replay uses white typography over artwork. Even an empty Replay needs a dark canvas,
+    // rather than white-on-light when no artwork has been played yet.
+    val fallbackColor = if (darkFallback && artworkUrl == null && DesktopTheme.mode == DesktopThemeMode.LIGHT) {
+        Color(0xFF111216)
+    } else {
+        DesktopBackground
+    }
     Box(
         Modifier
             .fillMaxSize()
-            .then(if (transparentBase) Modifier else Modifier.background(DesktopBackground)),
+            .then(if (transparentBase) Modifier else Modifier.background(fallbackColor)),
     ) {
         if (artworkUrl == null) return@Box
         DesktopMesh(artworkUrl)
