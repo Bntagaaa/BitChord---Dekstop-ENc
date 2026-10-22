@@ -97,6 +97,7 @@ fun ReplayCreditCard(
     /** `MM/YY`, or null when there is nothing to date it from. */
     memberSince: String?,
     onClick: () -> Unit,
+    lightMode: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val palette = rememberArtworkColors(artworkUrl)
@@ -107,16 +108,28 @@ fun ReplayCreditCard(
             .clip(CardShape)
             .clickable(onClick = onClick),
     ) {
-        MeshGradientBackground(
-            palette = palette,
-            trackKey = artworkUrl ?: label,
-            blurRadius = 34.dp,
-            animated = false,
-        )
+        if (lightMode) {
+            val pastel = when (label.lowercase(Locale.ROOT)) {
+                "top artist" -> Color(0xFFE8E2F4)
+                "top song" -> Color(0xFFF6E4E7)
+                "top album" -> Color(0xFFE2EBF5)
+                else -> Color(0xFFE7EDF5)
+            }
+            Box(Modifier.fillMaxSize().background(Brush.linearGradient(
+                listOf(Color(0xFFFAFBFE), pastel, pastel.copy(alpha = 0.85f)),
+            )))
+        } else {
+            MeshGradientBackground(
+                palette = palette,
+                trackKey = artworkUrl ?: label,
+                blurRadius = 34.dp,
+                animated = false,
+            )
+        }
         // Deepened towards the foot, where the embossed lines are: the mesh is
         // built to be bright and those lines are pale, and without this the
         // cardholder name lands on whichever blob happened to drift under it.
-        Box(
+        if (!lightMode) Box(
             Modifier
                 .fillMaxSize()
                 .background(
@@ -141,14 +154,14 @@ fun ReplayCreditCard(
                     fontWeight = FontWeight.W700,
                     letterSpacing = 1.4.sp,
                     lineHeight = 13.sp,
-                    color = Color.White.copy(alpha = 0.72f),
+                    color = if (lightMode) Color(0xFF606775) else Color.White.copy(alpha = 0.72f),
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(10.dp))
                 Icon(
                     painter = painterResource(Res.drawable.ic_logo),
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = if (lightMode) Color(0xFF303849) else Color.White,
                     modifier = Modifier.size(width = 34.dp, height = 22.dp),
                 )
             }
@@ -161,8 +174,8 @@ fun ReplayCreditCard(
                     fontSize = 27.sp,
                     lineHeight = 30.sp,
                     fontWeight = FontWeight.W800,
-                    brush = PolishedInk,
-                    shadow = EmbossShadow,
+                    brush = if (lightMode) LightInk else PolishedInk,
+                    shadow = if (lightMode) LightEmbossShadow else EmbossShadow,
                 ),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -172,7 +185,7 @@ fun ReplayCreditCard(
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.W700,
                 letterSpacing = 1.8.sp,
-                color = Color.White.copy(alpha = 0.65f),
+                color = if (lightMode) Color(0xFF596273) else Color.White.copy(alpha = 0.65f),
             )
 
             // Weighted either side rather than pinned to the foot, so the figure
@@ -185,12 +198,13 @@ fun ReplayCreditCard(
                         text = holder.ifBlank { stringResource(Res.string.default_replay_holder) }
                             .uppercase(Locale.getDefault()),
                         size = 13.sp,
+                        lightMode = lightMode,
                     )
                     if (detail != null) {
                         Text(
                             text = detail,
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.6f),
+                            color = if (lightMode) Color(0xFF586273) else Color.White.copy(alpha = 0.6f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -205,7 +219,7 @@ fun ReplayCreditCard(
                             fontSize = 7.sp,
                             lineHeight = 8.sp,
                             letterSpacing = 0.8.sp,
-                            color = Color.White.copy(alpha = 0.55f),
+                            color = if (lightMode) Color(0xFF636C7C) else Color.White.copy(alpha = 0.55f),
                             // Both lines to the right edge, not just the block.
                             // Column alignment places the text *box*; inside it
                             // the two lines still set from the left, which left
@@ -214,7 +228,7 @@ fun ReplayCreditCard(
                             // catches the eye every time.
                             textAlign = TextAlign.End,
                         )
-                        Embossed(text = memberSince, size = 12.sp)
+                        Embossed(text = memberSince, size = 12.sp, lightMode = lightMode)
                     }
                 }
             }
@@ -232,7 +246,7 @@ fun ReplayCreditCard(
  * above.
  */
 @Composable
-private fun Embossed(text: String, size: TextUnit) {
+private fun Embossed(text: String, size: TextUnit, lightMode: Boolean = false) {
     Text(
         text = text,
         style = TextStyle(
@@ -240,8 +254,8 @@ private fun Embossed(text: String, size: TextUnit) {
             fontWeight = FontWeight.W600,
             fontSize = size,
             letterSpacing = 1.6.sp,
-            brush = PolishedInk,
-            shadow = EmbossShadow,
+            brush = if (lightMode) LightInk else PolishedInk,
+            shadow = if (lightMode) LightEmbossShadow else EmbossShadow,
         ),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
@@ -303,6 +317,9 @@ private val EmbossShadow = Shadow(
     offset = Offset(0f, 2.5f),
     blurRadius = 4f,
 )
+
+private val LightInk = Brush.verticalGradient(listOf(Color(0xFF202535), Color(0xFF454E60)))
+private val LightEmbossShadow = Shadow(Color(0x1F334155), Offset(0f, 1f), 2f)
 
 private val CardShape = RoundedCornerShape(20.dp)
 

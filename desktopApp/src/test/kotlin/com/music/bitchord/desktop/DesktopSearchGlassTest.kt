@@ -55,7 +55,12 @@ class DesktopSearchGlassTest {
         val pixels = compose.onNodeWithTag("glass").captureToImage().toPixelMap()
         val center = pixels[pixels.width / 2, pixels.height / 2]
         if (reduceBlur) {
-            assertTrue(abs(center.red - Color(0xFF27272B).red) < 0.01f)
+            // Solid search must match the *resolved* theme. The old 0x27272B assertion
+            // assumed Dark mode even after Follow System became the default.
+            val expected = DesktopSearchFill
+            assertTrue(abs(center.red - expected.red) < 0.01f, "solid red: $center vs $expected")
+            assertTrue(abs(center.green - expected.green) < 0.01f, "solid green: $center vs $expected")
+            assertTrue(abs(center.blue - expected.blue) < 0.01f, "solid blue: $center vs $expected")
         } else {
             // A solid replacement would also be uniform; require the red source to contribute.
             assertTrue(center.red > center.green + 0.1f)

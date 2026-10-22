@@ -384,7 +384,7 @@ private fun DesktopMenuHeader(title: String, onBack: () -> Unit) {
             title,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White,
+            color = DesktopForeground,
         )
     }
 }
@@ -430,7 +430,7 @@ private fun DesktopMenuRow(
             Icon(
                 icon,
                 null,
-                tint = tint ?: if (enabled) Color.White.copy(alpha = 0.82f) else DesktopSecondary,
+                tint = tint ?: if (enabled) DesktopForeground.copy(alpha = 0.82f) else DesktopSecondary,
                 modifier = Modifier.size(16.dp),
             )
         }
@@ -439,7 +439,7 @@ private fun DesktopMenuRow(
             label,
             Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
-            color = tint ?: if (enabled) Color.White else DesktopSecondary,
+            color = tint ?: if (enabled) DesktopForeground else DesktopSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -462,7 +462,7 @@ internal fun DesktopMoreButton(onClick: () -> Unit, modifier: Modifier = Modifie
         modifier
             .size(34.dp)
             .clip(RoundedCornerShape(17.dp))
-            .background(if (hovered) Color.White.copy(alpha = 0.12f) else Color.Transparent)
+            .background(if (hovered) DesktopForeground.copy(alpha = 0.12f) else Color.Transparent)
             .hoverable(interaction)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -474,7 +474,7 @@ internal fun DesktopMoreButton(onClick: () -> Unit, modifier: Modifier = Modifie
                     Modifier
                         .size(3.5.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(Color.White.copy(alpha = 0.75f)),
+                        .background(DesktopForeground.copy(alpha = 0.75f)),
                 )
             }
         }

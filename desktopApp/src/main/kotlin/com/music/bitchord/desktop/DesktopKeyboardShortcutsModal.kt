@@ -50,7 +50,7 @@ internal fun DesktopKeyboardShortcutsModal(onDismiss: () -> Unit) {
                     Text(
                         "Keyboard Shortcuts",
                         modifier = Modifier.weight(1f),
-                        color = Color.White,
+                        color = DesktopForeground,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                     )
@@ -80,7 +80,7 @@ internal fun DesktopKeyboardShortcutsModal(onDismiss: () -> Unit) {
                             Text(
                                 category.label,
                                 modifier = Modifier.padding(top = 12.dp, bottom = 8.dp),
-                                color = Color.White,
+                                color = DesktopForeground,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                             )
@@ -96,7 +96,7 @@ internal fun DesktopKeyboardShortcutsModal(onDismiss: () -> Unit) {
                                 Text(
                                     shortcut.label,
                                     modifier = Modifier.weight(1f).padding(end = 12.dp),
-                                    color = Color.White,
+                                    color = DesktopForeground,
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -118,9 +118,9 @@ private fun ShortcutKeycap(label: String) {
         label,
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
-            .border(1.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+            .border(1.dp, DesktopForeground.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
             .padding(horizontal = 6.dp, vertical = 3.dp),
-        color = Color.White,
+        color = DesktopForeground,
         style = MaterialTheme.typography.labelMedium,
     )
 }

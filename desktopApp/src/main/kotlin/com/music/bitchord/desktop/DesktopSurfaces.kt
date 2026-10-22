@@ -41,19 +41,19 @@ import dev.chrisbanes.haze.hazeEffect
 // The look every modal card in the app shares.
 
 /** The card fill. */
-internal val DesktopCardFill = Color(0xFA1A1A1D)
+internal val DesktopCardFill: Color get() = DesktopTheme.palette.cardFill
 
 /** A block inside a card — a settings group — lifted just off the fill. */
-internal val DesktopCardInsetFill = Color(0x14FFFFFF)
+internal val DesktopCardInsetFill: Color get() = DesktopTheme.palette.cardInsetFill
 
 /** The hairline that bounds a card, and separates one row from the next. */
-internal val DesktopCardEdge = Color(0x1FFFFFFF)
+internal val DesktopCardEdge: Color get() = DesktopTheme.palette.cardEdge
 
 /** What a row reads at while the pointer is on it. */
-internal val DesktopRowHover = Color(0x1AFFFFFF)
+internal val DesktopRowHover: Color get() = DesktopTheme.palette.rowHover
 
 /** The scrim a modal card sits on. */
-internal val DesktopScrim = Color(0x8C000000)
+internal val DesktopScrim: Color get() = DesktopTheme.palette.scrim
 
 /** Card, hairline and all. */
 internal fun Modifier.desktopCard(shape: Shape): Modifier =
@@ -254,7 +254,7 @@ internal fun Modifier.desktopSearchGlass(
     shape: Shape,
     reduceBlur: Boolean,
 ): Modifier {
-    val fill = Color(0xFF27272B)
+    val fill = DesktopSearchFill
     val surface = if (reduceBlur) {
         Modifier.background(fill)
     } else {

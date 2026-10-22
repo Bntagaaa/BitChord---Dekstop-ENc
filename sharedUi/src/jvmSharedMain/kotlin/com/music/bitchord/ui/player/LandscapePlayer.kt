@@ -520,7 +520,7 @@ internal fun LandscapeLyricsPane(
                 Text(
                     text = placeholder,
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color.White.copy(alpha = 0.6f),
+                    color = LocalLyricsPanelColors.current.secondary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.align(Alignment.Center),
                 )

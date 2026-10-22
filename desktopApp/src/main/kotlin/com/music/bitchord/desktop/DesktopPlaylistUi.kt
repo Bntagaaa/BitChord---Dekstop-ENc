@@ -176,7 +176,7 @@ private fun NewPlaylistForm(
     ) {
         onBack?.let {
             IconButton(onClick = it) {
-                Icon(Icons.Rounded.ArrowBack, DesktopStrings["back", "Back"], tint = Color.White)
+                Icon(Icons.Rounded.ArrowBack, DesktopStrings["back", "Back"], tint = DesktopForeground)
             }
         }
         Column(Modifier.weight(1f)) {
@@ -184,7 +184,7 @@ private fun NewPlaylistForm(
                 DesktopStrings["new_playlist", "New playlist"],
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White,
+                color = DesktopForeground,
             )
             Text(
                 if (signedIn) "Saved to your YouTube Music account" else "Saved on this computer",
@@ -200,7 +200,7 @@ private fun NewPlaylistForm(
             .fillMaxWidth()
             .padding(horizontal = 22.dp, vertical = 16.dp)
             .clip(RoundedCornerShape(11.dp))
-            .background(Color.White.copy(alpha = 0.08f))
+            .background(DesktopForeground.copy(alpha = 0.08f))
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -212,7 +212,7 @@ private fun NewPlaylistForm(
                 value = name,
                 onValueChange = { name = it },
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.White),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = DesktopForeground),
                 cursorBrush = SolidColor(DesktopAccent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { submit() }),
@@ -278,14 +278,14 @@ internal fun DesktopRenamePlaylistDialog(
                 .fillMaxWidth()
                 .padding(horizontal = 22.dp, vertical = 14.dp)
                 .clip(RoundedCornerShape(11.dp))
-                .background(Color.White.copy(alpha = 0.08f))
+                .background(DesktopForeground.copy(alpha = 0.08f))
                 .padding(horizontal = 12.dp, vertical = 12.dp),
         ) {
             BasicTextField(
                 value = name,
                 onValueChange = { name = it },
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.White),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = DesktopForeground),
                 cursorBrush = SolidColor(DesktopAccent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { submit() }),
@@ -375,7 +375,7 @@ private fun DialogHeading(title: String, subtitle: String) {
         title,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold,
-        color = Color.White,
+        color = DesktopForeground,
         modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 20.dp),
     )
     if (subtitle.isNotBlank()) {
@@ -424,10 +424,10 @@ private fun DialogAction(
             .padding(horizontal = 22.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(18.dp))
+        Icon(icon, null, tint = DesktopForeground.copy(alpha = 0.85f), modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(label, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(label, color = DesktopForeground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (subtitle.isNotBlank()) {
                 Text(
                     subtitle,
@@ -470,7 +470,7 @@ private fun PrivacyPill(icon: ImageVector, label: String, selected: Boolean, onC
     Row(
         Modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(if (selected) DesktopAccent.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.08f))
+            .background(if (selected) DesktopAccent.copy(alpha = 0.22f) else DesktopForeground.copy(alpha = 0.08f))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -485,7 +485,7 @@ private fun PrivacyPill(icon: ImageVector, label: String, selected: Boolean, onC
         Text(
             label,
             style = MaterialTheme.typography.bodySmall,
-            color = if (selected) Color.White else DesktopSecondary,
+            color = if (selected) DesktopForeground else DesktopSecondary,
         )
     }
 }

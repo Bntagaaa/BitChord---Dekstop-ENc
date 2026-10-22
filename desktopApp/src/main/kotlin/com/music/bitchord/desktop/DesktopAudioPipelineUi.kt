@@ -138,7 +138,7 @@ private fun PipelineRow(label: String, value: String?) {
         Spacer(Modifier.width(12.dp))
         Text(
             value,
-            color = Color.White,
+            color = DesktopForeground,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.End,

@@ -72,7 +72,7 @@ internal fun DesktopLyricsSourcesDialog(
                 DesktopStrings["lyrics_sources", "Lyrics sources"],
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White,
+                color = DesktopForeground,
             )
             Text(
                 DesktopStrings[
@@ -166,7 +166,7 @@ private fun ReorderableSourceList(
                                 }
                             }
                             .background(
-                                if (dragging) Color.White.copy(alpha = 0.08f) else Color.Transparent,
+                                if (dragging) DesktopForeground.copy(alpha = 0.08f) else Color.Transparent,
                             ),
                     ) {
                         if (slot > 0) DesktopCardRule()
@@ -288,7 +288,7 @@ private fun CheckableRow(
             Text(
                 title,
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (enabled) Color.White else DesktopSecondary,
+                color = if (enabled) DesktopForeground else DesktopSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

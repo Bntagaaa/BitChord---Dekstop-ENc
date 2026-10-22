@@ -92,7 +92,7 @@ private fun OutputRow(name: String, description: String, chosen: Boolean, onClic
         }
         if (chosen) {
             Spacer(Modifier.width(10.dp))
-            Icon(BitChordIcons.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
+            Icon(BitChordIcons.Check, null, tint = DesktopForeground, modifier = Modifier.size(18.dp))
         }
     }
 }

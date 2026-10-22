@@ -69,7 +69,7 @@ internal fun DesktopAccountButton(
                 Modifier
                     .size(26.dp)
                     .clip(CircleShape)
-                    .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape),
+                    .border(1.dp, DesktopForeground.copy(alpha = 0.18f), CircleShape),
                 contentScale = ContentScale.Crop,
                 px = 96,
             )
@@ -78,14 +78,14 @@ internal fun DesktopAccountButton(
                 Modifier
                     .size(26.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.14f))
-                    .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape),
+                    .background(DesktopForeground.copy(alpha = 0.14f))
+                    .border(1.dp, DesktopForeground.copy(alpha = 0.18f), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Rounded.Person,
                     DesktopStrings["accounts", "Accounts"],
-                    tint = Color.White.copy(alpha = 0.85f),
+                    tint = DesktopForeground.copy(alpha = 0.85f),
                     modifier = Modifier.size(16.dp),
                 )
             }
@@ -143,7 +143,7 @@ internal fun DesktopAccountSelector(
                     if (accounts.isEmpty()) "Accounts" else "Switch account",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
+                    color = DesktopForeground,
                 )
                 Spacer(Modifier.weight(1f))
                 if (busy) CircularProgressIndicator(color = DesktopAccent, modifier = Modifier.size(16.dp))
@@ -232,7 +232,7 @@ private fun DesktopProfileRow(
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(profile.name, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(profile.name, color = DesktopForeground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 profile.handle.ifBlank { if (profile.isBrandAccount) "Brand account" else "Personal" },
                 style = MaterialTheme.typography.bodySmall,
@@ -262,9 +262,9 @@ private fun DesktopSelectorAction(
             .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(20.dp))
+        Icon(icon, null, tint = DesktopForeground.copy(alpha = 0.85f), modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(16.dp))
-        Text(label, color = Color.White)
+        Text(label, color = DesktopForeground)
     }
 }
 
@@ -319,7 +319,7 @@ internal fun DesktopSignInDialog(
                 DesktopStrings["sign_in_youtube_music", "Sign in to YouTube Music"],
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White,
+                color = DesktopForeground,
                 modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 20.dp),
             )
             Text(
@@ -356,14 +356,14 @@ internal fun DesktopSignInDialog(
                         value = pasted,
                         onValueChange = { pasted = it },
                         singleLine = false,
-                        textStyle = MaterialTheme.typography.bodySmall.copy(color = Color.White),
+                        textStyle = MaterialTheme.typography.bodySmall.copy(color = DesktopForeground),
                         cursorBrush = SolidColor(DesktopAccent),
                         modifier = Modifier
                             .padding(horizontal = 22.dp, vertical = 10.dp)
                             .fillMaxWidth()
                             .heightIn(min = 84.dp, max = 160.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White.copy(alpha = 0.08f))
+                            .background(DesktopForeground.copy(alpha = 0.08f))
                             .padding(12.dp),
                     )
                     Row(
@@ -400,7 +400,7 @@ internal fun DesktopSignInDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    Text("Sign in inside BitChord", color = Color.White)
+                                    Text("Sign in inside BitChord", color = DesktopForeground)
                                     Text(
                                         if (busy == "In-app YouTube Music") {
                                             "Complete sign-in in the BitChord window, then choose Use this profile"
@@ -431,7 +431,7 @@ internal fun DesktopSignInDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(browser.label, color = Color.White)
+                                    Text(browser.label, color = DesktopForeground)
                                     Text(
                                         if (busy == browser.label) {
                                             "Finish signing in, then close Chrome"
@@ -468,7 +468,7 @@ internal fun DesktopSignInDialog(
                                 .padding(horizontal = 22.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(profile.label, color = Color.White, modifier = Modifier.weight(1f))
+                            Text(profile.label, color = DesktopForeground, modifier = Modifier.weight(1f))
                             if (busy == profile.label) {
                                 CircularProgressIndicator(color = DesktopAccent, modifier = Modifier.size(14.dp))
                             }
@@ -486,11 +486,11 @@ internal fun DesktopSignInDialog(
                             Icon(
                                 Icons.Rounded.ContentPaste,
                                 null,
-                                tint = Color.White.copy(alpha = 0.85f),
+                                tint = DesktopForeground.copy(alpha = 0.85f),
                                 modifier = Modifier.size(18.dp),
                             )
                             Spacer(Modifier.width(14.dp))
-                            Text(DesktopStrings["d_paste_a_cookie_instead", "Paste a cookie instead"], color = Color.White)
+                            Text(DesktopStrings["d_paste_a_cookie_instead", "Paste a cookie instead"], color = DesktopForeground)
                         }
                     }
                 }

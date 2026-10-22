@@ -33,8 +33,8 @@ internal object DesktopWindowsCaptionAppearance {
         attachedWindow = window
         handle = pointer
         // Supported on recent Windows 10/11. Failure affects only appearance, never the frame.
-        if (!setAttribute(DWMWA_USE_IMMERSIVE_DARK_MODE, 1)) {
-            DesktopTrackLog.log("native caption dark mode unavailable; using Windows default")
+        if (!setDarkMode(DesktopTheme.isDark)) {
+            DesktopTrackLog.log("native caption theme unavailable; using Windows default")
         }
         return true
     }
@@ -46,6 +46,10 @@ internal object DesktopWindowsCaptionAppearance {
             DesktopWindowBackdrop.clearApplied()
         }
     }
+
+    /** Keep the native Windows caption in sync with the Compose color palette. */
+    fun setDarkMode(enabled: Boolean): Boolean =
+        setAttribute(DWMWA_USE_IMMERSIVE_DARK_MODE, if (enabled) 1 else 0)
 
     /** DWM backdrop values: 1 = none, 2 = Mica, 3 = desktop Acrylic. */
     fun setBackdrop(kind: Int): Boolean = setAttribute(

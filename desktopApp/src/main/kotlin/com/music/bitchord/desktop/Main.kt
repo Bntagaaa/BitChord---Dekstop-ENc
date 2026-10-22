@@ -26,6 +26,8 @@ import bitchord.desktopapp.generated.resources.logo
 import java.awt.Dimension
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.painterResource
 
 fun main() {
@@ -92,6 +94,27 @@ private fun desktopMain() = application {
         resizable = true,
     ) {
         val composeWindow = window
+        val isDarkTheme = DesktopTheme.isDark
+        // System mode follows changes while the app remains open. Native probes run off the UI thread.
+        LaunchedEffect(Unit) {
+            while (true) {
+                DesktopTheme.updateSystemDark(withContext(Dispatchers.IO) { DesktopSystemTheme.isDark() })
+                delay(2_500)
+            }
+        }
+        // Update both the opaque AWT surface and Windows' system caption without remounting UI.
+        LaunchedEffect(composeWindow, isDarkTheme) {
+            val background = if (!isDarkTheme) {
+                java.awt.Color(0xF7F7F9)
+            } else {
+                java.awt.Color.BLACK
+            }
+            composeWindow.background = background
+            composeWindow.contentPane.background = background
+            if (DesktopPlatform.isWindows) {
+                DesktopWindowsCaptionAppearance.setDarkMode(isDarkTheme)
+            }
+        }
         DisposableEffect(composeWindow) {
             onDispose { DesktopWindowsCaptionAppearance.detach(composeWindow) }
         }
@@ -111,8 +134,13 @@ private fun desktopMain() = application {
         val openingSize = remember { state.size }
         LaunchedEffect(composeWindow) {
             // The client stays opaque even when DWM accepts a caption material.
-            composeWindow.background = java.awt.Color.BLACK
-            composeWindow.contentPane.background = java.awt.Color.BLACK
+            val initialBackground = if (!isDarkTheme) {
+                java.awt.Color(0xF7F7F9)
+            } else {
+                java.awt.Color.BLACK
+            }
+            composeWindow.background = initialBackground
+            composeWindow.contentPane.background = initialBackground
             if (DesktopPlatform.isWindows) {
                 // AWT dimensions use logical screen coordinates; its peer applies monitor DPI.
                 // Leave the opening size to rememberWindowState, including native frame insets.
