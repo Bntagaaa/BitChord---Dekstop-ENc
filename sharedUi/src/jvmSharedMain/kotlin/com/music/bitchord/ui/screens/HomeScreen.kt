@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import com.music.bitchord.ui.components.ShelfRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -98,12 +99,21 @@ import com.music.bitchord.ui.player.MeshPalette
 /** Desktop-only typography; Android keeps the original larger styles. */
 val LocalDesktopCompactHeadings = staticCompositionLocalOf { false }
 
-/** Fade the top 34 dp of a list as cards pass underneath its top boundary. */
-internal fun Modifier.desktopTopScrollFade(state: LazyListState): Modifier =
+/** A shared, lightweight top-edge fade for all desktop scrolling lists and grids. */
+fun Modifier.desktopTopScrollFade(state: LazyListState): Modifier = desktopTopScrollFadeWhen {
+    state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0
+}
+
+/** Grids use the same fade and the same scroll threshold as song lists. */
+fun Modifier.desktopTopScrollFade(state: LazyGridState): Modifier = desktopTopScrollFadeWhen {
+    state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0
+}
+
+private fun Modifier.desktopTopScrollFadeWhen(hasScrolled: () -> Boolean): Modifier =
     graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
         .drawWithContent {
             drawContent()
-            if (state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0) {
+            if (hasScrolled()) {
                 drawRect(
                     brush = Brush.verticalGradient(
                         colors = listOf(Color.Transparent, Color.Black),
