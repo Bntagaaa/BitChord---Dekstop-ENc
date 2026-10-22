@@ -163,6 +163,7 @@ internal fun DesktopSpotifyLibraryPage(
     gridState: LazyGridState,
     contentPadding: PaddingValues,
     onConnect: () -> Unit,
+    onManageAccount: () -> Unit,
     onRetry: () -> Unit,
     onOpenPlaylist: (SpotifyPlaylist) -> Unit,
 ) {
@@ -174,6 +175,9 @@ internal fun DesktopSpotifyLibraryPage(
         ) {
             Text("Spotify", style = MaterialTheme.typography.headlineLarge)
             Spacer(Modifier.weight(1f))
+            TextButton(onClick = onManageAccount) {
+                Text("Account & integrations")
+            }
             if (connected) {
                 TextButton(onClick = onRetry, enabled = !loading) {
                     Text(if (loading) "Refreshing..." else "Refresh")
