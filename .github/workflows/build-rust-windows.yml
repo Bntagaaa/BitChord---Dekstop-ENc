@@ -1,0 +1,94 @@
+name: Build Rust Windows Portable
+
+# workflow_dispatch is available once GitHub registers this workflow on the
+# default branch. The branch-scoped push trigger lets us test it immediately
+# while keeping the experimental Rust rewrite isolated from main.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/rust-native-rewrite
+    paths:
+      - 'rust/**'
+      - '.github/workflows/build-rust-windows.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-windows-portable-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Windows x64 portable
+    runs-on: windows-latest
+    timeout-minutes: 75
+
+    defaults:
+      run:
+        working-directory: rust
+        shell: pwsh
+
+    env:
+      CARGO_INCREMENTAL: '0'
+      # Link the MSVC C runtime statically for a more self-contained EXE.
+      RUSTFLAGS: '-C target-feature=+crt-static'
+
+    steps:
+      - name: Check out the Rust rewrite branch
+        uses: actions/checkout@v4
+
+      - name: Install the Rust toolchain pinned by the workspace
+        run: |
+          $config = Get-Content -Raw -Path 'rust-toolchain.toml'
+          if ($config -notmatch '(?m)^\s*channel\s*=\s*"([^"]+)"') {
+            throw 'Unable to read the pinned Rust channel from rust/rust-toolchain.toml'
+          }
+          $channel = $Matches[1]
+          rustup toolchain install $channel --profile minimal --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { throw "Failed to install Rust $channel" }
+          rustc --version
+          cargo --version
+
+      - name: Cache Rust dependencies and build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'rust -> target'
+          cache-on-failure: true
+
+      - name: Build native Windows release executable
+        run: cargo build --release --locked -p bitchord-app
+
+      - name: Smoke-test the compiled executable
+        run: |
+          $exe = Join-Path 'target' 'release/bitchord-app.exe'
+          if (-not (Test-Path $exe)) { throw "Missing expected executable: $exe" }
+          & "./$exe" --version
+          if ($LASTEXITCODE -ne 0) { throw 'Native executable failed its version smoke test' }
+
+      - name: Stage standalone portable artifact
+        run: |
+          $dist = Join-Path $env:RUNNER_TEMP 'BitChord-Rust-Windows-Portable'
+          New-Item -ItemType Directory -Force -Path $dist | Out-Null
+          Copy-Item 'target/release/bitchord-app.exe' (Join-Path $dist 'bitchord-app.exe')
+          Copy-Item '../LICENSE' (Join-Path $dist 'LICENSE')
+          @'
+          BitChord Native - experimental Rust foundation
+
+          Run bitchord-app.exe to open the native Slint window.
+          This is not the full BitChord application: playback, login,
+          search, lyrics, downloads, and other features are not ported.
+
+          The logo and font assets are embedded in the executable.
+          No Kotlin, Gradle, or JVM runtime is required.
+          The repository's GPL-3.0 license is included as LICENSE.
+          '@ | Set-Content -Path (Join-Path $dist 'README.txt') -Encoding utf8
+
+      - name: Upload Windows portable EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: BitChord-Rust-Windows-Portable
+          path: ${{ runner.temp }}/BitChord-Rust-Windows-Portable/
+          if-no-files-found: error
+          retention-days: 14
