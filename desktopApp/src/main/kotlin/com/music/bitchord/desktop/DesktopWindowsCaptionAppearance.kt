@@ -33,7 +33,7 @@ internal object DesktopWindowsCaptionAppearance {
         attachedWindow = window
         handle = pointer
         // Supported on recent Windows 10/11. Failure affects only appearance, never the frame.
-        if (!setDarkMode(DesktopTheme.mode == DesktopThemeMode.DARK)) {
+        if (!setDarkMode(DesktopTheme.isDark)) {
             DesktopTrackLog.log("native caption theme unavailable; using Windows default")
         }
         return true
