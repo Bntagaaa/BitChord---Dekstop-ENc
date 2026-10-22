@@ -1,6 +1,10 @@
 package com.music.bitchord.desktop
 
 import java.awt.event.KeyEvent
+import com.music.bitchord.data.model.BrowseItem
+import com.music.bitchord.data.model.BrowseType
+import com.music.bitchord.data.model.SearchResult
+import com.music.bitchord.data.model.Song
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -9,6 +13,17 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DesktopQuickSearchTest {
+    @Test fun quickSearchIncludesArtistRowsButNotAlbumsOrPlaylists() {
+        val track = SearchResult.Track(Song("test-id", "Song", "Artist", null))
+        val artist = SearchResult.Browse(BrowseItem("artist-id", "Artist", "2M listeners", null, BrowseType.ARTIST))
+        val album = SearchResult.Browse(BrowseItem("album-id", "Album", "", null, BrowseType.ALBUM))
+        val playlist = SearchResult.Browse(BrowseItem("playlist-id", "Mix", "", null, BrowseType.PLAYLIST))
+        val results = quickSearchEntries(listOf(track, artist, album, playlist))
+        assertEquals(listOf(track, artist), results)
+        assertEquals("artist:artist-id", quickSearchEntryKey(artist))
+        assertEquals("track:test-id", quickSearchEntryKey(track))
+    }
+
     private fun state() = DesktopQuickSearchState<String> { it }
 
     private fun ready(vararg items: String): DesktopQuickSearchState<String> = state().also {
@@ -154,18 +169,18 @@ class DesktopQuickSearchTest {
         assertEquals("Host only", s.state.value.error)
     }
 
-    @Test fun enterAloneIsConsumedWithoutAction() {
+    @Test fun enterPlaysAndClosesOnlyOnRelease() {
         val keys = DesktopQuickSearchKeys()
         assertEquals(DesktopQuickSearchKeyAction.CONSUME, keys.handle(KeyEvent.VK_ENTER, true, true))
-        assertEquals(DesktopQuickSearchKeyAction.CONSUME, keys.handle(KeyEvent.VK_ENTER, false, true))
+        assertEquals(DesktopQuickSearchKeyAction.PLAY, keys.handle(KeyEvent.VK_ENTER, false, true))
     }
 
-    @Test fun shiftEnterPlaysOnceOnReleaseNotRepeat() {
+    @Test fun shiftEnterPlaysWithoutClosingOnRelease() {
         val keys = DesktopQuickSearchKeys()
         repeat(5) {
             assertEquals(DesktopQuickSearchKeyAction.CONSUME, keys.handle(KeyEvent.VK_ENTER, true, true, shift = true))
         }
-        assertEquals(DesktopQuickSearchKeyAction.PLAY, keys.handle(KeyEvent.VK_ENTER, false, true))
+        assertEquals(DesktopQuickSearchKeyAction.PLAY_KEEP_OPEN, keys.handle(KeyEvent.VK_ENTER, false, true))
         assertEquals(DesktopQuickSearchKeyAction.PASS, keys.handle(KeyEvent.VK_ENTER, false, true))
     }
 
@@ -173,7 +188,7 @@ class DesktopQuickSearchTest {
         val keys = DesktopQuickSearchKeys()
         keys.handle(KeyEvent.VK_ENTER, true, true)
         keys.handle(KeyEvent.VK_ENTER, true, true, shift = true)
-        assertEquals(DesktopQuickSearchKeyAction.CONSUME, keys.handle(KeyEvent.VK_ENTER, false, true, shift = true))
+        assertEquals(DesktopQuickSearchKeyAction.PLAY, keys.handle(KeyEvent.VK_ENTER, false, true, shift = true))
     }
 
     @Test fun otherEnterModifiersNeverPlay() {

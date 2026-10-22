@@ -161,6 +161,9 @@ fun SearchScreen(
     /** Keep the browse landing mounted while editing, so the input never loses focus on empty/non-empty transitions. */
     showLanding: Boolean = false,
     landingContent: (@Composable () -> Unit)? = null,
+    /** Desktop supplies its frosted/solid surface, following the existing Remove Blur switch. */
+    landingPanelDecoration: Modifier = Modifier,
+    landingPanelColor: Color = Color(0xFF27272B),
 ) {
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -255,12 +258,13 @@ fun SearchScreen(
                     ) {
                         Box(
                             Modifier.widthIn(max = 540.dp).fillMaxWidth().padding(horizontal = 24.dp),
-                            contentAlignment = Alignment.TopStart,
+                            contentAlignment = Alignment.TopCenter,
                         ) {
                             Surface(
-                                modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth().padding(top = 8.dp),
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                                    .then(landingPanelDecoration),
                                 shape = RoundedCornerShape(14.dp),
-                                color = Color(0xF027272B),
+                                color = landingPanelColor,
                                 shadowElevation = 12.dp,
                             ) {
                             Column(

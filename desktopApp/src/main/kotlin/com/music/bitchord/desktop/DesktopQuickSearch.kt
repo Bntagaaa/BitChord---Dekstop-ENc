@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -54,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.music.bitchord.data.model.ROW_ART_PX
 import com.music.bitchord.data.model.SearchResult
+import com.music.bitchord.data.model.BrowseType
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.ui.icons.BitChordIcons
 import kotlinx.coroutines.CancellationException
@@ -61,21 +63,22 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 
-/** Only playable songs belong in this overlay; the full Search page still handles browse results. */
-internal fun quickSearchSongs(results: List<SearchResult>): List<Song> = results.mapNotNull { result ->
-    when (result) {
-        is SearchResult.TopTrack -> result.song
-        is SearchResult.Track -> result.song
-        is SearchResult.Browse -> null
-    }
+/** The compact palette lists playable tracks and real artist targets, never invented artists. */
+internal fun quickSearchEntries(results: List<SearchResult>): List<SearchResult> =
+    results.filter { it !is SearchResult.Browse || it.item.type == BrowseType.ARTIST }
+
+internal fun quickSearchEntryKey(result: SearchResult): String = when (result) {
+    is SearchResult.Track -> "track:" + result.song.videoId
+    is SearchResult.TopTrack -> "track:" + result.song.videoId
+    is SearchResult.Browse -> "artist:" + result.item.browseId
 }
 
 /** In-window overlay, not a new native popup/window: keyboard ownership stays at the app root. */
 @Composable
 internal fun DesktopQuickSearch(
-    controller: DesktopQuickSearchState<Song>,
+    controller: DesktopQuickSearchState<SearchResult>,
     focusRequester: FocusRequester,
-    onPlay: (Song) -> Unit,
+    onSelect: (SearchResult) -> Unit,
     onDismiss: () -> Unit,
 ) {
     // Only register its z-order; the established Quick Search router owns Escape and all editing.
@@ -90,7 +93,7 @@ internal fun DesktopQuickSearch(
             delay(QUICK_SEARCH_DEBOUNCE_MS)
             val rows = DesktopSearchClient.searchTypeahead(request.query).getOrThrow()
             currentCoroutineContext().ensureActive()
-            controller.complete(request, quickSearchSongs(rows))
+            controller.complete(request, quickSearchEntries(rows))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
@@ -118,6 +121,7 @@ internal fun DesktopQuickSearch(
             modifier = Modifier.align(Alignment.TopCenter).padding(top = topInset, start = 16.dp, end = 16.dp)
                 .widthIn(max = 650.dp).fillMaxWidth().heightIn(max = availableHeight),
             onBackgroundClick = { focusRequester.requestFocus() },
+            frosted = true,
         ) {
             Column(Modifier.fillMaxWidth().padding(22.dp)) {
                 val searchShape = RoundedCornerShape(7.dp)
@@ -161,12 +165,12 @@ internal fun DesktopQuickSearch(
                         QuickSearchKeycap("\u2193")
                         Text("Navigate", color = DesktopSecondary, fontSize = 11.sp)
                         Spacer(Modifier.weight(1f))
+                        QuickSearchKeycap("Enter")
+                        Text("Play & close", color = DesktopSecondary, fontSize = 11.sp)
+                        Spacer(Modifier.width(8.dp))
                         QuickSearchKeycap("Shift")
                         QuickSearchKeycap("Enter")
-                        Text("Play", color = DesktopSecondary, fontSize = 11.sp)
-                        Spacer(Modifier.width(10.dp))
-                        QuickSearchKeycap("Esc")
-                        Text("Close", color = DesktopSecondary, fontSize = 11.sp)
+                        Text("Play & stay", color = DesktopSecondary, fontSize = 11.sp)
                     }
                     if (state.loading) {
                         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -186,19 +190,19 @@ internal fun DesktopQuickSearch(
                             }
                         }
                         if (state.items.isEmpty() && state.error == null) {
-                            Text("No songs found", Modifier.padding(16.dp), color = DesktopSecondary)
+                            Text("No tracks or artists found", Modifier.padding(16.dp), color = DesktopSecondary)
                         }
                         if (state.items.isNotEmpty()) Box(Modifier.fillMaxWidth()) {
                             LazyColumn(
                                 state = listState,
                                 modifier = Modifier.fillMaxWidth().heightIn(max = listHeight).padding(end = 10.dp),
                             ) {
-                                itemsIndexed(state.items, key = { _, song -> song.videoId }) { index, song ->
+                                itemsIndexed(state.items, key = { _, item -> quickSearchEntryKey(item) }) { index, item ->
                                     QuickSearchRow(
-                                        song = song,
+                                        item = item,
                                         active = state.selectedIndex == index,
                                         onHover = { controller.hover(index) },
-                                        onPlay = { if (controller.canPlay(song)) onPlay(song) },
+                                        onSelect = { if (controller.canPlay(item)) onSelect(item) },
                                     )
                                 }
                             }
@@ -219,7 +223,13 @@ internal fun DesktopQuickSearch(
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun QuickSearchRow(song: Song, active: Boolean, onHover: () -> Unit, onPlay: () -> Unit) {
+private fun QuickSearchRow(item: SearchResult, active: Boolean, onHover: () -> Unit, onSelect: () -> Unit) {
+    val song = when (item) {
+        is SearchResult.TopTrack -> item.song
+        is SearchResult.Track -> item.song
+        is SearchResult.Browse -> null
+    }
+    val artist = (item as? SearchResult.Browse)?.item
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(5.dp))
             .background(if (active) Color.White.copy(alpha = 0.10f) else Color.Transparent)
@@ -228,18 +238,22 @@ private fun QuickSearchRow(song: Song, active: Boolean, onHover: () -> Unit, onP
             // Move, rather than Enter, avoids changing selection merely because keyboard scroll
             // places another row underneath a stationary pointer.
             .onPointerEvent(PointerEventType.Move) { onHover() }
-            .clickable(onClick = onPlay).padding(horizontal = 12.dp, vertical = 8.dp),
+            .clickable(onClick = onSelect).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        DesktopArtwork(song.thumbnailUrl, Modifier.size(40.dp).clip(RoundedCornerShape(5.dp)), px = ROW_ART_PX)
+        DesktopArtwork(
+            song?.thumbnailUrl ?: artist?.thumbnailUrl,
+            Modifier.size(40.dp).clip(if (artist != null) CircleShape else RoundedCornerShape(5.dp)),
+            px = ROW_ART_PX,
+        )
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)) {
-            Text(song.title, color = Color.White, fontWeight = FontWeight.Medium, maxLines = 1,
+            Text(song?.title ?: artist?.title.orEmpty(), color = Color.White, fontWeight = FontWeight.Medium, maxLines = 1,
                 overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-            Text(song.artist, color = DesktopSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall)
+            Text(song?.artist ?: artist?.subtitle.orEmpty(), color = DesktopSecondary, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
         }
-        Text("Track", color = DesktopSecondary, fontSize = 11.sp,
+        Text(if (artist != null) "Artist" else "Track", color = DesktopSecondary, fontSize = 11.sp,
             modifier = Modifier.padding(start = 10.dp).background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(3.dp))
                 .padding(horizontal = 7.dp, vertical = 4.dp))
     }

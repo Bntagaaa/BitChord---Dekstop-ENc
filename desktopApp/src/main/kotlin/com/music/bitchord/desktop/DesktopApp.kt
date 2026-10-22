@@ -22,6 +22,7 @@ import com.music.bitchord.data.model.SearchHistoryEntity
 import com.music.bitchord.ui.LocalPullToRefreshEnabled
 import com.music.bitchord.ui.screens.ExploreScreen
 import com.music.bitchord.ui.screens.HomeScreen
+import com.music.bitchord.ui.screens.LocalDesktopCompactHeadings
 import com.music.bitchord.ui.screens.CompactTrackRow
 import com.music.bitchord.ui.screens.LibraryGridPage
 import com.music.bitchord.ui.screens.LibraryLink
@@ -263,6 +264,7 @@ import androidx.compose.ui.unit.sp
 import bitchord.desktopapp.generated.resources.Res
 import bitchord.desktopapp.generated.resources.logo
 import bitchord.desktopapp.generated.resources.logo_mark
+import bitchord.desktopapp.generated.resources.bitchord_logo_original
 import bitchord.desktopapp.generated.resources.player_transport_lyrics
 import bitchord.desktopapp.generated.resources.player_transport_next
 import bitchord.desktopapp.generated.resources.player_transport_pause
@@ -530,7 +532,7 @@ fun BitChordDesktopApp() {
     var searchFocusRequested by remember { mutableStateOf(false) }
     var shortcutEditorFocused by remember { mutableStateOf(false) }
     val shortcutDispatcher = remember { DesktopShortcutDispatcher() }
-    val quickSearchState = remember { DesktopQuickSearchState<Song> { it.videoId } }
+    val quickSearchState = remember { DesktopQuickSearchState<SearchResult> { quickSearchEntryKey(it) } }
     val quickSearchKeys = remember { DesktopQuickSearchKeys() }
     val quickSearchFocusRequester = remember { FocusRequester() }
     var quickSearchRestorePending by remember { mutableStateOf(false) }
@@ -2169,22 +2171,34 @@ fun BitChordDesktopApp() {
         quickSearchRestorePending = true
     }
 
-    fun playQuickSearchSong(song: Song) {
-        if (!overlays.quickSearch || !quickSearchState.canPlay(song)) return
-        if (partyTrackChangeBlocked()) {
-            quickSearchState.playbackError("Only the party host can change playback")
-            return
+    fun selectQuickSearchResult(result: SearchResult, keepOpen: Boolean) {
+        if (!overlays.quickSearch || !quickSearchState.canPlay(result)) return
+        when (result) {
+            is SearchResult.Track, is SearchResult.TopTrack -> {
+                val song = when (result) {
+                    is SearchResult.Track -> result.song
+                    is SearchResult.TopTrack -> result.song
+                    else -> return
+                }
+                if (partyTrackChangeBlocked()) {
+                    quickSearchState.playbackError("Only the party host can change playback")
+                    return
+                }
+                recordSongSearch(song)
+                playSong(song, source = DesktopQueueSource(DesktopStrings["search", "Search"], PlaybackSourceType.SEARCH))
+            }
+            is SearchResult.Browse -> {
+                recordBrowseSearch(result.item)
+                openBrowseItem(result.item)
+            }
         }
-        recordSongSearch(song)
-        playSong(song, source = DesktopQueueSource(DesktopStrings["search", "Search"], PlaybackSourceType.SEARCH))
-        dismissQuickSearch()
+        if (!keepOpen) dismissQuickSearch()
     }
 
     fun selectDestination(next: DesktopDestination) {
-        if (next != DesktopDestination.SEARCH) {
-            releaseShortcutTextFocus()
-        }
-        if (next == DesktopDestination.LIBRARY && libraryStale) {
+        val page = if (next == DesktopDestination.EXPLORE) DesktopDestination.SEARCH else next
+        if (page != DesktopDestination.SEARCH) releaseShortcutTextFocus()
+        if (page == DesktopDestination.LIBRARY && libraryStale) {
             libraryStale = false
             reloadLibrary()
         }
@@ -2194,8 +2208,15 @@ fun BitChordDesktopApp() {
         overlays.settingsPage = null
         selectedMoodGenre = null
         libraryShowAll = null
-        if (next == DesktopDestination.SEARCH) searchFocusRequested = true
-        destination = next
+        if (page == DesktopDestination.SEARCH) {
+            query = ""
+            searchCommitted = false
+            searchTyping = false
+            searchSuggestions = emptyList()
+            searchTypeahead = emptyList()
+            searchFocusRequested = true
+        }
+        destination = page
     }
 
     // Settings' search and scroll outlive a visit to one of its pages, and start over each time
@@ -2725,7 +2746,7 @@ fun BitChordDesktopApp() {
         val entry = navHistory.removeLastOrNull() ?: return
         if (entry.key == here().key) return
         navRestoring[0] = true
-        destination = entry.destination
+        destination = if (entry.destination == DesktopDestination.EXPLORE) DesktopDestination.SEARCH else entry.destination
         overlays.replay = entry.replay
         overlays.settingsPage = entry.settings
         collectionError = null
@@ -2745,6 +2766,10 @@ fun BitChordDesktopApp() {
     }
 
     fun openMoodGenre(item: MoodGenre) {
+        // Category cards now live in Search, rather than the removed Explore tab.
+        destination = DesktopDestination.SEARCH
+        searchTyping = false
+        searchFocusRequested = false
         selectedMoodGenre = item
         moodGenreShelves = UiState.Loading
     }
@@ -3055,6 +3080,7 @@ fun BitChordDesktopApp() {
         CompositionLocalProvider(
             LocalContentColor provides Color.White,
             LocalNowPlaying provides selectedSong,
+            LocalDesktopCompactHeadings provides true,
             LocalDesktopShortcutTextFocus provides { shortcutEditorFocused = it },
             LocalDesktopShortcutModalVisible provides { overlays.shortcuts || overlays.quickSearch },
         ) {
@@ -3109,7 +3135,10 @@ fun BitChordDesktopApp() {
                             when (quickAction) {
                                 DesktopQuickSearchKeyAction.PREVIOUS -> quickSearchState.move(-1)
                                 DesktopQuickSearchKeyAction.NEXT -> quickSearchState.move(1)
-                                DesktopQuickSearchKeyAction.PLAY -> quickSearchState.selected()?.let(::playQuickSearchSong)
+                                DesktopQuickSearchKeyAction.PLAY -> quickSearchState.selected()?.let { selectQuickSearchResult(it, keepOpen = false) }
+                                DesktopQuickSearchKeyAction.PLAY_KEEP_OPEN -> quickSearchState.selected()?.let {
+                                    selectQuickSearchResult(it, keepOpen = true)
+                                }
                                 DesktopQuickSearchKeyAction.DISMISS -> dismissQuickSearch()
                                 DesktopQuickSearchKeyAction.FOCUS_QUERY -> runCatching { quickSearchFocusRequester.requestFocus() }
                                 else -> Unit
@@ -3635,7 +3664,7 @@ fun BitChordDesktopApp() {
                         DesktopQuickSearch(
                             controller = quickSearchState,
                             focusRequester = quickSearchFocusRequester,
-                            onPlay = ::playQuickSearchSong,
+                            onSelect = { selectQuickSearchResult(it, keepOpen = false) },
                             onDismiss = ::dismissQuickSearch,
                         )
                     }
@@ -4007,7 +4036,7 @@ fun BitChordDesktopApp() {
                             onRefresh = ::loadHome,
                             pullState = rememberPullToRefreshState(),
                             contentPadding = sharedPagePadding,
-                            title = "Listen Now",
+                            title = "Home",
                             signedIn = true,
                             onItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) },
                             onLoadMore = ::loadMoreHome,
@@ -4015,7 +4044,7 @@ fun BitChordDesktopApp() {
                             recentlyPlayedLoading = homeRecentsLoading,
                             leadHero = false,
                         )
-                        destination == DesktopDestination.EXPLORE && selectedMoodGenre != null -> Column(Modifier.fillMaxSize()) {
+                        (destination == DesktopDestination.SEARCH || destination == DesktopDestination.EXPLORE) && selectedMoodGenre != null -> Column(Modifier.fillMaxSize()) {
                             MoodGenrePlaylistsScreen(
                                 title = selectedMoodGenre!!.title,
                                 state = moodGenreShelves,
@@ -4029,17 +4058,6 @@ fun BitChordDesktopApp() {
                                 modifier = Modifier.weight(1f),
                             )
                         }
-                        destination == DesktopDestination.EXPLORE -> ExploreScreen(
-                            state = exploreState,
-                            listState = exploreListState,
-                            onCategoryClick = ::openMoodGenre,
-                            onRetry = { exploreReloads++ },
-                            refreshing = false,
-                            onRefresh = { exploreReloads++ },
-                            pullState = rememberPullToRefreshState(),
-                            contentPadding = sharedPagePadding,
-                            showTitle = false,
-                        )
                         destination == DesktopDestination.SEARCH -> SearchScreen(
                             query = query,
                             onQueryChange = ::editQuery,
@@ -4145,6 +4163,14 @@ fun BitChordDesktopApp() {
                                 }
                             },
                             showLanding = !searchCommitted,
+                            landingPanelDecoration = if (DesktopAppearanceSettings.reduceDynamicBlur.collectAsState().value) {
+                                Modifier
+                                    .background(Color(0xFF27272B), RoundedCornerShape(14.dp))
+                                    .border(0.5.dp, DesktopBarEdge, RoundedCornerShape(14.dp))
+                            } else {
+                                Modifier.desktopBarGlass(RoundedCornerShape(14.dp))
+                            },
+                            landingPanelColor = Color.Transparent,
                             landingContent = {
                                 ExploreScreen(
                                     state = exploreState,
@@ -4220,7 +4246,7 @@ fun BitChordDesktopApp() {
                             contentPadding = sharedPagePadding,
                             links = libraryLinks,
                             deviceItems = libraryDeviceItems,
-                            showTitle = false,
+                            showTitle = true,
                         )
                         destination == DesktopDestination.HISTORY -> DesktopHistoryPage(
                             // The account's history when there is one, and what
@@ -4583,18 +4609,27 @@ private fun DesktopSidebar(
         Column(
             Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),
         ) {
-            Spacer(Modifier.height(8.dp))
+            Row(
+                Modifier.fillMaxWidth().padding(start = 9.dp, top = 1.dp, bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    painter = painterResource(Res.drawable.bitchord_logo_original),
+                    contentDescription = null,
+                    modifier = Modifier.width(28.dp).height(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("BitChord", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            }
             DesktopSidebarItem(BitChordIcons.Home, DesktopStrings["home", "Home"], destination == DesktopDestination.LISTEN_NOW) {
                 onDestinationSelected(DesktopDestination.LISTEN_NOW)
             }
-            DesktopSidebarItem(BitChordIcons.Explore, "Explore", destination == DesktopDestination.EXPLORE) {
-                onDestinationSelected(DesktopDestination.EXPLORE)
+            DesktopSidebarItem(BitChordIcons.Search, "Search",
+                destination == DesktopDestination.SEARCH || destination == DesktopDestination.EXPLORE) {
+                onDestinationSelected(DesktopDestination.SEARCH)
             }
             DesktopSidebarItem(BitChordIcons.Library, "Library", destination == DesktopDestination.LIBRARY) {
                 onDestinationSelected(DesktopDestination.LIBRARY)
-            }
-            DesktopSidebarItem(BitChordIcons.Search, "Search", destination == DesktopDestination.SEARCH) {
-                onDestinationSelected(DesktopDestination.SEARCH)
             }
             Spacer(Modifier.height(6.dp))
             HorizontalDivider(color = desktopChromeDivider())
@@ -4704,16 +4739,26 @@ private fun DesktopSidebarItem(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(7.dp))
-            .background(if (selected) Color.White.copy(alpha = 0.12f) else Color.Transparent)
+            .background(if (selected) Color(0x1FFA586A) else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 9.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, label, tint = if (selected) DesktopAccent else DesktopSecondary, modifier = Modifier.size(18.dp))
+        if (selected) {
+            Box(
+                Modifier.width(3.dp).height(18.dp)
+                    .clip(RoundedCornerShape(3.dp)).background(Color(0xFFFA586A)),
+            )
+        } else {
+            Spacer(Modifier.width(3.dp))
+        }
+        Spacer(Modifier.width(6.dp))
+        Icon(icon, label, tint = if (selected) Color(0xFFFA586A) else DesktopSecondary, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(10.dp))
         Text(
             label,
             color = if (selected) Color.White else DesktopSecondary,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -5439,6 +5484,14 @@ private fun DesktopHistoryPage(
             contentPadding = pagePadding(start = DesktopPageGutter, end = DesktopPageGutter, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            item(key = "history-heading") {
+                Text(
+                    "History",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = Color.White,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
+                )
+            }
             if (history.isEmpty()) item { DesktopEmptyPage(BitChordIcons.Clock, "Nothing played yet", "Songs you play will show up here.") }
             else items(history, key = Song::videoId) {
                 DesktopSongRow(
@@ -5529,6 +5582,12 @@ private fun DesktopLocalMusicPage(
         Column(
             Modifier.fillMaxSize().padding(horizontal = DesktopPageGutter),
         ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color.White,
+                modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 DesktopSearchField(
                     query = searchQuery,

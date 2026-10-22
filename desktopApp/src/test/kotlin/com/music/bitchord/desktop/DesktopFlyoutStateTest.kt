@@ -204,11 +204,11 @@ class DesktopFlyoutStateTest {
         assertFalse(state.handle(KeyEvent.VK_ENTER, true))
         quick.handle(KeyEvent.VK_ENTER, true, true)
         assertFalse(state.handle(KeyEvent.VK_ENTER, false))
-        assertEquals(DesktopQuickSearchKeyAction.CONSUME, quick.handle(KeyEvent.VK_ENTER, false, true))
+        assertEquals(DesktopQuickSearchKeyAction.PLAY, quick.handle(KeyEvent.VK_ENTER, false, true))
         assertFalse(state.handle(KeyEvent.VK_ENTER, true))
         quick.handle(KeyEvent.VK_ENTER, true, true, shift = true)
         assertFalse(state.handle(KeyEvent.VK_ENTER, false))
-        assertEquals(DesktopQuickSearchKeyAction.PLAY, quick.handle(KeyEvent.VK_ENTER, false, true))
+        assertEquals(DesktopQuickSearchKeyAction.PLAY_KEEP_OPEN, quick.handle(KeyEvent.VK_ENTER, false, true))
     }
 
     @Test fun independentWindowsDoNotShareEscapeOwnership() {

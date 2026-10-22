@@ -77,11 +77,13 @@ fun ExploreScreen(
         modifier = modifier,
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
+            val compactHeadings = LocalDesktopCompactHeadings.current
             val columns = moodColumns(maxWidth)
             LazyColumn(
                 state = listState,
                 contentPadding = contentPadding,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize()
+                    .then(if (compactHeadings) Modifier.desktopTopScrollFade(listState) else Modifier),
             ) {
                 if (showTitle) {
                     item {
@@ -111,7 +113,7 @@ fun ExploreScreen(
                                 item(key = "mood-section:${section.title}") {
                                     Text(
                                         text = section.title,
-                                        style = MaterialTheme.typography.titleMedium,
+                                        style = if (compactHeadings) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onBackground,
                                         modifier = Modifier.padding(
@@ -332,15 +334,17 @@ fun MoodGenrePlaylistsScreen(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
+    val compactHeadings = LocalDesktopCompactHeadings.current
     LazyColumn(
         state = listState,
         contentPadding = contentPadding,
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize()
+            .then(if (compactHeadings) Modifier.desktopTopScrollFade(listState) else Modifier),
     ) {
         item {
             Text(
                 text = title,
-                style = MaterialTheme.typography.displayLarge,
+                style = if (compactHeadings) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.displayLarge,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

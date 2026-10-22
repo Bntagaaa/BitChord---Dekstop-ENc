@@ -103,7 +103,7 @@ internal class DesktopQuickSearchState<T>(private val keyOf: (T) -> String) {
 }
 
 internal enum class DesktopQuickSearchKeyAction {
-    PASS, CONSUME, PREVIOUS, NEXT, PLAY, DISMISS, FOCUS_QUERY,
+    PASS, CONSUME, PREVIOUS, NEXT, PLAY, PLAY_KEEP_OPEN, DISMISS, FOCUS_QUERY,
 }
 
 /**
@@ -144,8 +144,11 @@ internal class DesktopQuickSearchKeys {
                 DesktopQuickSearchKeyAction.CONSUME
             }
             keyCode == KeyEvent.VK_ENTER -> {
-                releases[keyCode] = if (shift && !ctrl && !alt && !meta) DesktopQuickSearchKeyAction.PLAY
-                    else DesktopQuickSearchKeyAction.CONSUME
+                releases[keyCode] = when {
+                    ctrl || alt || meta -> DesktopQuickSearchKeyAction.CONSUME
+                    shift -> DesktopQuickSearchKeyAction.PLAY_KEEP_OPEN
+                    else -> DesktopQuickSearchKeyAction.PLAY
+                }
                 DesktopQuickSearchKeyAction.CONSUME
             }
             keyCode == KeyEvent.VK_TAB || (keyCode == KeyEvent.VK_K && ctrl && !alt && !shift && !meta) -> {

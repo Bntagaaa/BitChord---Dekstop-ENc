@@ -192,9 +192,17 @@ internal fun DesktopDialogPanel(
 internal fun DesktopFlyoutCard(
     modifier: Modifier = Modifier,
     onBackgroundClick: () -> Unit = {},
+    /** Quick Search uses the existing Remove Blur preference; unrelated dialogs stay opaque. */
+    frosted: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    Box(modifier.desktopCard(RoundedCornerShape(20.dp))) {
+    val shape = RoundedCornerShape(20.dp)
+    val decoration = if (frosted) {
+        modifier.clip(shape).desktopBarGlass(shape)
+    } else {
+        modifier.desktopCard(shape)
+    }
+    Box(decoration) {
         // A separate pointer-only sibling: clicking content cannot dismiss the backdrop or leave
         // keyboard focus on a decorative panel that will be removed when the flyout closes.
         Box(
