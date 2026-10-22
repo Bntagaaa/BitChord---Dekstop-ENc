@@ -4069,6 +4069,22 @@ fun BitChordDesktopApp() {
                                 )
                                 DesktopSettingsPage.INTEGRATIONS -> DesktopIntegrationsDialog(
                                     song = playback.song,
+                                    spotifyConnected = spotifyCanvasCookie.isNotBlank(),
+                                    onOpenSpotify = { overlays.settingsPage = DesktopSettingsPage.SPOTIFY_CANVAS },
+                                    onDisconnectSpotify = {
+                                        DesktopSpotifyToken.setCookie("")
+                                        DesktopSpotifyLibraryAuth.invalidate()
+                                        spotifyCanvasCookie = ""
+                                        spotifyPlaylists = emptyList()
+                                        spotifyLoadedCookie = null
+                                        spotifyError = null
+                                        spotifyLoading = false
+                                        spotifyReloads++
+                                        if (openedCollection?.browseId?.startsWith(SPOTIFY_PAGE_PREFIX) == true) {
+                                            openedCollection = null
+                                        }
+                                        DesktopPlayerHost.showMessage("Spotify disconnected. YouTube Music playback is unchanged.")
+                                    },
                                     onOpenLastfm = { overlays.lastfmLogin = true },
                                     onOpenListenBrainz = { overlays.listenBrainzToken = true },
                                     onOpenDiscordToken = { overlays.discordToken = true },
@@ -4290,6 +4306,7 @@ fun BitChordDesktopApp() {
                             gridState = spotifyGridState,
                             contentPadding = sharedPagePadding,
                             onConnect = { overlays.settingsPage = DesktopSettingsPage.SPOTIFY_CANVAS },
+                            onManageAccount = { overlays.settingsPage = DesktopSettingsPage.INTEGRATIONS },
                             onRetry = {
                                 // Revalidate the session and re-harvest a bearer on Refresh; the old
                                 // handler reused a failed/stale token and reproduced the same error.
@@ -6374,7 +6391,7 @@ private fun DesktopSettingsScreen(
                     SettingsRow(
                         Icons.Rounded.Share,
                         DesktopStrings["account_integrations", "Account & integrations"],
-                        DesktopStrings["d_discord_rich_presence_last_fm_and_listenbrainz", "Discord rich presence, Last.fm and ListenBrainz"],
+                        DesktopStrings["d_spotify_discord_lastfm_listenbrainz", "Spotify, Discord, Last.fm and ListenBrainz"],
                         onOpenIntegrations,
                     )
                 }
