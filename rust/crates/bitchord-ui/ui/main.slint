@@ -39,8 +39,12 @@ export component MainWindow inherits Window {
     in-out property <string> current-page: "home";
     in-out property <string> page-title: "Home";
     in-out property <bool> dark-mode: true;
+    in-out property <string> theme-mode: "SYSTEM";
+    in-out property <int> ui-scale-percent: 100;
     callback navigate(string);
     callback toggle-theme();
+    callback select-theme-mode(string);
+    callback select-ui-scale(int);
 
     HorizontalLayout {
         spacing: 0px;
@@ -105,7 +109,65 @@ export component MainWindow inherits Window {
                     height: 1px;
                     background: root.dark-mode ? #2c2c2e : #d5dae4;
                 }
-                Text {
+                if root.current-page == "settings": VerticalLayout {
+                    spacing: 12px;
+                    Text {
+                        text: "Appearance";
+                        font-family: "SF Pro Display";
+                        font-size: 18px;
+                        font-weight: 600;
+                        color: root.dark-mode ? #ffffff : #1b1c20;
+                    }
+                    Text {
+                        text: "Theme";
+                        font-family: "SF Pro Display";
+                        font-size: 15px;
+                        color: root.dark-mode ? #ffffff : #1b1c20;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        for option in ["SYSTEM", "LIGHT", "DARK"]: Rectangle {
+                            width: 100px;
+                            height: 36px;
+                            border-radius: 8px;
+                            background: root.theme-mode == option ? (root.dark-mode ? #fa586a : #cd3659) : (root.dark-mode ? #323236 : #e4e8ef);
+                            Text {
+                                text: option == "SYSTEM" ? "System" : (option == "LIGHT" ? "Light" : "Dark");
+                                vertical-alignment: center;
+                                horizontal-alignment: center;
+                                color: root.theme-mode == option ? #ffffff : (root.dark-mode ? #ffffff : #1b1c20);
+                                font-family: "SF Pro Display";
+                                font-size: 14px;
+                            }
+                            TouchArea { clicked => { root.select-theme-mode(option); } }
+                        }
+                    }
+                    Text {
+                        text: "UI scale: " + root.ui-scale-percent + "% (applies on next launch)";
+                        font-family: "SF Pro Display";
+                        font-size: 15px;
+                        color: root.dark-mode ? #ffffff : #1b1c20;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        for option in [80, 90, 100, 110, 125]: Rectangle {
+                            width: 60px;
+                            height: 36px;
+                            border-radius: 8px;
+                            background: root.ui-scale-percent == option ? (root.dark-mode ? #fa586a : #cd3659) : (root.dark-mode ? #323236 : #e4e8ef);
+                            Text {
+                                text: option + "%";
+                                vertical-alignment: center;
+                                horizontal-alignment: center;
+                                color: root.ui-scale-percent == option ? #ffffff : (root.dark-mode ? #ffffff : #1b1c20);
+                                font-family: "SF Pro Display";
+                                font-size: 14px;
+                            }
+                            TouchArea { clicked => { root.select-ui-scale(option); } }
+                        }
+                    }
+                }
+                if root.current-page != "settings": Text {
                     text: "Native Rust foundation — this page is not yet ported.";
                     font-family: "SF Pro Display";
                     font-size: 14px;

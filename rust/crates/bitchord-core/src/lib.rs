@@ -1,4 +1,6 @@
-//! UI-independent application state for the first native desktop milestone.
+//! UI-independent application state for the native desktop.
+
+pub mod settings;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Page {
@@ -63,10 +65,60 @@ pub enum Theme {
     Light,
 }
 
-#[derive(Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ThemeMode {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl ThemeMode {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::System => "SYSTEM",
+            Self::Light => "LIGHT",
+            Self::Dark => "DARK",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "SYSTEM" => Some(Self::System),
+            "LIGHT" => Some(Self::Light),
+            "DARK" => Some(Self::Dark),
+            _ => None,
+        }
+    }
+
+    pub const fn resolve(self, system_dark: bool) -> Theme {
+        match self {
+            Self::System if system_dark => Theme::Dark,
+            Self::System | Self::Light => Theme::Light,
+            Self::Dark => Theme::Dark,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
 pub struct AppState {
     pub page: Page,
     pub theme: Theme,
+    pub theme_mode: ThemeMode,
+    pub ui_scale_percent: u16,
+    pub system_dark: bool,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            page: Page::Home,
+            theme: Theme::Dark,
+            theme_mode: ThemeMode::Dark,
+            ui_scale_percent: 100,
+            system_dark: false,
+        }
+    }
 }
 
 impl AppState {
@@ -79,10 +131,36 @@ impl AppState {
     }
 
     pub fn toggle_theme(&mut self) {
-        self.theme = match self.theme {
-            Theme::Dark => Theme::Light,
-            Theme::Light => Theme::Dark,
+        self.select_theme_mode(match self.theme {
+            Theme::Dark => ThemeMode::Light,
+            Theme::Light => ThemeMode::Dark,
+        });
+    }
+
+    pub fn select_theme_mode(&mut self, mode: ThemeMode) {
+        self.theme_mode = mode;
+        self.theme = mode.resolve(self.system_dark);
+    }
+
+    pub fn update_system_theme(&mut self, dark: bool) {
+        self.system_dark = dark;
+        self.theme = self.theme_mode.resolve(dark);
+    }
+
+    pub fn select_ui_scale(&mut self, value: u16) {
+        self.ui_scale_percent = settings::normalize_ui_scale(value);
+    }
+}
+
+impl AppState {
+    pub fn with_settings(settings: &settings::NativeSettings, system_dark: bool) -> Self {
+        let mut state = Self {
+            ui_scale_percent: settings.ui_scale_percent,
+            ..Self::default()
         };
+        state.update_system_theme(system_dark);
+        state.select_theme_mode(settings.theme_mode);
+        state
     }
 }
 
@@ -115,5 +193,17 @@ mod tests {
         assert_eq!(state.theme, Theme::Light);
         state.toggle_theme();
         assert_eq!(state.theme, Theme::Dark);
+    }
+
+    #[test]
+    fn system_theme_only_controls_system_mode() {
+        let mut state = AppState::with_settings(&settings::NativeSettings::default(), false);
+        assert_eq!(state.theme, Theme::Light);
+        state.update_system_theme(true);
+        assert_eq!(state.theme, Theme::Dark);
+        state.select_theme_mode(ThemeMode::Light);
+        state.update_system_theme(false);
+        state.update_system_theme(true);
+        assert_eq!(state.theme, Theme::Light);
     }
 }
