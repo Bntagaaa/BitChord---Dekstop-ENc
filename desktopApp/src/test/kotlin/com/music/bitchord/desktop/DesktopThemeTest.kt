@@ -1,0 +1,48 @@
+package com.music.bitchord.desktop
+
+import androidx.compose.ui.graphics.Color
+import kotlin.math.pow
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
+
+class DesktopThemeTest {
+    @Test
+    fun `loads known modes and rejects corrupted stored preferences`() {
+        assertEquals(DesktopThemeMode.DARK, DesktopThemeMode.fromStored("DARK"))
+        assertEquals(DesktopThemeMode.LIGHT, DesktopThemeMode.fromStored("LIGHT"))
+        assertEquals(DesktopThemeMode.DARK, DesktopThemeMode.fromStored("not-a-theme"))
+        assertEquals(DesktopThemeMode.DARK, DesktopThemeMode.fromStored(""))
+    }
+
+    @Test
+    fun `dark palette preserves the previous desktop defaults`() {
+        assertEquals(Color(0xFF202020), DARK_PALETTE.background)
+        assertEquals(Color(0xFF0D0D0F), DARK_PALETTE.surface)
+        assertEquals(Color.White, DARK_PALETTE.foreground)
+        assertEquals(Color.White, DARK_PALETTE.accent)
+        assertEquals(Color.Black, DARK_PALETTE.onAccent)
+    }
+
+    @Test
+    fun `light palette has distinct surfaces and accessible body text`() {
+        assertNotEquals(DARK_PALETTE.background, LIGHT_PALETTE.background)
+        assertNotEquals(LIGHT_PALETTE.background, LIGHT_PALETTE.surface)
+        assertTrue(contrastRatio(LIGHT_PALETTE.foreground, LIGHT_PALETTE.background) >= 7.0)
+        assertTrue(contrastRatio(LIGHT_PALETTE.secondary, LIGHT_PALETTE.background) >= 4.5)
+        assertTrue(contrastRatio(LIGHT_PALETTE.onAccent, LIGHT_PALETTE.accent) >= 7.0)
+    }
+
+    private fun contrastRatio(foreground: Color, background: Color): Double {
+        fun linear(channel: Float): Double {
+            val value = channel.toDouble()
+            return if (value <= 0.04045) value / 12.92 else ((value + 0.055) / 1.055).pow(2.4)
+        }
+        fun luminance(color: Color): Double =
+            0.2126 * linear(color.red) + 0.7152 * linear(color.green) + 0.0722 * linear(color.blue)
+        val first = luminance(foreground)
+        val second = luminance(background)
+        return (maxOf(first, second) + 0.05) / (minOf(first, second) + 0.05)
+    }
+}
