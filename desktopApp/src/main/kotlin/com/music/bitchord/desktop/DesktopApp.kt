@@ -5682,6 +5682,39 @@ private fun DesktopSettingsScreen(
             }
             if (section == DesktopSettingsSection.APPEARANCE) item {
                 SettingsGroup(DesktopStrings["appearance", "Appearance"]) {
+                    val uiScalePercent by DesktopUiScaleSettings.percent.collectAsState()
+                    val uiScaleTitle = DesktopStrings["d_ui_scale", "UI scale"]
+                    val uiScaleSubtitle = DesktopStrings[
+                        "d_ui_scale_subtitle",
+                        "Zoom text, controls, and panels throughout BitChord.",
+                    ]
+                    if (settingsRowVisible(uiScaleTitle, uiScaleSubtitle)) {
+                        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(uiScaleTitle, fontWeight = FontWeight.Medium)
+                                    Text(uiScaleSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Text("$uiScalePercent%", color = DesktopSecondary, style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            // Presets avoid changing the slider's size under the pointer while dragging.
+                            Row(
+                                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                DesktopUiScaleSettings.options.forEach { percent ->
+                                    FilterChip(
+                                        colors = desktopChipColors(),
+                                        selected = uiScalePercent == percent,
+                                        onClick = { DesktopUiScaleSettings.setPercent(percent) },
+                                        label = { Text("$percent%") },
+                                    )
+                                }
+                            }
+                        }
+                    }
                     val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
                     SettingsToggle(
                         DesktopStrings["reduce_dynamic_blur", "Reduce dynamic blur"],

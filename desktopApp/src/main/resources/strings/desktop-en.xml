@@ -91,4 +91,6 @@
     <string name="d_translation_unavailable">Translation unavailable</string>
     <string name="d_what_the_translate_button_translates_into">What the translate button on the lyrics translates into</string>
     <string name="d_off">Off</string>
+    <string name="d_ui_scale">UI scale</string>
+    <string name="d_ui_scale_subtitle">Zoom text, controls, and panels throughout BitChord.</string>
 </resources>

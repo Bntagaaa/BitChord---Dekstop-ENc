@@ -13,6 +13,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -146,7 +148,15 @@ private fun desktopMain() = application {
                 close = { if (DesktopWindowVisibility.onCloseRequest()) exitApplication() },
             )
         }
+        // Scale the Compose UI, not the native window: keep the monitor's DPI and
+        // accessibility font scale, and remeasure when the preference changes.
+        val uiScalePercent by DesktopUiScaleSettings.percent.collectAsState()
+        val systemDensity = LocalDensity.current
+        val uiDensity = remember(systemDensity, uiScalePercent) {
+            Density(systemDensity.density * (uiScalePercent / 100f), systemDensity.fontScale)
+        }
         CompositionLocalProvider(
+            LocalDensity provides uiDensity,
             LocalDesktopWindowActions provides actions,
             LocalDesktopWindowScope provides this,
         ) {
