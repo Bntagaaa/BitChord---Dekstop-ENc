@@ -6897,7 +6897,7 @@ private fun DesktopCollectionPage(
                                         leadingIcon = { Icon(BitChordIcons.Download, null) },
                                         onClick = {
                                             moreOpen = false
-                                            onDownloadAll(songs)
+                                            onDownloadAll(songs.filter { it.unresolvedSpotifyTrack() == null })
                                         },
                                     )
                                     onShare?.let { share ->
@@ -6956,9 +6956,11 @@ private fun DesktopCollectionPage(
                     collectionType = collection.type,
                     liked = song.videoId in likedIds,
                     onClick = { _ -> onPlaySongs(songs, index) },
-                    onToggleLike = onToggleLike,
-                    onDownload = onDownload,
-                    onAddToPlaylist = onAddToPlaylist,
+                    // Spotify placeholder ids cannot be liked, added or downloaded through
+                    // YouTube Music. Those actions appear once a track has been matched.
+                    onToggleLike = onToggleLike.takeUnless { song.unresolvedSpotifyTrack() != null },
+                    onDownload = onDownload.takeUnless { song.unresolvedSpotifyTrack() != null },
+                    onAddToPlaylist = onAddToPlaylist.takeUnless { song.unresolvedSpotifyTrack() != null },
                     downloaded = song.videoId in downloadedIds,
                     downloadInProgress = song.videoId in downloadInProgress,
                     number = index + 1,
