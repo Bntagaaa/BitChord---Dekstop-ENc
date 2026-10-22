@@ -4927,6 +4927,21 @@ private fun DesktopSidebar(
         animationSpec = tween(durationMillis = 180),
         label = "Sidebar width",
     )
+    val micaSidebarEnabled by DesktopAppearanceSettings.micaSidebar.collectAsState()
+    val wallpaperTone by DesktopSidebarMica.wallpaperTone.collectAsState()
+    LaunchedEffect(micaSidebarEnabled) {
+        if (micaSidebarEnabled && DesktopSidebarMica.isSupported) {
+            while (true) {
+                DesktopSidebarMica.refresh()
+                delay(60_000)
+            }
+        }
+    }
+    val sidebarColor = if (micaSidebarEnabled && DesktopSidebarMica.isSupported) {
+        DesktopSidebarMica.surface(wallpaperTone, DesktopTheme.isDark, DesktopTheme.palette.sidebarSurface)
+    } else {
+        DesktopTheme.palette.sidebarSurface
+    }
     // Keep the expanded and collapsed navigation rail opaque in both blur modes.
     // Do not overlay Haze or a reflective dissolve mask over the sidebar fill.
     Box(
@@ -4934,7 +4949,7 @@ private fun DesktopSidebar(
             .width(width)
             .fillMaxHeight()
             .clipToBounds()
-            .background(DesktopTheme.palette.sidebarSurface),
+            .background(sidebarColor),
     ) {
         Column(Modifier.fillMaxSize()) {
         Column(
@@ -6673,6 +6688,15 @@ private fun DesktopSettingsScreen(
                         reduceDynamicBlur,
                         DesktopAppearanceSettings::setReduceDynamicBlur,
                     )
+                    if (DesktopSidebarMica.isSupported) {
+                        val micaSidebar by DesktopAppearanceSettings.micaSidebar.collectAsState()
+                        SettingsToggle(
+                            "Use Mica-style sidebar",
+                            "Wallpaper-tinted Windows 11 sidebar without live blur; works independently of Reduce dynamic blur",
+                            micaSidebar,
+                            DesktopAppearanceSettings::setMicaSidebar,
+                        )
+                    }
                     if (DesktopPlatform.isWindows) {
                         val backdropChoice by DesktopWindowBackdrop.selected.collectAsState()
                         val backdropActive by DesktopWindowBackdrop.captionActive.collectAsState()
