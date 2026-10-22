@@ -19,6 +19,7 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import com.music.bitchord.data.YtMusicRepository
 import com.music.bitchord.data.spotify.SpotifyLibrary
 import com.music.bitchord.data.spotify.SpotifyPlaylist
+import com.music.bitchord.data.spotify.SpotifyImporter
 import com.music.bitchord.data.spotify.SPOTIFY_PAGE_PREFIX
 import com.music.bitchord.data.model.EntityType
 import com.music.bitchord.data.model.SearchHistoryEntity
@@ -677,6 +678,7 @@ fun BitChordDesktopApp() {
     var spotifyError by remember { mutableStateOf<String?>(null) }
     var spotifyReloads by remember { mutableStateOf(0) }
     var spotifyLoadedCookie by remember { mutableStateOf<String?>(null) }
+    var spotifyPlaybackResolving by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showNerdStats by remember { mutableStateOf(persistence.boolean("show_nerd_stats", false)) }
     LaunchedEffect(destination, spotifyCanvasCookie, spotifyReloads) {
         if (destination != DesktopDestination.SPOTIFY) return@LaunchedEffect
@@ -964,6 +966,77 @@ fun BitChordDesktopApp() {
         playCurrent()
     }
 
+    /**
+     * Spotify rows start as metadata placeholders; they must NEVER reach the YouTube Music
+     * playback engine as Spotify ids. Background matching fills in the playlist progressively,
+     * but a listener can also tap a pending or unmatched row and resolve it immediately.
+     */
+    fun playSpotifyOrYoutubeSongs(
+        songs: List<Song>,
+        startIndex: Int = 0,
+        source: DesktopQueueSource? = null,
+    ) {
+        val selected = songs.getOrNull(startIndex) ?: return
+        val spotify = selected.unresolvedSpotifyTrack()
+        if (spotify == null) {
+            playSongs(songs, startIndex, source)
+            return
+        }
+        if (partyTrackChangeBlocked()) return
+        if (selected.videoId in spotifyPlaybackResolving) {
+            DesktopPlayerHost.showMessage("Searching YouTube Music for this track…")
+            return
+        }
+        spotifyPlaybackResolving = spotifyPlaybackResolving + selected.videoId
+        val playlistIdAtTap = openedCollection?.browseId
+        DesktopPlayerHost.showMessage("Finding ${spotify.title} on YouTube Music…")
+        scope.launch {
+            try {
+                val match = SpotifyImporter.matchTrack(spotify)
+                if (playlistIdAtTap != null && openedCollection?.browseId != playlistIdAtTap) {
+                    return@launch
+                }
+                if (match == null) {
+                    DesktopPlayerHost.showMessage("Could not find ${spotify.title} on YouTube Music")
+                    val current = openedCollection
+                    if (current?.browseId == playlistIdAtTap) {
+                        val remaining = current.songs.toMutableList()
+                        val position = remaining.indexOfFirst { it.videoId == selected.videoId }
+                        if (position >= 0) {
+                            remaining[position] = selected.copy(videoId = SPOTIFY_MISSING_PREFIX + spotify.id)
+                            openedCollection = current.copy(songs = remaining)
+                        }
+                    }
+                    return@launch
+                }
+
+                val playable = match.copy(thumbnailUrl = match.thumbnailUrl ?: spotify.imageUrl)
+                val updatedQueue = songs.toMutableList().also { it[startIndex] = playable }
+                val current = openedCollection
+                if (current?.browseId == playlistIdAtTap && playlistIdAtTap?.startsWith(SPOTIFY_PAGE_PREFIX) == true) {
+                    val currentRows = current.songs.toMutableList()
+                    val currentIndex = currentRows.indexOfFirst { it.videoId == selected.videoId ||
+                        it.videoId == SPOTIFY_PENDING_PREFIX + spotify.id ||
+                        it.videoId == SPOTIFY_MISSING_PREFIX + spotify.id
+                    }
+                    if (currentIndex >= 0) {
+                        currentRows[currentIndex] = playable
+                        openedCollection = current.copy(songs = currentRows)
+                    }
+                }
+                // Use BitChord's existing playback engine and context queue, not Spotify's URL.
+                playSongs(updatedQueue, startIndex, source)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                DesktopTrackLog.log("spotify: YouTube Music lookup failed: ${failure.javaClass.simpleName}")
+                DesktopPlayerHost.showMessage("Could not play this Spotify track via YouTube Music")
+            } finally {
+                spotifyPlaybackResolving = spotifyPlaybackResolving - selected.videoId
+            }
+        }
+    }
+
     /** Moves within the queue, dropping whatever a forward jump passed over. */
     fun playQueueIndex(target: Int) {
         if (target !in liveQueue.songs.indices) return
@@ -1111,9 +1184,11 @@ fun BitChordDesktopApp() {
         collectionReloads++
     }
 
-    // Keyed on the id, so a second page opened before the first answered cancels the first rather
-    // than racing it; and a loading page restored by Back fetches again.
-    LaunchedEffect(openedCollection?.browseId, openedCollection?.loading, collectionReloads) {
+    // Keep Spotify's matching jobs alive when its first page arrives: loadSpotifyPlaylist changes
+    // loading=false while it is still resolving Spotify ids into playable YouTube Music tracks.
+    // Including loading in LaunchedEffect keys cancelled every matching job after the first page!
+    // Explicit reloads change collectionReloads, and navigating to a different id still cancels.
+    LaunchedEffect(openedCollection?.browseId, collectionReloads) {
         val pending = openedCollection?.takeIf { it.loading } ?: return@LaunchedEffect
         collectionError = null
         if (pending.browseId.startsWith("spotify:playlist:")) {
@@ -4049,17 +4124,20 @@ fun BitChordDesktopApp() {
                             onLoadMore = ::loadMoreCollectionSongs,
                             onRename = { overlays.rename = true }.takeIf { openedCollection?.owned == true },
                             onShare = openedCollection
-                                ?.takeIf { it.type == BrowseType.ALBUM || it.type == BrowseType.PLAYLIST }
+                                ?.takeIf {
+                                    (it.type == BrowseType.ALBUM || it.type == BrowseType.PLAYLIST) &&
+                                        !it.browseId.startsWith(SPOTIFY_PAGE_PREFIX)
+                                }
                                 ?.let { collection -> { shareCollection(collection) } },
                             onDelete = { overlays.delete = true }.takeIf { openedCollection?.owned == true },
                             onRemoveFromPlaylist = ::removeFromOpenPlaylist
                                 .takeIf { openedCollection?.owned == true },
                             likedIds = likedIds,
                             onPlaySongs = { songs, index ->
-                                playSongs(songs, index, openedCollection?.let { collectionSource(it) })
+                                playSpotifyOrYoutubeSongs(songs, index, openedCollection?.let { collectionSource(it) })
                             },
                             onShuffle = { songs ->
-                                playSongs(songs.shuffled(), 0, openedCollection?.let { collectionSource(it) })
+                                playSpotifyOrYoutubeSongs(songs.shuffled(), 0, openedCollection?.let { collectionSource(it) })
                             },
                             onDownloadAll = ::downloadAll,
                             animatedCanvas = animatedCanvas,
