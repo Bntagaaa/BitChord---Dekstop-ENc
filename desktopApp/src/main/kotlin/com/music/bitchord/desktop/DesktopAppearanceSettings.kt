@@ -16,6 +16,8 @@ internal object DesktopAppearanceSettings {
 
     private val _reduceAnimation = flag(KEY_REDUCE_ANIMATION, false)
     private val _reduceDynamicBlur = flag(KEY_REDUCE_DYNAMIC_BLUR, false)
+    // Mica-style navigation is lightweight wallpaper tinting, independent of blur.
+    private val _micaSidebar = flag(KEY_MICA_SIDEBAR, DesktopSidebarMica.isSupported)
     private val _hideVolumeBar = flag(KEY_HIDE_VOLUME_BAR, false)
     // New floating bottom player is the default. The original top player is opt-in.
     private val _enableOldTopMusicPlayerStyle = flag(KEY_ENABLE_OLD_TOP_MUSIC_PLAYER_STYLE, false)
@@ -25,6 +27,9 @@ internal object DesktopAppearanceSettings {
 
     /** Swaps frosted glass for solid fills across the app. */
     val reduceDynamicBlur: StateFlow<Boolean> = _reduceDynamicBlur
+
+    /** Windows 11 wallpaper-tinted, opaque navigation material. */
+    val micaSidebar: StateFlow<Boolean> = _micaSidebar
 
     /** Removes the volume slider from the main player. */
     val hideVolumeBar: StateFlow<Boolean> = _hideVolumeBar
@@ -37,6 +42,8 @@ internal object DesktopAppearanceSettings {
     fun setReduceAnimation(value: Boolean) = write(KEY_REDUCE_ANIMATION, value, _reduceAnimation)
 
     fun setReduceDynamicBlur(value: Boolean) = write(KEY_REDUCE_DYNAMIC_BLUR, value, _reduceDynamicBlur)
+
+    fun setMicaSidebar(value: Boolean) = write(KEY_MICA_SIDEBAR, value, _micaSidebar)
 
     fun setHideVolumeBar(value: Boolean) = write(KEY_HIDE_VOLUME_BAR, value, _hideVolumeBar)
 
@@ -51,6 +58,7 @@ internal object DesktopAppearanceSettings {
 
     internal const val KEY_REDUCE_ANIMATION = "reduce_animation"
     internal const val KEY_REDUCE_DYNAMIC_BLUR = "reduce_dynamic_blur"
+    internal const val KEY_MICA_SIDEBAR = "mica_sidebar"
     internal const val KEY_HIDE_VOLUME_BAR = "hide_volume_bar"
     internal const val KEY_ENABLE_OLD_TOP_MUSIC_PLAYER_STYLE = "enable_old_top_music_player_style"
 }
