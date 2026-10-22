@@ -31,7 +31,7 @@ internal object DesktopTheme {
     val palette: DesktopThemePalette
         get() = if (mode == DesktopThemeMode.LIGHT) LIGHT_PALETTE else DARK_PALETTE
 
-    fun setMode(value: DesktopThemeMode) {
+    fun selectMode(value: DesktopThemeMode) {
         if (mode == value) return
         DesktopPersistence().saveString(KEY, value.name)
         mode = value
