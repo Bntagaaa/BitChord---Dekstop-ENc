@@ -185,6 +185,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -358,14 +359,18 @@ import org.jetbrains.compose.resources.painterResource
  */
 internal val DesktopPageGutter = PAGE_GUTTER
 
-internal val DesktopBackground = Color(0xFF202020)
-internal val DesktopSurface = Color(0xFF0D0D0F)
-private val DesktopSurfaceRaised = Color(0xFF1C1C1E)
-internal val DesktopGlass = Color(0x661C1C1E)
-internal val DesktopGlassStrong = Color(0xCC0D0D0F)
+internal val DesktopBackground: Color get() = DesktopTheme.palette.background
+internal val DesktopSurface: Color get() = DesktopTheme.palette.surface
+private val DesktopSurfaceRaised: Color get() = DesktopTheme.palette.surfaceRaised
+internal val DesktopGlass: Color get() = DesktopTheme.palette.glass
+internal val DesktopGlassStrong: Color get() = DesktopTheme.palette.glassStrong
+internal val DesktopForeground: Color get() = DesktopTheme.palette.foreground
+internal val DesktopOnAccent: Color get() = DesktopTheme.palette.onAccent
+internal val DesktopSearchFill: Color get() = DesktopTheme.palette.searchSurface
+internal val DesktopSubtleFill: Color get() = DesktopTheme.palette.subtleFill
 
 /** The floating bars in the narrow layout. */
-private val DesktopBarGlass = Color(0xB324242A)
+private val DesktopBarGlass: Color get() = DesktopTheme.palette.barGlass
 
 /** The backdrop the floating bars blur. */
 private val LocalDesktopHaze = staticCompositionLocalOf<HazeState?> { null }
@@ -374,33 +379,33 @@ private val LocalDesktopHaze = staticCompositionLocalOf<HazeState?> { null }
 private val LocalDesktopBottomInset = staticCompositionLocalOf { 0.dp }
 
 /** Android's own edge on these bars: `Color.White.copy(alpha = 0.10f)`. */
-internal val DesktopBarEdge = Color(0x1AFFFFFF)
-internal val DesktopAccent = Color.White
+internal val DesktopBarEdge: Color get() = DesktopTheme.palette.barEdge
+internal val DesktopAccent: Color get() = DesktopTheme.palette.accent
 
 /** Deleting, signing out, and anything that failed — the one place a colour survives, as on Android. */
-internal val DesktopDestructive = Color(0xFFFF453A)
+internal val DesktopDestructive: Color get() = DesktopTheme.palette.destructive
 
 /** A chip the way Android draws a chosen segment: solid white with black on it, or nothing at all. */
 @Composable
 internal fun desktopChipColors() = FilterChipDefaults.filterChipColors(
     containerColor = Color.Transparent,
     labelColor = DesktopSecondary,
-    selectedContainerColor = Color.White,
-    selectedLabelColor = Color.Black,
+    selectedContainerColor = DesktopAccent,
+    selectedLabelColor = DesktopOnAccent,
 )
 
 /** Android's switch: a white track with a black knob on, a faint wash off. */
 @Composable
 internal fun desktopSwitchColors() = SwitchDefaults.colors(
-    checkedTrackColor = Color.White,
-    checkedThumbColor = Color.Black,
+    checkedTrackColor = DesktopAccent,
+    checkedThumbColor = DesktopOnAccent,
     checkedBorderColor = Color.Transparent,
-    uncheckedTrackColor = Color.White.copy(alpha = 0.10f),
-    uncheckedThumbColor = Color.White.copy(alpha = 0.35f),
+    uncheckedTrackColor = DesktopForeground.copy(alpha = 0.10f),
+    uncheckedThumbColor = DesktopForeground.copy(alpha = 0.35f),
     uncheckedBorderColor = Color.Transparent,
 )
-internal val DesktopSecondary = Color(0xFF8E8E93)
-internal val DesktopDivider = Color(0xFF2C2C2E)
+internal val DesktopSecondary: Color get() = DesktopTheme.palette.secondary
+internal val DesktopDivider: Color get() = DesktopTheme.palette.divider
 private const val STATS_SAMPLE_MS = 5_000L
 
 /** How often the playhead is offered to the history tracker. */
@@ -439,23 +444,23 @@ private const val PARTY_AUTOPLAY_ECHO_TIMEOUT_MS = 5_000L
 /** The phone gives one empty station response a delayed second chance. */
 private const val AUTOPLAY_EMPTY_REFRESH_DELAY_MS = 2_000L
 
-/** The phone's dark scheme, which the shared pages are drawn against. */
-internal fun desktopColorScheme() = darkColorScheme(
-    primary = DesktopAccent,
-    // Black on the accent, now that the accent is white.
-    onPrimary = Color.Black,
-    primaryContainer = Color.White.copy(alpha = 0.16f),
-    onPrimaryContainer = Color.White,
-    background = DesktopBackground,
-    onBackground = Color.White,
-    surface = DesktopSurface,
-    onSurface = Color.White,
-    surfaceVariant = DesktopSurfaceRaised,
-    onSurfaceVariant = DesktopSecondary,
-    outline = Color(0xFF2C2C2E),
-    outlineVariant = DesktopDivider,
-    surfaceTint = DesktopAccent,
-)
+/** Material defaults and shared pages follow the selected desktop appearance. */
+internal fun desktopColorScheme() =
+    (if (DesktopTheme.mode == DesktopThemeMode.LIGHT) lightColorScheme() else darkColorScheme()).copy(
+        primary = DesktopAccent,
+        onPrimary = DesktopOnAccent,
+        primaryContainer = DesktopAccent.copy(alpha = 0.16f),
+        onPrimaryContainer = DesktopForeground,
+        background = DesktopBackground,
+        onBackground = DesktopForeground,
+        surface = DesktopSurface,
+        onSurface = DesktopForeground,
+        surfaceVariant = DesktopSurfaceRaised,
+        onSurfaceVariant = DesktopSecondary,
+        outline = DesktopDivider,
+        outlineVariant = DesktopDivider,
+        surfaceTint = DesktopAccent,
+    )
 
 @Composable
 internal fun desktopTypography(): Typography {
@@ -3237,7 +3242,7 @@ fun BitChordDesktopApp() {
         typography = desktopTypography(),
     ) {
         CompositionLocalProvider(
-            LocalContentColor provides Color.White,
+            LocalContentColor provides DesktopForeground,
             LocalNowPlaying provides selectedSong,
             LocalDesktopCompactHeadings provides true,
             LocalDesktopShortcutTextFocus provides { shortcutEditorFocused = it },
@@ -6510,6 +6515,30 @@ private fun DesktopSettingsScreen(
             }
             if (section == DesktopSettingsSection.APPEARANCE) item {
                 SettingsGroup(DesktopStrings["appearance", "Appearance"]) {
+                    val themeTitle = "Theme"
+                    val themeSubtitle = "Choose how BitChord looks. Your selection is saved automatically."
+                    if (settingsRowVisible(themeTitle, themeSubtitle)) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(themeTitle, fontWeight = FontWeight.Medium)
+                                Text(themeSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                DesktopThemeMode.entries.forEach { option ->
+                                    FilterChip(
+                                        selected = DesktopTheme.mode == option,
+                                        onClick = { DesktopTheme.setMode(option) },
+                                        colors = desktopChipColors(),
+                                        label = { Text(option.label) },
+                                    )
+                                }
+                            }
+                        }
+                    }
                     val uiScalePercent by DesktopUiScaleSettings.percent.collectAsState()
                     val uiScaleTitle = DesktopStrings["d_ui_scale", "UI scale"]
                     val uiScaleSubtitle = DesktopStrings[

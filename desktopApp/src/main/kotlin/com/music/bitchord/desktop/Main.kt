@@ -92,6 +92,20 @@ private fun desktopMain() = application {
         resizable = true,
     ) {
         val composeWindow = window
+        val selectedTheme = DesktopTheme.mode
+        // Update both the opaque AWT surface and Windows' system caption without remounting UI.
+        LaunchedEffect(composeWindow, selectedTheme) {
+            val background = if (selectedTheme == DesktopThemeMode.LIGHT) {
+                java.awt.Color(0xF7F7F9)
+            } else {
+                java.awt.Color.BLACK
+            }
+            composeWindow.background = background
+            composeWindow.contentPane.background = background
+            if (DesktopPlatform.isWindows) {
+                DesktopWindowsCaptionAppearance.setDarkMode(selectedTheme == DesktopThemeMode.DARK)
+            }
+        }
         DisposableEffect(composeWindow) {
             onDispose { DesktopWindowsCaptionAppearance.detach(composeWindow) }
         }
@@ -111,8 +125,13 @@ private fun desktopMain() = application {
         val openingSize = remember { state.size }
         LaunchedEffect(composeWindow) {
             // The client stays opaque even when DWM accepts a caption material.
-            composeWindow.background = java.awt.Color.BLACK
-            composeWindow.contentPane.background = java.awt.Color.BLACK
+            val initialBackground = if (selectedTheme == DesktopThemeMode.LIGHT) {
+                java.awt.Color(0xF7F7F9)
+            } else {
+                java.awt.Color.BLACK
+            }
+            composeWindow.background = initialBackground
+            composeWindow.contentPane.background = initialBackground
             if (DesktopPlatform.isWindows) {
                 // AWT dimensions use logical screen coordinates; its peer applies monitor DPI.
                 // Leave the opening size to rememberWindowState, including native frame insets.
