@@ -263,6 +263,15 @@ import androidx.compose.ui.unit.sp
 import bitchord.desktopapp.generated.resources.Res
 import bitchord.desktopapp.generated.resources.logo
 import bitchord.desktopapp.generated.resources.logo_mark
+import bitchord.desktopapp.generated.resources.player_transport_lyrics
+import bitchord.desktopapp.generated.resources.player_transport_next
+import bitchord.desktopapp.generated.resources.player_transport_pause
+import bitchord.desktopapp.generated.resources.player_transport_play
+import bitchord.desktopapp.generated.resources.player_transport_previous
+import bitchord.desktopapp.generated.resources.player_transport_repeat
+import bitchord.desktopapp.generated.resources.player_transport_repeat_one
+import bitchord.desktopapp.generated.resources.player_transport_shuffle
+import bitchord.desktopapp.generated.resources.player_transport_up_next
 import bitchord.desktopapp.generated.resources.sf_pro_display_bold
 import bitchord.desktopapp.generated.resources.sf_pro_display_heavy
 import bitchord.desktopapp.generated.resources.sf_pro_display_medium
