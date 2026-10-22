@@ -14,6 +14,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import com.music.bitchord.ui.components.longPressMenuClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,15 +25,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -47,15 +52,21 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -152,7 +163,28 @@ fun SearchScreen(
      * about the results, and the switcher would just push them down.
      */
     sourceSwitcher: (@Composable () -> Unit)? = null,
+    /** Desktop can keep its own field implementation while sharing the stable page state. */
+    searchField: (@Composable (FocusRequester) -> Unit)? = null,
+    /** Keep the browse landing mounted while editing, so the input never loses focus on empty/non-empty transitions. */
+    showLanding: Boolean = false,
+    landingContent: (@Composable () -> Unit)? = null,
+    /** Desktop supplies its frosted/solid surface, following the existing Remove Blur switch. */
+    landingPanelDecoration: Modifier = Modifier,
+    landingPanelColor: Color = Color(0xFF27272B),
+    /** Desktop typeahead is visible only while the Search input actually owns focus. */
+    landingSuggestionsEnabled: Boolean = true,
+    /** Observes presses on the browse landing without consuming category clicks or scrolling. */
+    onLandingOutsidePress: (() -> Unit)? = null,
 ) {
+    val currentOnLandingOutsidePress by rememberUpdatedState(onLandingOutsidePress)
+    // Observe touches, but do not consume them: the same press can click a mood
+    // card, or merely defocus the input when it lands beside the search pill.
+    val outsidePressObserver = if (onLandingOutsidePress != null) Modifier.pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            currentOnLandingOutsidePress?.invoke()
+        }
+    } else Modifier
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -175,7 +207,8 @@ fun SearchScreen(
     // MainViewModel.suggestions. Nothing below it is worth showing while it is
     // up: the results are for whatever was searched before this edit began,
     // and so are the filter tabs above them.
-    val suggesting = suggestions.isNotEmpty() && !searchingLibrary
+    val suggesting = suggestions.isNotEmpty() && !searchingLibrary &&
+        (!showLanding || landingSuggestionsEnabled)
     // Live media results arrive from the parallel typeahead pipeline; show
     // them only while the user is still typing (suggestions visible), so they
     // appear as a dropdown beneath the text completions rather than floating
@@ -199,18 +232,27 @@ fun SearchScreen(
         // the search field sits cleanly below the bar instead of overlapping it.
         Column(modifier = Modifier.padding(top = topPadding)) {
             if (showField) {
-                SearchField(
-                    query = query,
-                    onQueryChange = onQueryChange,
-                    onSubmit = onSubmit,
-                    focusRequester = focusRequester,
-                    placeholder = if (searchingLibrary) {
-                        stringResource(Res.string.search_library_hint)
-                    } else {
-                        stringResource(Res.string.search_hint)
-                    },
-                    modifier = Modifier.padding(start = PAGE_GUTTER, end = PAGE_GUTTER, bottom = 4.dp),
-                )
+                if (searchField != null) {
+                    Box(Modifier.fillMaxWidth()) {
+                        // The custom desktop search slot spans the entire row,
+                        // but only the centered pill should retain keyboard focus.
+                        Box(Modifier.matchParentSize().then(outsidePressObserver))
+                        searchField(focusRequester)
+                    }
+                } else {
+                    SearchField(
+                        query = query,
+                        onQueryChange = onQueryChange,
+                        onSubmit = onSubmit,
+                        focusRequester = focusRequester,
+                        placeholder = if (searchingLibrary) {
+                            stringResource(Res.string.search_library_hint)
+                        } else {
+                            stringResource(Res.string.search_hint)
+                        },
+                        modifier = Modifier.padding(start = PAGE_GUTTER, end = PAGE_GUTTER, bottom = 4.dp),
+                    )
+                }
             }
             if (sourceSwitcher != null) {
                 AnimatedVisibility(
@@ -232,9 +274,88 @@ fun SearchScreen(
             }
         }
 
+        if (showLanding && landingContent != null) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                // Keep the browse landing visible and interactive even while typing.
+                // Observing Initial-pass presses lets the first click reach a mood card
+                // while the Search field simultaneously releases keyboard focus.
+                Box(Modifier.matchParentSize().then(outsidePressObserver)) {
+                    landingContent()
+                }
+                if (suggesting && query.isNotBlank() && (suggestions.size > 1 || showTypeahead)) {
+                    Box(
+                        Modifier.fillMaxWidth().zIndex(1f),
+                        contentAlignment = Alignment.TopCenter,
+                    ) {
+                        Box(
+                            Modifier.widthIn(max = 540.dp).fillMaxWidth().padding(horizontal = 24.dp),
+                            contentAlignment = Alignment.TopCenter,
+                        ) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .then(landingPanelDecoration),
+                                shape = RoundedCornerShape(14.dp),
+                                color = landingPanelColor,
+                                shadowElevation = 12.dp,
+                            ) {
+                            Column(
+                                Modifier
+                                    .heightIn(max = 420.dp)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(vertical = 6.dp),
+                            ) {
+                                suggestions.drop(1).take(3).forEach { term ->
+                                    SuggestionRow(
+                                        term = term,
+                                        isQueryAction = false,
+                                        onFill = { onQueryChange(term) },
+                                        onClick = {
+                                            onSuggestionClick(term)
+                                            focusManager.clearFocus()
+                                        },
+                                    )
+                                }
+                                if (showTypeahead) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = PAGE_GUTTER),
+                                        thickness = 0.5.dp,
+                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                    )
+                                    typeaheadResults.take(5).forEach { result ->
+                                        when (result) {
+                                            is SearchResult.Track -> TypeaheadSongRow(
+                                                song = result.song,
+                                                onClick = { onTopResultPlay(result.song) },
+                                                onLongPress = onTypeaheadLongPress?.let { { it(result.song) } },
+                                                isCurrent = result.song.isSameTrackAs(currentSong),
+                                                isPlaying = isPlaying && result.song.isSameTrackAs(currentSong),
+                                            )
+                                            is SearchResult.Browse -> BrowseRow(
+                                                item = result.item,
+                                                onClick = { onBrowseClick(result.item) },
+                                            )
+                                            is SearchResult.TopTrack -> TypeaheadSongRow(
+                                                song = result.song,
+                                                onClick = { onTopResultPlay(result.song) },
+                                                onLongPress = onTypeaheadLongPress?.let { { it(result.song) } },
+                                                isCurrent = result.song.isSameTrackAs(currentSong),
+                                                isPlaying = isPlaying && result.song.isSameTrackAs(currentSong),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        }
+                    }
+                }
+            }
+        } else {
         LazyColumn(
             state = listState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = Modifier.weight(1f).fillMaxWidth()
+                .then(if (LocalDesktopCompactHeadings.current) Modifier.desktopTopScrollFade(listState) else Modifier),
             contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
         ) {
             when {
@@ -368,6 +489,7 @@ fun SearchScreen(
                     }
                 }
             }
+        }
         }
     }
 }

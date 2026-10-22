@@ -5,13 +5,11 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonObject
 import java.io.ByteArrayOutputStream
 import java.net.URI
 import java.net.URLEncoder
@@ -20,17 +18,12 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.time.Duration
-import java.util.Base64
-import java.util.UUID
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
 
 /**
  * Spotify's Canvas: the short looping clip shown behind a track in their own app.
  *
- * Needs the listener's `sp_dc` cookie, which is the one thing here that identifies an account —
- * see [DesktopSpotifyToken] for how a bearer is minted from it, and why that is the fragile part
- * on a desktop with no embedded browser.
+ * Needs the listener's `sp_dc` cookie. [DesktopSpotifyLibraryAuth] harvests the authenticated
+ * bearer and client token from Spotify's real web player inside JavaFX WebEngine, as mobile does.
  */
 internal object DesktopSpotifyCanvas {
 
@@ -52,8 +45,9 @@ internal object DesktopSpotifyCanvas {
 
     private data class TrackHit(val uri: String, val title: String, val artist: String, val album: String?)
 
-    fun search(title: String, artist: String, album: String?): DesktopCanvasArtwork? {
-        val token = DesktopSpotifyToken.accessToken() ?: return null
+    suspend fun search(title: String, artist: String, album: String?): DesktopCanvasArtwork? {
+        val tokens = DesktopSpotifyLibraryAuth.tokens() ?: return null
+        val token = tokens.bearer
         val hit = searchTrack(title, artist, album, token) ?: return null
         val canvasUrl = fetchCanvasUrl(hit.uri, token) ?: return null
         return DesktopCanvasArtwork(
@@ -67,8 +61,9 @@ internal object DesktopSpotifyCanvas {
 
     /** A release's canvas, read off its first track — Spotify hangs Canvas off tracks, not
      * releases, so there is no album-level lookup to make directly. */
-    fun searchAlbum(album: String, artist: String): DesktopCanvasArtwork? {
-        val token = DesktopSpotifyToken.accessToken() ?: return null
+    suspend fun searchAlbum(album: String, artist: String): DesktopCanvasArtwork? {
+        val tokens = DesktopSpotifyLibraryAuth.tokens() ?: return null
+        val token = tokens.bearer
         val items = get(
             url("$SEARCH_URL", listOf("q" to "$album $artist", "type" to "album", "limit" to "10")),
             token,
@@ -242,7 +237,7 @@ internal object DesktopSpotifyCanvas {
      * a 429 that reads exactly like rate limiting. Omitted rather than fatal when minting fails. */
     private fun authHeaders(token: String): Map<String, String> = buildMap {
         put("Authorization", "Bearer $token")
-        DesktopSpotifyToken.clientToken()?.let { put("Client-Token", it) }
+        DesktopSpotifyLibraryAuth.cachedClientToken()?.let { put("Client-Token", it) }
     }
 
     private fun get(url: String, token: String): JsonObject? =
@@ -318,178 +313,15 @@ private fun ByteArrayOutputStream.writeVarint(value: Long) {
 }
 
 /**
- * The bearer Spotify's own web player mints for itself.
- *
- * Android loads the real player in an offscreen WebView and reads the token it mints, because a
- * request signed here is answered with a token the downstream endpoints then refuse. A desktop
- * build has no embedded browser to do that in, so this takes the only route left: the web player's
- * own `/api/token`, signed with the TOTP it derives from a secret published in its bundle. When
- * Spotify declines, the canvas chain simply falls through to its other three sources.
+ * Persistent Spotify session cookie. Bearer and client tokens are minted from the real web player
+ * by DesktopSpotifyLibraryAuth, matching the mobile v1.8.1 implementation.
  */
 internal object DesktopSpotifyToken {
-
-    private const val TOKEN_URL = "https://open.spotify.com/api/token"
-
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
-
-    @Volatile private var cachedAccessToken: String? = null
-    @Volatile private var accessTokenExpiresAtMs = 0L
-    @Volatile private var cachedClientId: String? = null
-    @Volatile private var cachedClientToken: String? = null
-    @Volatile private var clientTokenExpiresAtMs = 0L
-    @Volatile private var retryAfterMs = 0L
-    @Volatile private var session: Pair<String, String>? = null
-
-    /** The listener's `sp_dc` cookie. Nothing here works without it. */
     fun cookie(): String = DesktopPersistence().string(KEY_SPDC).trim()
 
     fun setCookie(value: String) {
         DesktopPersistence().saveString(KEY_SPDC, value.trim())
-        cachedAccessToken = null
-        accessTokenExpiresAtMs = 0L
-        retryAfterMs = 0L
     }
-
-    @Synchronized
-    fun accessToken(): String? {
-        val cookie = cookie().ifBlank { return null }
-        val now = System.currentTimeMillis()
-        cachedAccessToken?.let { if (now < accessTokenExpiresAtMs - 30_000) return it }
-        if (now < retryAfterMs) return null
-
-        val secret = TOTP_SECRETS.maxByOrNull { it.key }
-        val code = secret?.let { totp(it.value, now / 1000) }
-        val query = buildList {
-            add("reason" to "init")
-            add("productType" to "web-player")
-            if (code != null && secret != null) {
-                add("totp" to code)
-                add("totpServer" to code)
-                add("totpVer" to secret.key.toString())
-            }
-        }.joinToString("&") { (name, value) -> "$name=${URLEncoder.encode(value, StandardCharsets.UTF_8)}" }
-
-        val body = canvasGet(
-            "$TOKEN_URL?$query",
-            mapOf(
-                "Cookie" to "sp_dc=$cookie",
-                "Referer" to "https://open.spotify.com/",
-                "App-Platform" to "WebPlayer",
-            ),
-        )
-        val root = body?.let { runCatching { json.parseToJsonElement(it).jsonObject }.getOrNull() }
-        val token = root?.get("accessToken")?.jsonPrimitive?.contentOrNull
-        if (token.isNullOrBlank()) {
-            // Backed off rather than retried per track: if Spotify has changed the shape, asking on
-            // every skip fixes nothing and makes every canvas lookup pay for the round trip.
-            retryAfterMs = now + RETRY_MS
-            DesktopTrackLog.log("canvas: Spotify would not mint an access token")
-            return null
-        }
-        cachedAccessToken = token
-        accessTokenExpiresAtMs = root["accessTokenExpirationTimestampMs"]
-            ?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: (now + 3_600_000)
-        cachedClientId = root["clientId"]?.jsonPrimitive?.contentOrNull
-        return token
-    }
-
-    /**
-     * The second header these endpoints demand alongside the bearer. Best-effort: a caller with no
-     * client token sends the bearer alone and takes whatever the endpoint does with that.
-     */
-    @Synchronized
-    fun clientToken(): String? {
-        val now = System.currentTimeMillis()
-        cachedClientToken?.let { if (now < clientTokenExpiresAtMs - 30_000) return it }
-        val clientId = cachedClientId ?: return null
-        val (clientVersion, deviceId) = session() ?: return null
-
-        val payload = buildJsonObject {
-            putJsonObject("client_data") {
-                put("client_version", clientVersion)
-                put("client_id", clientId)
-                putJsonObject("js_sdk_data") {
-                    put("device_brand", "unknown")
-                    put("device_model", "unknown")
-                    put("os", "linux")
-                    put("os_version", System.getProperty("os.version").orEmpty())
-                    put("device_id", deviceId)
-                    put("device_type", "computer")
-                }
-            }
-        }
-        val body = runCatching {
-            val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
-            val response = client.send(
-                HttpRequest.newBuilder(URI.create("https://clienttoken.spotify.com/v1/clienttoken"))
-                    .timeout(Duration.ofSeconds(15))
-                    .header("Accept", "application/json")
-                    // The bare header, deliberately: clienttoken 400s on a charset suffix.
-                    .header("Content-Type", "application/json")
-                    .header("User-Agent", CANVAS_UA)
-                    .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
-                    .build(),
-                HttpResponse.BodyHandlers.ofString(),
-            )
-            if (response.statusCode() in 200..299) response.body() else null
-        }.getOrNull() ?: return null
-
-        val root = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull() ?: return null
-        if (root["response_type"]?.jsonPrimitive?.contentOrNull != "RESPONSE_GRANTED_TOKEN_RESPONSE") return null
-        val granted = root["granted_token"]?.jsonObject ?: return null
-        val token = granted["token"]?.jsonPrimitive?.contentOrNull ?: return null
-        val ttl = granted["expires_after_seconds"]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: 3600L
-        cachedClientToken = token
-        clientTokenExpiresAtMs = now + ttl * 1000
-        return token
-    }
-
-    /** The web player's build version, read off its own page, plus a device id to call ourselves. */
-    private fun session(): Pair<String, String>? {
-        session?.let { return it }
-        val html = canvasGet("https://open.spotify.com") ?: return null
-        val configB64 = Regex("""<script id="appServerConfig" type="text/plain">([^<]+)</script>""")
-            .find(html)?.groupValues?.get(1) ?: return null
-        val clientVersion = runCatching {
-            val decoded = String(Base64.getDecoder().decode(configB64), StandardCharsets.UTF_8)
-            json.parseToJsonElement(decoded).jsonObject["clientVersion"]?.jsonPrimitive?.contentOrNull
-        }.getOrNull() ?: return null
-        return (clientVersion to UUID.randomUUID().toString()).also { session = it }
-    }
-
-    /**
-     * The six digits the web player sends with a token request.
-     *
-     * Standard TOTP over SHA-1, thirty-second steps, from a secret the bundle carries obfuscated as
-     * a byte array XORed against its own index.
-     */
-    internal fun totp(secret: IntArray, epochSeconds: Long): String? = runCatching {
-        val cleaned = secret.mapIndexed { index, value -> value xor (index % 33 + 9) }
-            .joinToString("")
-            .toByteArray(StandardCharsets.UTF_8)
-        val counter = epochSeconds / 30
-        val message = ByteArray(8) { index -> (counter ushr (56 - index * 8)).toByte() }
-        val mac = Mac.getInstance("HmacSHA1").apply { init(SecretKeySpec(cleaned, "HmacSHA1")) }
-        val hash = mac.doFinal(message)
-        val offset = hash[hash.size - 1].toInt() and 0x0F
-        val binary = ((hash[offset].toInt() and 0x7F) shl 24) or
-            ((hash[offset + 1].toInt() and 0xFF) shl 16) or
-            ((hash[offset + 2].toInt() and 0xFF) shl 8) or
-            (hash[offset + 3].toInt() and 0xFF)
-        "%06d".format(binary % 1_000_000)
-    }.getOrNull()
-
-    /**
-     * The secrets the web player has shipped, newest last.
-     *
-     * Kept as a table rather than scraped: the bundle's shape changes more often than the secret
-     * does, and an unknown version simply means the request goes out unsigned.
-     */
-    private val TOTP_SECRETS: Map<Int, IntArray> = mapOf(
-        12 to intArrayOf(107, 81, 49, 57, 67, 93, 87, 81, 69, 67, 40, 93, 48, 50, 46, 91, 94, 113, 41, 47),
-    )
-
-    private const val RETRY_MS = 30L * 60 * 1000
 
     internal const val KEY_SPDC = "spotify_spdc_token"
 }

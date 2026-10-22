@@ -96,6 +96,38 @@ class DesktopDecodeAheadTest {
     }
 
     @Test
+    fun `timed read yields during a stalled decode and later recovers`() {
+        val source = CountingSource(blocks = 10)
+        source.stall = CountDownLatch(1)
+        val reader = ahead(source)
+
+        val startedAt = System.nanoTime()
+        assertNull(reader.readSamples(50))
+        val waitedMs = (System.nanoTime() - startedAt) / 1_000_000
+        assertTrue(waitedMs in 20..500, "timed read should yield promptly, waited ${waitedMs}ms")
+        assertTrue(!reader.isEnded)
+        assertEquals(DesktopDecodeState.RUNNING, reader.state)
+        // underrunMillis is integer milliseconds. Immediately after the timed read returns the
+        // active underrun can legitimately still round down to 0ms on a fast CI runner.
+        Thread.sleep(5)
+        assertTrue(reader.underrunMillis > 0)
+
+        source.stall!!.countDown()
+        source.stall = null
+        assertEquals(0f, reader.readSamples()!![0])
+        assertEquals(0L, reader.underrunMillis)
+        reader.close()
+    }
+
+    @Test
+    fun `real eof remains distinguishable from a temporary underrun`() {
+        val reader = ahead(CountingSource(blocks = 0))
+        assertNull(reader.readSamples())
+        assertTrue(reader.isEnded)
+        reader.close()
+    }
+
+    @Test
     fun `seeking after the end plays again`() {
         val reader = ahead(CountingSource(blocks = 2))
         while (reader.readSamples() != null) Unit
@@ -114,4 +146,64 @@ class DesktopDecodeAheadTest {
         assertTrue(source.closedOn !== Thread.currentThread())
         assertNull(reader.readSamples())
     }
+    @Test
+    fun `decoder exception becomes failed instead of fake eof`() {
+        val source = object : DesktopSampleSource {
+            val closed = CountDownLatch(1)
+            override var sampleCount: Int = 0
+                private set
+
+            override fun readSamples(): FloatArray? = error("synthetic decoder failure")
+            override fun seek(micros: Long): Boolean = true
+            override fun close() {
+                closed.countDown()
+            }
+        }
+        val reader = ahead(source)
+
+        assertNull(reader.readSamples(500))
+        assertEquals(DesktopDecodeState.FAILED, reader.state)
+        assertTrue(reader.failureCause?.message?.contains("synthetic decoder failure") == true)
+        assertTrue(source.closed.await(2, TimeUnit.SECONDS))
+        reader.close()
+    }
+
+    @Test
+    fun `close interrupts a stalled worker and closes the source`() {
+        val source = CountingSource(blocks = 10).also { it.stall = CountDownLatch(1) }
+        val reader = ahead(source)
+        Thread.sleep(50)
+
+        reader.close()
+
+        assertTrue(source.closed.await(2, TimeUnit.SECONDS))
+        assertEquals(DesktopDecodeState.CLOSED, reader.state)
+        assertNull(reader.readSamples(10))
+    }
+
+    @Test
+    fun `seek exception cannot leave a live-looking dead worker`() {
+        val closed = CountDownLatch(1)
+        val source = object : DesktopSampleSource {
+            override var sampleCount: Int = 0
+                private set
+
+            override fun readSamples(): FloatArray? = null
+            override fun seek(micros: Long): Boolean = error("synthetic seek failure")
+            override fun close() {
+                closed.countDown()
+            }
+        }
+        val reader = ahead(source)
+
+        assertNull(reader.readSamples())
+        assertEquals(DesktopDecodeState.EOF, reader.state)
+        assertTrue(reader.seek(123_000))
+        assertNull(reader.readSamples(500))
+        assertEquals(DesktopDecodeState.FAILED, reader.state)
+        assertTrue(reader.failureCause?.message?.contains("synthetic seek failure") == true)
+        assertTrue(closed.await(2, TimeUnit.SECONDS))
+        reader.close()
+    }
+
 }

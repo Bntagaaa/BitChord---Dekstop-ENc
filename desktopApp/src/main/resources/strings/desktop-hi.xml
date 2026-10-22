@@ -89,4 +89,6 @@
     <string name="d_translation_unavailable">अनुवाद उपलब्ध नहीं है</string>
     <string name="d_what_the_translate_button_translates_into">बोल का अनुवाद बटन किस भाषा में अनुवाद करता है</string>
     <string name="d_off">बंद</string>
+    <string name="d_ui_scale">इंटरफ़ेस का आकार</string>
+    <string name="d_ui_scale_subtitle">BitChord में टेक्स्ट, कंट्रोल और पैनल का आकार बढ़ाएँ या घटाएँ।</string>
 </resources>

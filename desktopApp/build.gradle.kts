@@ -3,11 +3,14 @@ import java.util.zip.ZipFile
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
-/** What the packages, the launcher and the settings footer all say. */
+/** What the launcher and settings footer display when no build version is supplied. */
+val defaultAppVersion = "1.8-beta1"
+
+/** The app may use a descriptive test label; native installers still need a numeric version. */
 val appVersion: String = providers.gradleProperty("bitchord.version").orNull
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: "1.8-beta1"
+    ?: defaultAppVersion
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
@@ -18,11 +21,22 @@ val targetOs: String = (providers.gradleProperty("bitchord.target").orNull ?: wh
     else -> error("BitChord desktop supports Linux and Windows only")
 }).lowercase()
 
-// Windows installer metadata requires MAJOR.MINOR.BUILD even though the app's public version is
-// intentionally displayed without a patch number (1.7 rather than 1.7.0).
-// The build number is the desktop version code; it also keeps "-beta1" out of the numeric installer version.
+// Native package managers require a numeric upstream version. Windows also requires
+// MAJOR.MINOR.BUILD even though the app's public version is displayed without the patch number.
+// Keep descriptive build labels (for example "test-visua") for the app/artifact name, but derive
+// installer metadata from their numeric prefix. If there is no numeric prefix, use the project's
+// default major/minor so test builds can still produce valid DEB, RPM, EXE, and MSI packages.
 val desktopVersionCode = 29
-val nativePackageVersion = appVersion.substringBefore('-').split('.').take(2).joinToString(".") + ".$desktopVersionCode"
+val numericPackageBase = appVersion.substringBefore('-')
+    .takeIf { it.matches(Regex("""\d+(\.\d+)*""")) }
+    ?: defaultAppVersion.substringBefore('-')
+val nativePackageVersion = numericPackageBase.split('.').take(2).joinToString(".") + ".$desktopVersionCode"
+
+if (numericPackageBase != appVersion.substringBefore('-')) {
+    logger.lifecycle(
+        "App version '$appVersion' is a descriptive label; using valid native installer version '$nativePackageVersion'.",
+    )
+}
 
 // FFmpeg decodes audio; see DesktopAudioDecoder.
 val javacppVersion = "1.5.12"

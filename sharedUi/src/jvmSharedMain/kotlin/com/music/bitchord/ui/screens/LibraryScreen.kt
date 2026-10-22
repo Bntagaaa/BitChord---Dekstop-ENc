@@ -118,6 +118,7 @@ fun LibraryScreen(
     showTitle: Boolean = true,
 ) {
     val pinnedPlaylists by AppUi.host.pinnedPlaylists.collectAsStateWithLifecycle()
+    val compactHeadings = LocalDesktopCompactHeadings.current
     val onDevice = stringResource(Res.string.on_device)
     PullToRefresh(
         refreshing = refreshing,
@@ -127,14 +128,15 @@ fun LibraryScreen(
     ) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize()
+                .then(if (compactHeadings) Modifier.desktopTopScrollFade(listState) else Modifier),
             contentPadding = contentPadding,
         ) {
             if (showTitle) {
                 item {
                     Text(
                         text = stringResource(Res.string.library),
-                        style = MaterialTheme.typography.displayLarge,
+                        style = if (compactHeadings) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.displayLarge,
                         color = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
                     )
@@ -419,7 +421,8 @@ fun LibraryGridPage(
             contentPadding = contentPadding,
             horizontalArrangement = Arrangement.spacedBy(LIBRARY_GRID_SPACING),
             verticalArrangement = Arrangement.spacedBy(20.dp),
-            modifier = Modifier.padding(horizontal = PAGE_GUTTER),
+            modifier = Modifier.padding(horizontal = PAGE_GUTTER)
+                .then(if (LocalDesktopCompactHeadings.current) Modifier.desktopTopScrollFade(gridState) else Modifier),
         ) {
             if (onNewPlaylist != null) {
                 item(key = "leading") {

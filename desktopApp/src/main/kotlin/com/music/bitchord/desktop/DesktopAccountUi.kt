@@ -109,6 +109,7 @@ internal fun DesktopAccountSelector(
     onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    DesktopRegisterFlyout(DesktopFlyoutLayer.ACCOUNT, onDismiss = onDismiss)
     var managing by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         // The scrim is its own layer rather than a modifier on the container.
@@ -267,10 +268,12 @@ private fun DesktopSelectorAction(
     }
 }
 
-/** Signing in: a browser to take the session from, or the cookie by hand. */
+/** Signing in: in-app JavaFX WebView first; secure browser and imported sessions as fallbacks. */
 @Composable
 internal fun DesktopSignInDialog(
     interactiveBrowser: DesktopBrowserSignIn.Browser?,
+    webSignInAvailable: Boolean,
+    onWebSignIn: () -> Unit,
     onBrowserSignIn: (DesktopBrowserSignIn.Browser) -> Unit,
     onImport: (DesktopBrowserCookies.Profile) -> Unit,
     onPaste: (String) -> Unit,
@@ -278,6 +281,9 @@ internal fun DesktopSignInDialog(
     error: String?,
     onDismiss: () -> Unit,
 ) {
+    // A sign-in prompt is above the account picker. Keep its current dismiss/cancel behavior,
+    // but never let Escape reach a player or account underneath it.
+    DesktopRegisterFlyout(DesktopFlyoutLayer.DIALOG)
     var profiles by remember { mutableStateOf<List<DesktopBrowserCookies.Profile>?>(null) }
     var pasting by remember { mutableStateOf(false) }
     var pasted by remember { mutableStateOf("") }
@@ -317,18 +323,14 @@ internal fun DesktopSignInDialog(
                 modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 20.dp),
             )
             Text(
-                if (interactiveBrowser != null) {
-                    DesktopStrings[
-                        "d_choose_the_browser_sign_in_button_below",
-                        "Choose ${interactiveBrowser.label} below, then finish signing in inside " +
-                            "the separate browser window and close it to return to BitChord.",
-                    ]
+                if (webSignInAvailable) {
+                    "Sign in right from BitChord. If Google does not allow this embedded browser, " +
+                        "use the secure Chrome/Edge option or an existing browser profile below."
+                } else if (interactiveBrowser != null) {
+                    "Sign in using ${interactiveBrowser.label}, then close its browser window " +
+                        "after YouTube Music opens to return to BitChord."
                 } else {
-                    DesktopStrings[
-                        "d_google_signs_in_inside_a_browser",
-                        "Google signs in inside a browser and hands back a session. Pick a browser " +
-                            "here that is already signed in and BitChord will use its session.",
-                    ]
+                    "Choose a signed-in browser profile to connect to YouTube Music."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = DesktopSecondary,
@@ -387,6 +389,37 @@ internal fun DesktopSignInDialog(
                 }
                 else -> LazyColumn(Modifier.heightIn(max = 320.dp)) {
                     val found = profiles.orEmpty()
+                    if (webSignInAvailable) {
+                        item(key = "in-app-webview") {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 68.dp)
+                                    .clickable(enabled = busy == null, onClick = onWebSignIn)
+                                    .padding(horizontal = 22.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Sign in inside BitChord", color = Color.White)
+                                    Text(
+                                        if (busy == "In-app YouTube Music") {
+                                            "Complete sign-in in the BitChord window, then choose Use this profile"
+                                        } else {
+                                            "Embedded YouTube Music sign-in · choose your Google profile"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = DesktopSecondary,
+                                    )
+                                }
+                                if (busy == "In-app YouTube Music") {
+                                    CircularProgressIndicator(
+                                        color = DesktopAccent,
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
                     interactiveBrowser?.let { browser ->
                         item(key = "interactive-browser") {
                             Row(
