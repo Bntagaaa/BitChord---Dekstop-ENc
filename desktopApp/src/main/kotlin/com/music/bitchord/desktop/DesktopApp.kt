@@ -4830,13 +4830,16 @@ private fun DesktopFloatingNavigation(
     destination: DesktopDestination,
     onDestinationSelected: (DesktopDestination) -> Unit,
 ) {
+    // Mirror the full sidebar when the desktop window becomes compact: Search replaces Explore.
     val tabs = listOf(
-        DesktopDestination.LISTEN_NOW to (BitChordIcons.Play to "Play"),
-        DesktopDestination.EXPLORE to (BitChordIcons.Explore to "Explore"),
-        DesktopDestination.LIBRARY to (BitChordIcons.Library to "Library"),
+        DesktopDestination.LISTEN_NOW to (BitChordIcons.Home to "Home"),
         DesktopDestination.SEARCH to (BitChordIcons.Search to "Search"),
+        DesktopDestination.LIBRARY to (BitChordIcons.Library to "Library"),
     )
-    val selected = tabs.firstOrNull { it.first == destination }?.first ?: DesktopDestination.LIBRARY
+    val selected = when (destination) {
+        DesktopDestination.EXPLORE -> DesktopDestination.SEARCH // Support restored legacy routes.
+        else -> tabs.firstOrNull { it.first == destination }?.first ?: DesktopDestination.LIBRARY
+    }
     val shape = RoundedCornerShape(percent = 50)
     Surface(
         modifier = Modifier
@@ -4860,12 +4863,12 @@ private fun DesktopFloatingNavigation(
                     Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(percent = 50))
-                        .background(if (isSelected) DesktopAccent.copy(alpha = 0.18f) else Color.Transparent)
+                        .background(if (isSelected) Color(0xFFFA586A).copy(alpha = 0.18f) else Color.Transparent)
                         .clickable { onDestinationSelected(item) }
                         .padding(vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(iconAndLabel.first, iconAndLabel.second, tint = if (isSelected) DesktopAccent else DesktopSecondary, modifier = Modifier.size(20.dp))
+                    Icon(iconAndLabel.first, iconAndLabel.second, tint = if (isSelected) Color(0xFFFA586A) else DesktopSecondary, modifier = Modifier.size(20.dp))
                     Text(iconAndLabel.second, color = if (isSelected) Color.White else DesktopSecondary, style = MaterialTheme.typography.labelSmall)
                 }
             }
