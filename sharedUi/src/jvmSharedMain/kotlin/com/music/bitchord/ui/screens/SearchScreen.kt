@@ -177,6 +177,14 @@ fun SearchScreen(
     onLandingOutsidePress: (() -> Unit)? = null,
 ) {
     val currentOnLandingOutsidePress by rememberUpdatedState(onLandingOutsidePress)
+    // Observe touches, but do not consume them: the same press can click a mood
+    // card, or merely defocus the input when it lands beside the search pill.
+    val outsidePressObserver = if (onLandingOutsidePress != null) Modifier.pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            currentOnLandingOutsidePress?.invoke()
+        }
+    } else Modifier
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -225,7 +233,12 @@ fun SearchScreen(
         Column(modifier = Modifier.padding(top = topPadding)) {
             if (showField) {
                 if (searchField != null) {
-                    searchField(focusRequester)
+                    Box(Modifier.fillMaxWidth()) {
+                        // The custom desktop search slot spans the entire row,
+                        // but only the centered pill should retain keyboard focus.
+                        Box(Modifier.matchParentSize().then(outsidePressObserver))
+                        searchField(focusRequester)
+                    }
                 } else {
                     SearchField(
                         query = query,
@@ -266,16 +279,7 @@ fun SearchScreen(
                 // Keep the browse landing visible and interactive even while typing.
                 // Observing Initial-pass presses lets the first click reach a mood card
                 // while the Search field simultaneously releases keyboard focus.
-                Box(
-                    Modifier.matchParentSize().then(
-                        if (onLandingOutsidePress != null) Modifier.pointerInput(Unit) {
-                            awaitEachGesture {
-                                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                                currentOnLandingOutsidePress?.invoke()
-                            }
-                        } else Modifier,
-                    ),
-                ) {
+                Box(Modifier.matchParentSize().then(outsidePressObserver)) {
                     landingContent()
                 }
                 if (suggesting && query.isNotBlank() && (suggestions.size > 1 || showTypeahead)) {
