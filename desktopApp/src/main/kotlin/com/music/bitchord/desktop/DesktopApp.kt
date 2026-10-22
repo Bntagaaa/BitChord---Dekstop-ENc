@@ -518,7 +518,7 @@ private enum class DesktopRepeatMode {
 }
 
 @Composable
-fun BitChordDesktopApp() {
+fun BitChordDesktopApp(showWelcomeOnLaunch: Boolean) {
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val shortcutRootFocusRequester = remember { FocusRequester() }
@@ -531,7 +531,7 @@ fun BitChordDesktopApp() {
     var personalPositionStash by remember { mutableStateOf(0L) }
     var personalPlayingStash by remember { mutableStateOf(false) }
     // Read before any settings migration can seed an otherwise empty Preferences node.
-    var showFirstLaunchWelcome by remember { mutableStateOf(DesktopWelcomeOnboarding.shouldShowOnStartup()) }
+    var showFirstLaunchWelcome by remember { mutableStateOf(showWelcomeOnLaunch) }
     var welcomeBusy by remember { mutableStateOf<String?>(null) }
     var welcomeError by remember { mutableStateOf<String?>(null) }
     val persistence = remember { DesktopPersistence() }
