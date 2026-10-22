@@ -26,6 +26,8 @@ import bitchord.desktopapp.generated.resources.logo
 import java.awt.Dimension
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.painterResource
 
 fun main() {
@@ -92,10 +94,17 @@ private fun desktopMain() = application {
         resizable = true,
     ) {
         val composeWindow = window
-        val selectedTheme = DesktopTheme.mode
+        val isDarkTheme = DesktopTheme.isDark
+        // System mode follows changes while the app remains open. Native probes run off the UI thread.
+        LaunchedEffect(Unit) {
+            while (true) {
+                DesktopTheme.updateSystemDark(withContext(Dispatchers.IO) { DesktopSystemTheme.isDark() })
+                delay(2_500)
+            }
+        }
         // Update both the opaque AWT surface and Windows' system caption without remounting UI.
-        LaunchedEffect(composeWindow, selectedTheme) {
-            val background = if (selectedTheme == DesktopThemeMode.LIGHT) {
+        LaunchedEffect(composeWindow, isDarkTheme) {
+            val background = if (!isDarkTheme) {
                 java.awt.Color(0xF7F7F9)
             } else {
                 java.awt.Color.BLACK
@@ -103,7 +112,7 @@ private fun desktopMain() = application {
             composeWindow.background = background
             composeWindow.contentPane.background = background
             if (DesktopPlatform.isWindows) {
-                DesktopWindowsCaptionAppearance.setDarkMode(selectedTheme == DesktopThemeMode.DARK)
+                DesktopWindowsCaptionAppearance.setDarkMode(isDarkTheme)
             }
         }
         DisposableEffect(composeWindow) {
@@ -125,7 +134,7 @@ private fun desktopMain() = application {
         val openingSize = remember { state.size }
         LaunchedEffect(composeWindow) {
             // The client stays opaque even when DWM accepts a caption material.
-            val initialBackground = if (selectedTheme == DesktopThemeMode.LIGHT) {
+            val initialBackground = if (!isDarkTheme) {
                 java.awt.Color(0xF7F7F9)
             } else {
                 java.awt.Color.BLACK
