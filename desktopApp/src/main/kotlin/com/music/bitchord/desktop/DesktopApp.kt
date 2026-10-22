@@ -272,6 +272,8 @@ import bitchord.desktopapp.generated.resources.sf_pro_display_heavy
 import bitchord.desktopapp.generated.resources.sf_pro_display_medium
 import bitchord.desktopapp.generated.resources.sf_pro_display_regular
 import bitchord.desktopapp.generated.resources.sf_pro_display_semibold
+import com.music.bitchord.sharedui.resources.Res as SharedUiRes
+import com.music.bitchord.sharedui.resources.spotify_logo
 import com.music.bitchord.data.model.ArtistPage
 import com.music.bitchord.data.model.BrowseItem
 import com.music.bitchord.data.model.BrowseType
@@ -2331,9 +2333,20 @@ fun BitChordDesktopApp() {
         overlays.settingsPage = DesktopSettingsPage.MAIN
     }
 
-    /** The Library's folder rows: the two folders this computer has. */
+    /** Library folders include the same Spotify resource icon used by BitChord Mobile. */
     val libraryLinks = remember {
         listOf(
+            LibraryLink(
+                item = ShelfItem(
+                    title = "Spotify",
+                    subtitle = "Playlists and Liked Songs · plays via YouTube Music",
+                    thumbnailUrl = null,
+                    videoId = null,
+                    browseId = SPOTIFY_LIBRARY_ID,
+                ),
+                icon = BitChordIcons.Library,
+                logo = SharedUiRes.drawable.spotify_logo,
+            ),
             LibraryLink(
                 item = ShelfItem(
                     title = DesktopStrings["downloads", "Downloads"],
@@ -2378,6 +2391,7 @@ fun BitChordDesktopApp() {
     fun openLibraryItem(item: ShelfItem) {
         val browseId = item.browseId.orEmpty()
         when {
+            browseId == SPOTIFY_LIBRARY_ID -> selectDestination(DesktopDestination.SPOTIFY)
             browseId == LOCAL_DOWNLOADS_ID -> selectDestination(DesktopDestination.DOWNLOADS)
             browseId == LOCAL_MUSIC_ID -> selectDestination(DesktopDestination.LOCAL_MUSIC)
             browseId.startsWith(LOCAL_PLAYLIST_PREFIX) ->
@@ -4790,11 +4804,13 @@ private fun DesktopSidebar(
             DesktopSidebarItem(BitChordIcons.Explore, "Explore", destination == DesktopDestination.EXPLORE) {
                 onDestinationSelected(DesktopDestination.EXPLORE)
             }
-            DesktopSidebarItem(BitChordIcons.Library, "Library", destination == DesktopDestination.LIBRARY) {
+            // Spotify is a folder *inside* Library, not an independent sidebar tab.
+            DesktopSidebarItem(
+                BitChordIcons.Library,
+                "Library",
+                destination == DesktopDestination.LIBRARY || destination == DesktopDestination.SPOTIFY,
+            ) {
                 onDestinationSelected(DesktopDestination.LIBRARY)
-            }
-            DesktopSidebarItem(BitChordIcons.Library, "Spotify", destination == DesktopDestination.SPOTIFY) {
-                onDestinationSelected(DesktopDestination.SPOTIFY)
             }
             DesktopSidebarItem(BitChordIcons.Search, "Search", destination == DesktopDestination.SEARCH) {
                 onDestinationSelected(DesktopDestination.SEARCH)
