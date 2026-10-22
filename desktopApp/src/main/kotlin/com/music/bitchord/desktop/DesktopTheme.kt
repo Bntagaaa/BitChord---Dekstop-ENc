@@ -5,14 +5,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 
-/** Dark stays the default for existing installations; the choice survives a restart. */
+/** Follow the OS until the listener explicitly picks a theme. */
 internal enum class DesktopThemeMode(val label: String) {
-    DARK("Dark"),
-    LIGHT("Light");
+    SYSTEM("System"),
+    LIGHT("Light"),
+    DARK("Dark");
 
     companion object {
         fun fromStored(value: String): DesktopThemeMode =
-            entries.firstOrNull { it.name == value } ?: DARK
+            entries.firstOrNull { it.name == value } ?: SYSTEM
     }
 }
 
@@ -24,12 +25,27 @@ internal object DesktopTheme {
     private const val KEY = "desktop_theme_mode"
 
     var mode: DesktopThemeMode by mutableStateOf(
-        DesktopThemeMode.fromStored(DesktopPersistence().string(KEY, DesktopThemeMode.DARK.name)),
+        DesktopThemeMode.fromStored(DesktopPersistence().string(KEY, DesktopThemeMode.SYSTEM.name)),
     )
         private set
 
-    val palette: DesktopThemePalette
-        get() = if (mode == DesktopThemeMode.LIGHT) LIGHT_PALETTE else DARK_PALETTE
+    private var systemDark: Boolean by mutableStateOf(DesktopSystemTheme.isDark())
+
+    /** Effective theme. Use this for *all* UI decisions, never mode == LIGHT/DARK. */
+    val isDark: Boolean get() = resolveDark(mode, systemDark)
+    val isLight: Boolean get() = !isDark
+    val palette: DesktopThemePalette get() = if (isDark) DARK_PALETTE else LIGHT_PALETTE
+
+    internal fun resolveDark(choice: DesktopThemeMode, osDark: Boolean): Boolean = when (choice) {
+        DesktopThemeMode.SYSTEM -> osDark
+        DesktopThemeMode.LIGHT -> false
+        DesktopThemeMode.DARK -> true
+    }
+
+    /** Called from the main Compose window after sampling the OS on a worker dispatcher. */
+    fun updateSystemDark(value: Boolean) {
+        if (systemDark != value) systemDark = value
+    }
 
     fun selectMode(value: DesktopThemeMode) {
         if (mode == value) return
@@ -64,6 +80,10 @@ internal data class DesktopThemePalette(
     val subtleFill: Color,
     val stripedRow: Color,
     val navAccent: Color,
+    val sidebarSurface: Color,
+    val chromeSurface: Color,
+    val lyricsSurface: Color,
+    val replaySurface: Color,
 )
 
 internal val DARK_PALETTE = DesktopThemePalette(
@@ -91,6 +111,10 @@ internal val DARK_PALETTE = DesktopThemePalette(
     subtleFill = Color(0x14FFFFFF),
     stripedRow = Color(0x0AFFFFFF),
     navAccent = Color(0xFFFA586A),
+    sidebarSurface = Color(0xFF0D0D0F),
+    chromeSurface = Color(0xFF0D0D0F),
+    lyricsSurface = Color(0xFF202020),
+    replaySurface = Color(0xFF202020),
 )
 
 /**
@@ -98,28 +122,32 @@ internal val DARK_PALETTE = DesktopThemePalette(
  * identity retained. Strong text/icon contrast also works when blur is disabled.
  */
 internal val LIGHT_PALETTE = DesktopThemePalette(
-    background = Color(0xFFF7F7F9),
+    background = Color(0xFFF7F8FB),
     surface = Color(0xFFFFFFFF),
-    surfaceRaised = Color(0xFFF0F0F3),
-    glass = Color(0xB3FFFFFF),
-    glassStrong = Color(0xF2FFFFFF),
-    barGlass = Color(0xE6FFFFFF),
-    barEdge = Color(0x2418191E),
+    surfaceRaised = Color(0xFFEDEFF4),
+    glass = Color(0xDDEFF1F5),
+    glassStrong = Color(0xF4F7F8FC),
+    barGlass = Color(0xE8E7EBF1),
+    barEdge = Color(0x251D2636),
     accent = Color(0xFF1C1D21),
     onAccent = Color.White,
     foreground = Color(0xFF1B1C20),
-    secondary = Color(0xFF636670),
-    divider = Color(0xFFDADBE1),
+    secondary = Color(0xFF596171),
+    divider = Color(0xFFD5DAE4),
     destructive = Color(0xFFBE3545),
-    cardFill = Color(0xFCFFFFFF),
-    cardInsetFill = Color(0x0C18191E),
-    cardEdge = Color(0x2418191E),
-    rowHover = Color(0x0F18191E),
+    cardFill = Color(0xFFFFFFFF),
+    cardInsetFill = Color(0xFFF0F2F7),
+    cardEdge = Color(0x241D2636),
+    rowHover = Color(0x1625324D),
     scrim = Color(0x750D0E13),
-    searchSurface = Color(0xFFF0F1F4),
-    topPlayerSurface = Color(0xFFECEEF2),
-    floatingPlayerSurface = Color(0xFFF8F8FA),
-    subtleFill = Color(0x1018191E),
-    stripedRow = Color(0x0918191E),
-    navAccent = Color(0xFFD43D59),
+    searchSurface = Color(0xFFE8ECF3),
+    topPlayerSurface = Color(0xFFE4E8EF),
+    floatingPlayerSurface = Color(0xFFE5E9F0),
+    subtleFill = Color(0x111D2636),
+    stripedRow = Color(0x0D1D2636),
+    navAccent = Color(0xFFCD3659),
+    sidebarSurface = Color(0xFFE9ECF2),
+    chromeSurface = Color(0xFFF0F2F6),
+    lyricsSurface = Color(0xFFEDF0F6),
+    replaySurface = Color(0xFFF5F6FA),
 )
