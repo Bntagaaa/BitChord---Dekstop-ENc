@@ -89,4 +89,6 @@
     <string name="d_translation_unavailable">无法翻译</string>
     <string name="d_what_the_translate_button_translates_into">歌词翻译按钮翻译成的语言</string>
     <string name="d_off">关闭</string>
+    <string name="d_ui_scale">界面缩放</string>
+    <string name="d_ui_scale_subtitle">调整 BitChord 中的文字、控件和面板大小。</string>
 </resources>

@@ -89,4 +89,6 @@
     <string name="d_translation_unavailable">Tradução indisponível</string>
     <string name="d_what_the_translate_button_translates_into">Para qual idioma o botão de traduzir da letra traduz</string>
     <string name="d_off">Desligado</string>
+    <string name="d_ui_scale">Escala da interface</string>
+    <string name="d_ui_scale_subtitle">Aumente ou diminua o tamanho do texto, dos controles e dos painéis no BitChord.</string>
 </resources>
