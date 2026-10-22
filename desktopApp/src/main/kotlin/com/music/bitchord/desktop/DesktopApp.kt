@@ -3985,7 +3985,12 @@ fun BitChordDesktopApp() {
                                 DesktopSettingsPage.TRANSLATION_LANGUAGE -> DesktopTranslationLanguageDialog(onDismiss = ::goBack)
                                 DesktopSettingsPage.SPOTIFY_CANVAS -> DesktopSpotifyCanvasDialog(
                                     onDismiss = ::goBack,
-                                    onSaved = { spotifyCanvasCookie = it },
+                                    onSaved = { cookie ->
+                                        spotifyCanvasCookie = cookie
+                                        DesktopSpotifyLibraryAuth.invalidate()
+                                        // Even reconnecting to the same account must retry.
+                                        spotifyReloads++
+                                    },
                                 )
                                 DesktopSettingsPage.INTEGRATIONS -> DesktopIntegrationsDialog(
                                     song = playback.song,
@@ -4207,7 +4212,12 @@ fun BitChordDesktopApp() {
                             gridState = spotifyGridState,
                             contentPadding = sharedPagePadding,
                             onConnect = { overlays.settingsPage = DesktopSettingsPage.SPOTIFY_CANVAS },
-                            onRetry = { spotifyReloads++ },
+                            onRetry = {
+                                // Revalidate the session and re-harvest a bearer on Refresh; the old
+                                // handler reused a failed/stale token and reproduced the same error.
+                                DesktopSpotifyLibraryAuth.invalidate()
+                                spotifyReloads++
+                            },
                             onOpenPlaylist = { playlist ->
                                 openCollection(
                                     browseId = SPOTIFY_PAGE_PREFIX + playlist.id,
