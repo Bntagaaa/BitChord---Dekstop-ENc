@@ -49,7 +49,7 @@ internal object DesktopWindowsPlayerFullscreen {
         val monitor = user32.MonitorFromWindow(handle, WinUser.MONITOR_DEFAULTTONEAREST)
             ?: return false
         val monitorInfo = WinUser.MONITORINFO()
-        if (user32.GetMonitorInfo(monitor, monitorInfo).intValue() == 0) return false
+        if (user32.GetMonitorInfo(monitor, monitorInfo).toInt() == 0) return false
 
         val originalStyle = user32.GetWindowLong(handle, WinUser.GWL_STYLE)
         val borderless = originalStyle and (WinUser.WS_CAPTION or WinUser.WS_THICKFRAME).inv()
