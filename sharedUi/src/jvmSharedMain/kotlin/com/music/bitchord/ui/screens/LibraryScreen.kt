@@ -421,7 +421,8 @@ fun LibraryGridPage(
             contentPadding = contentPadding,
             horizontalArrangement = Arrangement.spacedBy(LIBRARY_GRID_SPACING),
             verticalArrangement = Arrangement.spacedBy(20.dp),
-            modifier = Modifier.padding(horizontal = PAGE_GUTTER),
+            modifier = Modifier.padding(horizontal = PAGE_GUTTER)
+                .then(if (LocalDesktopCompactHeadings.current) Modifier.desktopTopScrollFade(gridState) else Modifier),
         ) {
             if (onNewPlaylist != null) {
                 item(key = "leading") {

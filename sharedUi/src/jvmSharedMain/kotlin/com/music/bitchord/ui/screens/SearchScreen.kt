@@ -60,6 +60,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -250,10 +251,17 @@ fun SearchScreen(
 
         if (showLanding && landingContent != null) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                landingContent()
+                // When editing, remove the browse artwork from the compositor entirely.
+                // A Haze-backed dropdown must not reproject mood titles/cards over its results.
+                // The search field lives outside this branch and never loses its focus/state.
+                if (query.isBlank()) {
+                    landingContent()
+                } else {
+                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+                }
                 if (suggesting && query.isNotBlank() && (suggestions.size > 1 || showTypeahead)) {
                     Box(
-                        Modifier.fillMaxWidth(),
+                        Modifier.fillMaxWidth().zIndex(1f),
                         contentAlignment = Alignment.TopCenter,
                     ) {
                         Box(
@@ -262,6 +270,7 @@ fun SearchScreen(
                         ) {
                             Surface(
                                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                                    .clip(RoundedCornerShape(14.dp))
                                     .then(landingPanelDecoration),
                                 shape = RoundedCornerShape(14.dp),
                                 color = landingPanelColor,
@@ -322,7 +331,8 @@ fun SearchScreen(
         } else {
         LazyColumn(
             state = listState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = Modifier.weight(1f).fillMaxWidth()
+                .then(if (LocalDesktopCompactHeadings.current) Modifier.desktopTopScrollFade(listState) else Modifier),
             contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
         ) {
             when {

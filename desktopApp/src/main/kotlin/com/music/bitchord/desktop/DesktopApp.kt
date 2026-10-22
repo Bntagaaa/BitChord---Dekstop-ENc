@@ -23,6 +23,7 @@ import com.music.bitchord.ui.LocalPullToRefreshEnabled
 import com.music.bitchord.ui.screens.ExploreScreen
 import com.music.bitchord.ui.screens.HomeScreen
 import com.music.bitchord.ui.screens.LocalDesktopCompactHeadings
+import com.music.bitchord.ui.screens.desktopTopScrollFade
 import com.music.bitchord.ui.screens.CompactTrackRow
 import com.music.bitchord.ui.screens.LibraryGridPage
 import com.music.bitchord.ui.screens.LibraryLink
@@ -534,6 +535,8 @@ fun BitChordDesktopApp() {
     val shortcutDispatcher = remember { DesktopShortcutDispatcher() }
     val quickSearchState = remember { DesktopQuickSearchState<SearchResult> { quickSearchEntryKey(it) } }
     val quickSearchKeys = remember { DesktopQuickSearchKeys() }
+    // Search suggestions reuse the app-wide blur preference; no second toggle is created.
+    val searchBlurReduced by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
     val quickSearchFocusRequester = remember { FocusRequester() }
     var quickSearchRestorePending by remember { mutableStateOf(false) }
     val shortcutWindowInfo = LocalWindowInfo.current
@@ -3270,6 +3273,7 @@ fun BitChordDesktopApp() {
                     DesktopBottomChrome(
                         compact = compact,
                         destination = destination,
+                        settingsOpen = overlays.settingsPage != null,
                         song = selectedSong,
                         isPlaying = playback.isPlaying,
                         isLoading = playback.isLoading,
@@ -4163,14 +4167,16 @@ fun BitChordDesktopApp() {
                                 }
                             },
                             showLanding = !searchCommitted,
-                            landingPanelDecoration = if (DesktopAppearanceSettings.reduceDynamicBlur.collectAsState().value) {
-                                Modifier
-                                    .background(Color(0xFF27272B), RoundedCornerShape(14.dp))
+                            landingPanelDecoration = if (searchBlurReduced) {
+                                Modifier.clip(RoundedCornerShape(14.dp))
                                     .border(0.5.dp, DesktopBarEdge, RoundedCornerShape(14.dp))
                             } else {
-                                Modifier.desktopBarGlass(RoundedCornerShape(14.dp))
+                                Modifier.clip(RoundedCornerShape(14.dp))
+                                    .desktopBarGlass(RoundedCornerShape(14.dp))
                             },
-                            landingPanelColor = Color.Transparent,
+                            // Never use a fully transparent Surface: result text must stay above
+                            // the artwork/mood grid instead of bleeding through the frosted pane.
+                            landingPanelColor = if (searchBlurReduced) Color(0xFF27272B) else Color(0xE827272B),
                             landingContent = {
                                 ExploreScreen(
                                     state = exploreState,
@@ -4621,52 +4627,54 @@ private fun DesktopSidebar(
                 Spacer(Modifier.width(8.dp))
                 Text("BitChord", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             }
-            DesktopSidebarItem(BitChordIcons.Home, DesktopStrings["home", "Home"], destination == DesktopDestination.LISTEN_NOW) {
+            DesktopSidebarItem(BitChordIcons.Home, DesktopStrings["home", "Home"], !settingsOpen && destination == DesktopDestination.LISTEN_NOW) {
                 onDestinationSelected(DesktopDestination.LISTEN_NOW)
             }
             DesktopSidebarItem(BitChordIcons.Search, "Search",
-                destination == DesktopDestination.SEARCH || destination == DesktopDestination.EXPLORE) {
+                !settingsOpen && (destination == DesktopDestination.SEARCH || destination == DesktopDestination.EXPLORE)) {
                 onDestinationSelected(DesktopDestination.SEARCH)
             }
-            DesktopSidebarItem(BitChordIcons.Library, "Library", destination == DesktopDestination.LIBRARY) {
+            DesktopSidebarItem(BitChordIcons.Library, "Library", !settingsOpen && destination == DesktopDestination.LIBRARY) {
                 onDestinationSelected(DesktopDestination.LIBRARY)
             }
             Spacer(Modifier.height(6.dp))
             HorizontalDivider(color = desktopChromeDivider())
             Spacer(Modifier.height(12.dp))
-            DesktopSidebarItem(BitChordIcons.Clock, "History", destination == DesktopDestination.HISTORY) {
+            DesktopSidebarItem(BitChordIcons.Clock, "History", !settingsOpen && destination == DesktopDestination.HISTORY) {
                 onDestinationSelected(DesktopDestination.HISTORY)
             }
             val queued by DesktopDownloadQueue.active.collectAsState()
             DesktopSidebarItem(
                 BitChordIcons.Download,
                 if (queued.isEmpty()) "Downloads" else "Downloads · ${queued.size}",
-                destination == DesktopDestination.DOWNLOADS,
+                !settingsOpen && destination == DesktopDestination.DOWNLOADS,
             ) {
                 onDestinationSelected(DesktopDestination.DOWNLOADS)
             }
-            DesktopSidebarItem(BitChordIcons.Library, "Local Music", destination == DesktopDestination.LOCAL_MUSIC) {
+            DesktopSidebarItem(BitChordIcons.Library, "Local Music", !settingsOpen && destination == DesktopDestination.LOCAL_MUSIC) {
                 onDestinationSelected(DesktopDestination.LOCAL_MUSIC)
             }
             Spacer(Modifier.height(6.dp))
             HorizontalDivider(color = desktopChromeDivider())
             Spacer(Modifier.height(12.dp))
+            val playlistNavState = rememberLazyListState()
             LazyColumn(
-                modifier = Modifier.fillMaxWidth().weight(1f),
+                state = playlistNavState,
+                modifier = Modifier.fillMaxWidth().weight(1f).desktopTopScrollFade(playlistNavState),
                 contentPadding = PaddingValues(bottom = 8.dp),
             ) {
                 items(accountPlaylists, key = { "account:${it.browseId}" }) { playlist ->
                     DesktopSidebarItem(
                         Icons.AutoMirrored.Rounded.PlaylistPlay,
                         playlist.title,
-                        openedCollectionId == playlist.browseId,
+                        !settingsOpen && openedCollectionId == playlist.browseId,
                     ) { onOpenAccountPlaylist(playlist) }
                 }
                 items(localPlaylists, key = { "local:${it.id}" }) { playlist ->
                     DesktopSidebarItem(
                         Icons.AutoMirrored.Rounded.PlaylistPlay,
                         playlist.title,
-                        openedCollectionId == playlist.id,
+                        !settingsOpen && openedCollectionId == playlist.id,
                     ) { onOpenLocalPlaylist(playlist) }
                 }
                 if (accountPlaylists.isEmpty() && localPlaylists.isEmpty()) {
@@ -4770,6 +4778,7 @@ private fun DesktopSidebarItem(
 private fun DesktopBottomChrome(
     compact: Boolean,
     destination: DesktopDestination,
+    settingsOpen: Boolean,
     song: Song?,
     isPlaying: Boolean,
     isLoading: Boolean,
@@ -4821,13 +4830,14 @@ private fun DesktopBottomChrome(
                 onOpenQueue = onOpenQueue,
             )
         }
-        if (compact) DesktopFloatingNavigation(destination, onDestinationSelected)
+        if (compact) DesktopFloatingNavigation(destination, settingsOpen, onDestinationSelected)
     }
 }
 
 @Composable
 private fun DesktopFloatingNavigation(
     destination: DesktopDestination,
+    settingsOpen: Boolean,
     onDestinationSelected: (DesktopDestination) -> Unit,
 ) {
     // Mirror the full sidebar when the desktop window becomes compact: Search replaces Explore.
@@ -4836,9 +4846,13 @@ private fun DesktopFloatingNavigation(
         DesktopDestination.SEARCH to (BitChordIcons.Search to "Search"),
         DesktopDestination.LIBRARY to (BitChordIcons.Library to "Library"),
     )
-    val selected = when (destination) {
-        DesktopDestination.EXPLORE -> DesktopDestination.SEARCH // Support restored legacy routes.
-        else -> tabs.firstOrNull { it.first == destination }?.first ?: DesktopDestination.LIBRARY
+    val selected: DesktopDestination? = if (settingsOpen) {
+        null
+    } else {
+        when (destination) {
+            DesktopDestination.EXPLORE -> DesktopDestination.SEARCH // Support restored legacy routes.
+            else -> tabs.firstOrNull { it.first == destination }?.first
+        }
     }
     val shape = RoundedCornerShape(percent = 50)
     Surface(
@@ -5241,8 +5255,11 @@ private fun DesktopArtistPage(
                 // Android caps the top-songs block and pages it sideways so the release shelves are
                 // not buried under a hundred rows.
                 val top = artist.songs.take(MAX_ARTIST_SONGS)
+                val artistListState = rememberLazyListState()
                 Box(Modifier.fillMaxSize()) {
                     LazyColumn(
+                        state = artistListState,
+                        modifier = Modifier.fillMaxSize().desktopTopScrollFade(artistListState),
                         contentPadding = pagePadding(bottom = 32.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
@@ -5482,8 +5499,11 @@ private fun DesktopHistoryPage(
     contentPadding: PaddingValues,
     menu: (@Composable (Song) -> Unit)? = null,
 ) {
+    val historyListState = rememberLazyListState()
     DesktopPageScaffold(contentPadding) {
         LazyColumn(
+            state = historyListState,
+            modifier = Modifier.fillMaxSize().desktopTopScrollFade(historyListState),
             contentPadding = pagePadding(start = DesktopPageGutter, end = DesktopPageGutter, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -5657,12 +5677,15 @@ private fun DesktopLibrarySongContent(
     onSongClick: (Song) -> Unit,
     menu: (@Composable (Song) -> Unit)? = null,
 ) {
+    val gridState = rememberLazyGridState()
+    val listState = rememberLazyListState()
     if (songs.isEmpty()) {
         DesktopEmptyPage(BitChordIcons.Search, "No matching music", "Try a different search.")
     } else if (view == DesktopLibraryView.GRID) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 150.dp),
-            modifier = Modifier.fillMaxSize(),
+            state = gridState,
+            modifier = Modifier.fillMaxSize().desktopTopScrollFade(gridState),
             contentPadding = pagePadding(bottom = 32.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -5678,7 +5701,8 @@ private fun DesktopLibrarySongContent(
         }
     } else {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            modifier = Modifier.fillMaxSize().desktopTopScrollFade(listState),
             contentPadding = pagePadding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -5702,12 +5726,15 @@ private fun DesktopLibraryGroupingContent(
     view: DesktopLibraryView,
     onGroupClick: (Pair<String, List<Song>>) -> Unit,
 ) {
+    val gridState = rememberLazyGridState()
+    val listState = rememberLazyListState()
     if (groups.isEmpty()) {
         DesktopEmptyPage(BitChordIcons.Search, "Nothing here yet", "Music will be grouped as it is added.")
     } else if (view == DesktopLibraryView.GRID) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 150.dp),
-            modifier = Modifier.fillMaxSize(),
+            state = gridState,
+            modifier = Modifier.fillMaxSize().desktopTopScrollFade(gridState),
             contentPadding = pagePadding(bottom = 32.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -5723,7 +5750,8 @@ private fun DesktopLibraryGroupingContent(
         }
     } else {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            modifier = Modifier.fillMaxSize().desktopTopScrollFade(listState),
             contentPadding = pagePadding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -5881,7 +5909,7 @@ private fun DesktopSettingsScreen(
                 }
                 CompositionLocalProvider(LocalSettingsQuery provides settingsQuery.trim()) {
                 LazyColumn(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).desktopTopScrollFade(listState),
                     state = listState,
                     contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp),
                 ) {
@@ -6498,6 +6526,7 @@ private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
 /** Everything this build is assembled from, and the terms each part came under. A page of Settings. */
 @Composable
 private fun DesktopLicensesPage(onDismiss: () -> Unit) {
+    val licensesListState = rememberLazyListState()
     DesktopSettingsPageFrame {
         Text(
             DesktopStrings["d_third_party_licenses", "Third-party licenses"],
@@ -6511,7 +6540,8 @@ private fun DesktopLicensesPage(onDismiss: () -> Unit) {
             style = MaterialTheme.typography.bodySmall,
         )
         LazyColumn(
-            modifier = Modifier.weight(1f),
+            state = licensesListState,
+            modifier = Modifier.weight(1f).desktopTopScrollFade(licensesListState),
             contentPadding = PaddingValues(vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -6823,8 +6853,11 @@ private fun DesktopCollectionPage(
         val seconds = songs.sumOf { it.durationText.durationMillis() / 1_000L }
         if (seconds > 0) add(formatCollectionDuration(seconds))
     }.joinToString(" • ").uppercase()
+    val collectionListState = remember(collection.browseId) { LazyListState() }
     DesktopPageScaffold(contentPadding) {
         LazyColumn(
+            state = collectionListState,
+            modifier = Modifier.fillMaxSize().desktopTopScrollFade(collectionListState),
             contentPadding = pagePadding(
                 start = DesktopPageGutter,
                 top = DesktopPageGutter,

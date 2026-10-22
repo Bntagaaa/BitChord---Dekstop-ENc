@@ -113,8 +113,8 @@ fun ExploreScreen(
                                 item(key = "mood-section:${section.title}") {
                                     Text(
                                         text = section.title,
-                                        style = if (compactHeadings) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
+                                        style = if (compactHeadings) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+                                        fontWeight = if (compactHeadings) FontWeight.Bold else FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onBackground,
                                         modifier = Modifier.padding(
                                             start = PAGE_GUTTER,
