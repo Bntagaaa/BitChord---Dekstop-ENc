@@ -1,0 +1,22 @@
+[package]
+name = "bitchord-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[dependencies]
+bitchord-core = { path = "../bitchord-core" }
+slint.workspace = true
+tracing.workspace = true
+
+# Slint's Linux font discovery already uses fontique. Enable its runtime loader
+# so a system fontconfig development package is not needed to compile the app.
+[target.'cfg(target_os = "linux")'.dependencies]
+fontique = { version = "=0.11.1", features = ["fontconfig-dlopen"] }
+
+[build-dependencies]
+slint-build = "=1.18.1"
+
+[dev-dependencies]
+i-slint-backend-testing = "=1.18.1"

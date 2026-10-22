@@ -1,0 +1,11 @@
+[package]
+name = "bitchord-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+bitchord-core = { path = "../bitchord-core" }
+bitchord-ui = { path = "../bitchord-ui" }
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

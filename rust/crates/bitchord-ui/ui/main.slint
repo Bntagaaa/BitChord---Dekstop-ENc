@@ -1,0 +1,118 @@
+import "../../../assets/sf_pro_display_regular.otf";
+import "../../../assets/sf_pro_display_semibold.otf";
+import "../../../assets/sf_pro_display_bold.otf";
+
+component NavRow inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    in property <bool> dark;
+    callback activated();
+
+    height: 42px;
+    border-radius: 9px;
+    background: active ? (dark ? #29292e : #dfe3eb) : (dark ? #0d0d0f : #e9ecf2);
+
+    Text {
+        text: root.label;
+        x: 14px;
+        width: parent.width - 28px;
+        height: parent.height;
+        vertical-alignment: center;
+        font-family: "SF Pro Display";
+        font-size: 14px;
+        font-weight: active ? 600 : 400;
+        color: dark ? #ffffff : #1b1c20;
+    }
+    TouchArea {
+        clicked => { root.activated(); }
+    }
+}
+
+export component MainWindow inherits Window {
+    title: "BitChord";
+    preferred-width: 1220px;
+    preferred-height: 780px;
+    min-width: 900px;
+    min-height: 600px;
+    background: dark-mode ? #202020 : #f7f8fb;
+
+    in-out property <string> current-page: "home";
+    in-out property <string> page-title: "Home";
+    in-out property <bool> dark-mode: true;
+    callback navigate(string);
+    callback toggle-theme();
+
+    HorizontalLayout {
+        spacing: 0px;
+
+        Rectangle {
+            width: 220px;
+            background: root.dark-mode ? #0d0d0f : #e9ecf2;
+
+            VerticalLayout {
+                padding: 16px;
+                spacing: 5px;
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    padding-bottom: 24px;
+                    Image {
+                        source: @image-url("../../../assets/bitchord_logo_original.svg");
+                        width: 28px;
+                        height: 24px;
+                        image-fit: contain;
+                        colorize: root.dark-mode ? #ffffff : #1b1c20;
+                    }
+                    Text {
+                        text: "BitChord";
+                        font-family: "SF Pro Display";
+                        font-size: 20px;
+                        font-weight: 700;
+                        color: root.dark-mode ? #ffffff : #1b1c20;
+                        vertical-alignment: center;
+                    }
+                }
+
+                NavRow { label: "Home"; active: root.current-page == "home"; dark: root.dark-mode; activated => { root.navigate("home"); } }
+                NavRow { label: "Search"; active: root.current-page == "search"; dark: root.dark-mode; activated => { root.navigate("search"); } }
+                NavRow { label: "Library"; active: root.current-page == "library" || root.current-page == "spotify"; dark: root.dark-mode; activated => { root.navigate("library"); } }
+                NavRow { label: "Spotify"; active: root.current-page == "spotify"; dark: root.dark-mode; activated => { root.navigate("spotify"); } }
+                NavRow { label: "History"; active: root.current-page == "history"; dark: root.dark-mode; activated => { root.navigate("history"); } }
+                NavRow { label: "Downloads"; active: root.current-page == "downloads"; dark: root.dark-mode; activated => { root.navigate("downloads"); } }
+                NavRow { label: "Local Music"; active: root.current-page == "local-music"; dark: root.dark-mode; activated => { root.navigate("local-music"); } }
+
+                Rectangle { vertical-stretch: 1; background: transparent; }
+
+                NavRow { label: root.dark-mode ? "Light theme" : "Dark theme"; dark: root.dark-mode; activated => { root.toggle-theme(); } }
+                NavRow { label: "Settings"; active: root.current-page == "settings"; dark: root.dark-mode; activated => { root.navigate("settings"); } }
+            }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+            background: root.dark-mode ? #202020 : #f7f8fb;
+            VerticalLayout {
+                padding: 32px;
+                spacing: 18px;
+                Text {
+                    text: root.page-title;
+                    font-family: "SF Pro Display";
+                    font-size: 28px;
+                    font-weight: 700;
+                    color: root.dark-mode ? #ffffff : #1b1c20;
+                }
+                Rectangle {
+                    height: 1px;
+                    background: root.dark-mode ? #2c2c2e : #d5dae4;
+                }
+                Text {
+                    text: "Native Rust foundation — this page is not yet ported.";
+                    font-family: "SF Pro Display";
+                    font-size: 14px;
+                    color: root.dark-mode ? #8e8e93 : #596171;
+                }
+                Rectangle { vertical-stretch: 1; background: transparent; }
+            }
+        }
+    }
+}
