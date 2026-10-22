@@ -53,6 +53,9 @@ import kotlin.math.roundToInt
 @Composable
 internal fun DesktopIntegrationsDialog(
     song: Song?,
+    spotifyConnected: Boolean,
+    onOpenSpotify: () -> Unit,
+    onDisconnectSpotify: () -> Unit,
     onOpenLastfm: () -> Unit,
     onOpenListenBrainz: () -> Unit,
     onOpenDiscordToken: () -> Unit,
@@ -72,6 +75,7 @@ internal fun DesktopIntegrationsDialog(
                 color = Color.White,
                 modifier = Modifier.padding(start = panelInset(20.dp), end = panelInset(20.dp), top = 18.dp, bottom = 12.dp),
             )
+            SpotifySection(spotifyConnected, onOpenSpotify, onDisconnectSpotify)
             DiscordSection(song, onOpenDiscordToken, onChoose = { choosing = it }, onEdit = { editing = it })
             ScrobblingSection(onOpenLastfm, onOpenListenBrainz)
         }
@@ -103,6 +107,47 @@ internal fun DesktopIntegrationsDialog(
             onSave = { field.onSave(it); editing = null },
             onDismiss = { editing = null },
         )
+    }
+}
+
+/** The account controls on Android's Account & Integrations page, adapted for desktop. */
+@Composable
+private fun SpotifySection(
+    connected: Boolean,
+    onOpenSpotify: () -> Unit,
+    onDisconnectSpotify: () -> Unit,
+) {
+    PanelGroup(
+        header = "Spotify",
+        footer = "Spotify playlists play through YouTube Music in BitChord. " +
+            "Changing accounts here does not change your YouTube Music profile.",
+    ) {
+        PanelActionRow(
+            title = "Spotify",
+            subtitle = if (connected) "Connected" else "Not connected",
+            destructive = false,
+            onClick = onOpenSpotify,
+        )
+        DesktopCardRule()
+        PanelActionRow(
+            title = if (connected) "Switch Spotify account" else "Connect Spotify",
+            subtitle = if (connected) {
+                "Choose another Spotify account or update the saved session"
+            } else {
+                "Sign in to load your playlists and Liked Songs"
+            },
+            destructive = false,
+            onClick = onOpenSpotify,
+        )
+        if (connected) {
+            DesktopCardRule()
+            PanelActionRow(
+                title = "Disconnect",
+                subtitle = "Remove the saved Spotify session from this device",
+                destructive = true,
+                onClick = onDisconnectSpotify,
+            )
+        }
     }
 }
 
