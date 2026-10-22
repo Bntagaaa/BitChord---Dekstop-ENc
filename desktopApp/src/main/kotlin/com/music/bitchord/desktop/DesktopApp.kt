@@ -5677,12 +5677,15 @@ private fun DesktopLibrarySongContent(
     onSongClick: (Song) -> Unit,
     menu: (@Composable (Song) -> Unit)? = null,
 ) {
+    val gridState = rememberLazyGridState()
+    val listState = rememberLazyListState()
     if (songs.isEmpty()) {
         DesktopEmptyPage(BitChordIcons.Search, "No matching music", "Try a different search.")
     } else if (view == DesktopLibraryView.GRID) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 150.dp),
-            modifier = Modifier.fillMaxSize(),
+            state = gridState,
+            modifier = Modifier.fillMaxSize().desktopTopScrollFade(gridState),
             contentPadding = pagePadding(bottom = 32.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -5698,7 +5701,8 @@ private fun DesktopLibrarySongContent(
         }
     } else {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            modifier = Modifier.fillMaxSize().desktopTopScrollFade(listState),
             contentPadding = pagePadding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -5722,12 +5726,15 @@ private fun DesktopLibraryGroupingContent(
     view: DesktopLibraryView,
     onGroupClick: (Pair<String, List<Song>>) -> Unit,
 ) {
+    val gridState = rememberLazyGridState()
+    val listState = rememberLazyListState()
     if (groups.isEmpty()) {
         DesktopEmptyPage(BitChordIcons.Search, "Nothing here yet", "Music will be grouped as it is added.")
     } else if (view == DesktopLibraryView.GRID) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 150.dp),
-            modifier = Modifier.fillMaxSize(),
+            state = gridState,
+            modifier = Modifier.fillMaxSize().desktopTopScrollFade(gridState),
             contentPadding = pagePadding(bottom = 32.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -5743,7 +5750,8 @@ private fun DesktopLibraryGroupingContent(
         }
     } else {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            modifier = Modifier.fillMaxSize().desktopTopScrollFade(listState),
             contentPadding = pagePadding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
