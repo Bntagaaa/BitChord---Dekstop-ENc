@@ -12,8 +12,17 @@ class DesktopThemeTest {
     fun `loads known modes and rejects corrupted stored preferences`() {
         assertEquals(DesktopThemeMode.DARK, DesktopThemeMode.fromStored("DARK"))
         assertEquals(DesktopThemeMode.LIGHT, DesktopThemeMode.fromStored("LIGHT"))
-        assertEquals(DesktopThemeMode.DARK, DesktopThemeMode.fromStored("not-a-theme"))
-        assertEquals(DesktopThemeMode.DARK, DesktopThemeMode.fromStored(""))
+        assertEquals(DesktopThemeMode.SYSTEM, DesktopThemeMode.fromStored("SYSTEM"))
+        assertEquals(DesktopThemeMode.SYSTEM, DesktopThemeMode.fromStored("not-a-theme"))
+        assertEquals(DesktopThemeMode.SYSTEM, DesktopThemeMode.fromStored(""))
+    }
+
+    @Test
+    fun `system follows operating-system appearance while overrides win`() {
+        assertEquals(true, DesktopTheme.resolveDark(DesktopThemeMode.SYSTEM, true))
+        assertEquals(false, DesktopTheme.resolveDark(DesktopThemeMode.SYSTEM, false))
+        assertEquals(true, DesktopTheme.resolveDark(DesktopThemeMode.DARK, false))
+        assertEquals(false, DesktopTheme.resolveDark(DesktopThemeMode.LIGHT, true))
     }
 
     @Test
