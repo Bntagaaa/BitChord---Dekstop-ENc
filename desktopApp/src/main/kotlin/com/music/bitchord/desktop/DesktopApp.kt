@@ -5728,7 +5728,7 @@ private fun DesktopArtistBanner(url: String?, name: String, palette: DesktopArtw
             name,
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
+            color = DesktopForeground,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
@@ -5743,14 +5743,14 @@ private fun DesktopStatChip(icon: androidx.compose.ui.graphics.vector.ImageVecto
     Row(
         Modifier
             .clip(CircleShape)
-            .background(DesktopGlass.copy(alpha = 0.55f))
-            .border(0.5.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+            .background(DesktopSubtleFill)
+            .border(0.5.dp, DesktopBarEdge, CircleShape)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, tint = DesktopSecondary, modifier = Modifier.size(15.dp))
         Spacer(Modifier.width(7.dp))
-        Text(text, style = MaterialTheme.typography.bodySmall, color = Color.White)
+        Text(text, style = MaterialTheme.typography.bodySmall, color = DesktopForeground)
     }
 }
 
