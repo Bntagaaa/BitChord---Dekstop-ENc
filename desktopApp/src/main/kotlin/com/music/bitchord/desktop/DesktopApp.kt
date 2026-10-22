@@ -5704,7 +5704,7 @@ private fun DesktopSettingsScreen(
                                 OutlinedButton(onClick = { uiScaleMenuOpen = true }) {
                                     Text("$uiScalePercent%")
                                     Spacer(Modifier.width(4.dp))
-                                    Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
+                                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null)
                                 }
                                 DropdownMenu(
                                     expanded = uiScaleMenuOpen,
