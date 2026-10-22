@@ -130,11 +130,11 @@ internal fun DesktopQuickSearch(
                     onValueChange = controller::edit,
                     singleLine = true,
                     cursorBrush = SolidColor(DesktopAccent),
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = DesktopForeground),
                     modifier = Modifier.fillMaxWidth().height(36.dp)
                         .clip(searchShape)
-                        .background(Color.White.copy(alpha = 0.07f))
-                        .border(1.dp, Color.White.copy(alpha = 0.10f), searchShape)
+                        .background(DesktopSubtleFill)
+                        .border(1.dp, DesktopBarEdge, searchShape)
                         .focusRequester(focusRequester)
                         .semantics { contentDescription = "Quick Search songs" },
                     decorationBox = { innerField ->
@@ -232,7 +232,7 @@ private fun QuickSearchRow(item: SearchResult, active: Boolean, onHover: () -> U
     val artist = (item as? SearchResult.Browse)?.item
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(5.dp))
-            .background(if (active) Color.White.copy(alpha = 0.10f) else Color.Transparent)
+            .background(if (active) DesktopRowHover else Color.Transparent)
             .semantics { selected = active }
             .focusProperties { canFocus = false }
             // Move, rather than Enter, avoids changing selection merely because keyboard scroll
@@ -248,13 +248,13 @@ private fun QuickSearchRow(item: SearchResult, active: Boolean, onHover: () -> U
         )
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)) {
-            Text(song?.title ?: artist?.title.orEmpty(), color = Color.White, fontWeight = FontWeight.Medium, maxLines = 1,
+            Text(song?.title ?: artist?.title.orEmpty(), color = DesktopForeground, fontWeight = FontWeight.Medium, maxLines = 1,
                 overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
             Text(song?.artist ?: artist?.subtitle.orEmpty(), color = DesktopSecondary, maxLines = 1,
                 overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
         }
         Text(if (artist != null) "Artist" else "Track", color = DesktopSecondary, fontSize = 11.sp,
-            modifier = Modifier.padding(start = 10.dp).background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(3.dp))
+            modifier = Modifier.padding(start = 10.dp).background(DesktopForeground.copy(alpha = 0.08f), RoundedCornerShape(3.dp))
                 .padding(horizontal = 7.dp, vertical = 4.dp))
     }
 }
