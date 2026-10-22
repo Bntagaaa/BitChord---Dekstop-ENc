@@ -1,0 +1,11 @@
+[package]
+name = "bitchord-audio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+miniaudio = { package = "om-fork-miniaudio", version = "=0.12.2", default-features = false, features = ["ma-log-level-error", "ma-enable-vorbis"] }
+
+[dev-dependencies]
+tempfile = "3"

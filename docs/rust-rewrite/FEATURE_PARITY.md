@@ -12,8 +12,8 @@ Source: Kotlin desktop `origin/main` at `f6c4b70c`. Statuses describe the Rust b
 | Full Search | `DesktopSearchSession.kt`, `sharedUi/.../SearchScreen.kt` | Missing; requests, suggestions, browse, focus, click-to-play pending |
 | Quick Search / shortcuts | `DesktopQuickSearch.kt`, `DesktopShortcuts.kt` | Missing; Ctrl+K, focus, shortcut ownership pending |
 | Library/history/playlists | `DesktopSearchClient.kt`, `DesktopPersistence.kt`, `sharedUi/.../LibraryScreen.kt` | Missing; data and account parity pending |
-| Downloads/local music | `DesktopDownloadManager.kt`, `DesktopLocalMusic.kt` | Missing; migration and file checks pending |
-| Audio playback/queue/seek/volume | `DesktopAudioEngine.kt`, `DesktopAudioDecoder.kt`, `DesktopAudioSink.kt`, `DesktopQueue.kt` | Missing; format/device/transition/recovery tests pending |
+| Downloads/local music | `DesktopDownloadManager.kt`, `DesktopLocalMusic.kt` | Partial: native background scan of default Music/Downloads roots, Kotlin-compatible depth, extensions, filename labels, sorting, optional filter in core, and a virtualized list. Folder selection, watcher, metadata enrichment, and downloads remain missing |
+| Audio playback/queue/seek/volume | `DesktopAudioEngine.kt`, `DesktopAudioDecoder.kt`, `DesktopAudioSink.kt`, `DesktopQueue.kt` | Partial: native local MP3/FLAC/WAV/Ogg Vorbis decode and output via miniaudio, click-to-play, pause/resume, previous/next, end advance, volume/seek API. AAC/M4A/WebM, online streams, seek/volume UI, crossfade, decode-ahead, output-device selection and playback error recovery remain missing. WAV decode tested without device; speaker output unverified |
 | Stream resolution/YouTube Music | `shared/.../StreamResolver.kt`, `DesktopSourceRegistry.kt`, `DesktopYouTubeAuth.kt` | Missing; service/anonymous/auth tests pending |
 | Spotify library/auth | `DesktopSpotifyLibrary.kt`, `DesktopSpotifyLibraryAuth.kt` | Missing; login/session/library/playback behavior pending |
 | Lyrics/translation | `DesktopLyricsClient.kt`, `sharedUi/.../PlayerLyrics.kt`, `shared/.../lyrics/` | Missing; timing/source/visual parity pending |

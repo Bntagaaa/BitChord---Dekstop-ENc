@@ -1,6 +1,13 @@
 import "../../../assets/sf_pro_display_regular.otf";
 import "../../../assets/sf_pro_display_semibold.otf";
 import "../../../assets/sf_pro_display_bold.otf";
+import { ListView } from "std-widgets.slint";
+
+export struct LocalTrackRow {
+    title: string,
+    artist: string,
+    codec: string,
+}
 
 component NavRow inherits Rectangle {
     in property <string> label;
@@ -41,10 +48,22 @@ export component MainWindow inherits Window {
     in-out property <bool> dark-mode: true;
     in-out property <string> theme-mode: "SYSTEM";
     in-out property <int> ui-scale-percent: 100;
+    in-out property <[LocalTrackRow]> local-tracks;
+    in-out property <bool> local-scanning: false;
+    in-out property <string> local-error: "";
+    in-out property <bool> has-local-track: false;
+    in-out property <string> playing-title: "";
+    in-out property <string> playing-artist: "";
+    in-out property <bool> local-playing: false;
+    in-out property <string> local-time: "0:00 / 0:00";
     callback navigate(string);
     callback toggle-theme();
     callback select-theme-mode(string);
     callback select-ui-scale(int);
+    callback play-local(int);
+    callback toggle-local-playback();
+    callback next-local-track();
+    callback previous-local-track();
 
     HorizontalLayout {
         spacing: 0px;
@@ -167,13 +186,87 @@ export component MainWindow inherits Window {
                         }
                     }
                 }
-                if root.current-page != "settings": Text {
+                if root.current-page == "local-music": VerticalLayout {
+                    spacing: 10px;
+                    Text {
+                        text: root.local-scanning ? "Scanning Music and Downloads…" : root.local-tracks.length + " songs";
+                        font-family: "SF Pro Display";
+                        font-size: 14px;
+                        color: root.dark-mode ? #8e8e93 : #596171;
+                    }
+                    if root.local-error != "": Text {
+                        text: root.local-error;
+                        font-family: "SF Pro Display";
+                        color: #fa586a;
+                    }
+                    ListView {
+                        vertical-stretch: 1;
+                        for track[index] in root.local-tracks: Rectangle {
+                                height: 60px;
+                                border-radius: 8px;
+                                background: touch.has-hover ? (root.dark-mode ? #323236 : #e4e8ef) : transparent;
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    spacing: 10px;
+                                    VerticalLayout {
+                                        Text {
+                                            text: track.title;
+                                            font-family: "SF Pro Display";
+                                            font-size: 14px;
+                                            font-weight: 600;
+                                            color: root.dark-mode ? #ffffff : #1b1c20;
+                                            overflow: elide;
+                                        }
+                                        Text {
+                                            text: track.artist;
+                                            font-family: "SF Pro Display";
+                                            font-size: 12px;
+                                            color: root.dark-mode ? #8e8e93 : #596171;
+                                            overflow: elide;
+                                        }
+                                    }
+                                    Text {
+                                        text: track.codec;
+                                        font-size: 11px;
+                                        color: root.dark-mode ? #8e8e93 : #596171;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                touch := TouchArea { clicked => { root.play-local(index); } }
+                        }
+                    }
+                }
+                if root.current-page != "settings" && root.current-page != "local-music": Text {
                     text: "Native Rust foundation — this page is not yet ported.";
                     font-family: "SF Pro Display";
                     font-size: 14px;
                     color: root.dark-mode ? #8e8e93 : #596171;
                 }
-                Rectangle { vertical-stretch: 1; background: transparent; }
+                if root.current-page != "local-music": Rectangle { vertical-stretch: 1; background: transparent; }
+                if root.has-local-track: Rectangle {
+                    height: 74px;
+                    border-radius: 12px;
+                    background: root.dark-mode ? #323236 : #e4e8ef;
+                    HorizontalLayout {
+                        padding-left: 16px;
+                        padding-right: 16px;
+                        spacing: 16px;
+                        VerticalLayout {
+                            Text { text: root.playing-title; font-family: "SF Pro Display"; font-size: 14px; font-weight: 600; color: root.dark-mode ? #ffffff : #1b1c20; overflow: elide; }
+                            Text { text: root.playing-artist; font-family: "SF Pro Display"; font-size: 12px; color: root.dark-mode ? #8e8e93 : #596171; overflow: elide; }
+                        }
+                        Text {
+                            text: root.local-time;
+                            vertical-alignment: center;
+                            color: root.dark-mode ? #8e8e93 : #596171;
+                            font-size: 12px;
+                        }
+                        Rectangle { width: 34px; Text { text: "⏮"; vertical-alignment: center; horizontal-alignment: center; color: root.dark-mode ? #ffffff : #1b1c20; } TouchArea { clicked => { root.previous-local-track(); } } }
+                        Rectangle { width: 34px; Text { text: root.local-playing ? "⏸" : "▶"; vertical-alignment: center; horizontal-alignment: center; color: root.dark-mode ? #ffffff : #1b1c20; } TouchArea { clicked => { root.toggle-local-playback(); } } }
+                        Rectangle { width: 34px; Text { text: "⏭"; vertical-alignment: center; horizontal-alignment: center; color: root.dark-mode ? #ffffff : #1b1c20; } TouchArea { clicked => { root.next-local-track(); } } }
+                    }
+                }
             }
         }
     }

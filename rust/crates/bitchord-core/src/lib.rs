@@ -1,5 +1,6 @@
 //! UI-independent application state for the native desktop.
 
+pub mod local_music;
 pub mod settings;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

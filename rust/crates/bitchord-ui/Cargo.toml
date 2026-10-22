@@ -7,6 +7,7 @@ build = "build.rs"
 
 [dependencies]
 bitchord-core = { path = "../bitchord-core" }
+bitchord-audio = { path = "../bitchord-audio" }
 slint.workspace = true
 tracing.workspace = true
 

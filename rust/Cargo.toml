@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/bitchord-app", "crates/bitchord-core", "crates/bitchord-ui"]
+members = ["crates/bitchord-app", "crates/bitchord-audio", "crates/bitchord-core", "crates/bitchord-ui"]
 resolver = "2"
 
 [workspace.package]

@@ -364,6 +364,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "bitchord-audio"
+version = "0.1.0"
+dependencies = [
+ "om-fork-miniaudio",
+ "tempfile",
+]
+
+[[package]]
 name = "bitchord-core"
 version = "0.1.0"
 dependencies = [
@@ -371,12 +379,14 @@ dependencies = [
  "directories",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
 name = "bitchord-ui"
 version = "0.1.0"
 dependencies = [
+ "bitchord-audio",
  "bitchord-core",
  "fontique",
  "i-slint-backend-testing",
@@ -2943,6 +2953,27 @@ dependencies = [
  "objc2 0.5.3",
  "objc2-core-location",
  "objc2-foundation 0.2.2",
+]
+
+[[package]]
+name = "om-fork-ep-miniaudio-sys"
+version = "2.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b15275d28e354c1e3665940e8bd668817d6a6bafb6bdcb3860b49acf9358281f"
+dependencies = [
+ "bitflags 2.13.2",
+ "cc",
+ "libc",
+]
+
+[[package]]
+name = "om-fork-miniaudio"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dec79816e1fe9db8c435cb3efac5cf470c4e7bde239ebcac22742412878aaeff"
+dependencies = [
+ "bitflags 2.13.2",
+ "om-fork-ep-miniaudio-sys",
 ]
 
 [[package]]
