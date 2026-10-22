@@ -520,6 +520,7 @@ fun BitChordDesktopApp() {
     var personalPositionStash by remember { mutableStateOf(0L) }
     var personalPlayingStash by remember { mutableStateOf(false) }
     val persistence = remember { DesktopPersistence() }
+    val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
     var query by remember { mutableStateOf("") }
     var searchFilter by remember { mutableStateOf(SearchFilter.ALL) }
@@ -3260,7 +3261,7 @@ fun BitChordDesktopApp() {
                         accountName = activeAccount?.name?.takeIf(String::isNotBlank) ?: "Sign in",
                         accountAvatar = activeAccount?.avatar
                             ?: activeAccount?.profiles?.firstOrNull()?.avatar,
-                        showAccountInSidebar = true,
+                        showAccountInSidebar = !oldTopPlayerEnabled,
                         onOpenAccounts = {
                             DesktopTrackLog.log("accounts: opening the switcher")
                             overlays.accounts = true
@@ -3271,11 +3272,57 @@ fun BitChordDesktopApp() {
                         onOpenSettings = ::openSettings,
                     )
                 },
+                topBar = { compact ->
+                    if (oldTopPlayerEnabled) {
+                        DesktopTopBar(
+                            compact = compact,
+                            song = selectedSong,
+                            isPlaying = playback.isPlaying,
+                            isLoading = playback.isLoading,
+                            previousEnabled = liveQueue.hasPrevious || playback.positionMs > BACK_RESTARTS_AFTER_MS,
+                            progress = if (playback.durationMs > 0L) playback.positionMs.toFloat() / playback.durationMs.toFloat() else 0f,
+                            volume = playback.volume,
+                            shuffle = shuffle,
+                            repeatMode = repeatMode,
+                            onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+                            onPrevious = ::playPrevious,
+                            onNext = ::playNext,
+                            onShuffleChange = ::setShuffle,
+                            onRepeatModeChange = {
+                                repeatMode = it
+                                persistence.saveString("repeat_mode", it.name)
+                            },
+                            onOpenNowPlaying = {
+                                releaseShortcutTextFocus()
+                                overlays.nowPlaying = true
+                            },
+                            onVolumeChange = {
+                                volume = it
+                                persistence.saveString("volume", it.toString())
+                            },
+                            onOpenAudioOutput = { overlays.audioOutput = true },
+                            onOpenLyrics = {
+                                releaseShortcutTextFocus()
+                                overlays.toggleSidePanel(DesktopSidePanel.LYRICS)
+                            },
+                            onOpenQueue = {
+                                releaseShortcutTextFocus()
+                                overlays.toggleSidePanel(DesktopSidePanel.QUEUE)
+                            },
+                            sidePanel = overlays.sidePanel,
+                            accountAvatar = activeAccount?.avatar ?: activeAccount?.profiles?.firstOrNull()?.avatar,
+                            onOpenAccounts = { overlays.accounts = true },
+                            canGoBack = navHistory.isNotEmpty(),
+                            onBack = ::goBack,
+                        )
+                    }
+                },
                 bottomBar = { compact ->
                     DesktopBottomChrome(
                         compact = compact,
                         destination = destination,
                         settingsOpen = overlays.settingsPage != null,
+                        showPlayer = !oldTopPlayerEnabled,
                         song = selectedSong,
                         isPlaying = playback.isPlaying,
                         isLoading = playback.isLoading,
@@ -4802,6 +4849,7 @@ private fun DesktopBottomChrome(
     compact: Boolean,
     destination: DesktopDestination,
     settingsOpen: Boolean,
+    showPlayer: Boolean,
     song: Song?,
     isPlaying: Boolean,
     isLoading: Boolean,
@@ -4830,7 +4878,7 @@ private fun DesktopBottomChrome(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (song != null) {
+        if (showPlayer && song != null) {
             DesktopMiniPlayer(
                 song = song,
                 isPlaying = isPlaying,
@@ -5142,6 +5190,7 @@ private fun DesktopFrame(
     backdrop: @Composable (transparentBase: Boolean) -> Unit,
     sidebar: @Composable () -> Unit,
     bottomBar: @Composable (Boolean) -> Unit,
+    topBar: @Composable (Boolean) -> Unit,
     /** The column on the far side of the page — the lyrics or the queue, when one is open. */
     trailing: @Composable () -> Unit = {},
     overlay: @Composable () -> Unit = {},
@@ -5149,6 +5198,7 @@ private fun DesktopFrame(
 ) {
     // Held out here rather than inside the constraints box.
     val haze = remember { HazeState() }
+    val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
     // The decorated peer and Compose client remain opaque. DWM styling affects the native caption.
     CompositionLocalProvider(LocalDesktopHaze provides haze) {
         Box(modifier.fillMaxSize().background(containerColor)) {
@@ -5163,6 +5213,7 @@ private fun DesktopFrame(
                         Row(Modifier.fillMaxSize()) {
                             if (!compact) sidebar()
                             Column(Modifier.weight(1f).fillMaxHeight()) {
+                            topBar(compact)
                             Row(Modifier.fillMaxWidth().weight(1f)) {
                                 Box(
                                     Modifier
@@ -5176,7 +5227,9 @@ private fun DesktopFrame(
                                                 end = 0.dp,
                                                 // Room for the bar that floats over this, so the
                                                 // last row can still be scrolled clear of it.
-                                                bottom = 112.dp,
+                                                bottom = if (oldTopPlayerEnabled) {
+                                                    if (compact) 104.dp else 16.dp
+                                                } else 112.dp,
                                             ),
                                         )
                                     }
@@ -6217,6 +6270,13 @@ private fun DesktopSettingsScreen(
             if (section == DesktopSettingsSection.APPEARANCE) item {
                 SettingsGroup(DesktopStrings["appearance", "Appearance"]) {
                     val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+                    val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
+                    SettingsToggle(
+                        "Enable old top music player style",
+                        "Use the original desktop top player instead of the new floating bottom player",
+                        oldTopPlayerEnabled,
+                        DesktopAppearanceSettings::setEnableOldTopMusicPlayerStyle,
+                    )
                     SettingsToggle(
                         DesktopStrings["reduce_dynamic_blur", "Reduce dynamic blur"],
                         DesktopStrings["reduce_dynamic_blur_subtitle", "Swaps frosted glass for solid fills across the app"],
