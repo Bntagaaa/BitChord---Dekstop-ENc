@@ -530,6 +530,10 @@ fun BitChordDesktopApp() {
     var personalQueueStash by remember { mutableStateOf<DesktopQueue?>(null) }
     var personalPositionStash by remember { mutableStateOf(0L) }
     var personalPlayingStash by remember { mutableStateOf(false) }
+    // Read before any settings migration can seed an otherwise empty Preferences node.
+    var showFirstLaunchWelcome by remember { mutableStateOf(DesktopWelcomeOnboarding.shouldShowOnStartup()) }
+    var welcomeBusy by remember { mutableStateOf<String?>(null) }
+    var welcomeError by remember { mutableStateOf<String?>(null) }
     val persistence = remember { DesktopPersistence() }
     val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
@@ -944,6 +948,7 @@ fun BitChordDesktopApp() {
             activeProfileId = DesktopAccounts.activeProfileId()
             overlays.signIn = false
             overlays.accounts = false
+            sessionRevision++
         } finally {
             signInBusy = null
         }
@@ -3094,7 +3099,7 @@ fun BitChordDesktopApp() {
         partySyncHolder[0]?.onLocalIntent()
     }
 
-    val shortcutBlockedByModal = overlays.accounts || overlays.signIn || overlays.playlistDialog ||
+    val shortcutBlockedByModal = showFirstLaunchWelcome || overlays.accounts || overlays.signIn || overlays.playlistDialog ||
         playlistTarget != null || overlays.rename || overlays.delete || overlays.downloadManager ||
         overlays.lastfmLogin || overlays.listenBrainzToken || overlays.discordToken ||
         overlays.listenTogether || overlays.audioOutput || overlays.pipeline || playerMenuOpen
@@ -3899,6 +3904,71 @@ fun BitChordDesktopApp() {
                             focusRequester = quickSearchFocusRequester,
                             onSelect = { selectQuickSearchResult(it, keepOpen = false) },
                             onDismiss = ::dismissQuickSearch,
+                        )
+                    }
+                    if (showFirstLaunchWelcome) {
+                        DesktopWelcomeScreen(
+                            youtubeConnected = accounts.isNotEmpty(),
+                            spotifyConnected = spotifyCanvasCookie.isNotBlank(),
+                            busy = welcomeBusy,
+                            error = welcomeError,
+                            onYouTube = {
+                                if (welcomeBusy == null) {
+                                    welcomeBusy = "youtube"
+                                    welcomeError = null
+                                    scope.launch {
+                                        try {
+                                            // Use the same Chrome/Edge capture and account validation
+                                            // already used by Settings. JavaFX remains the fallback.
+                                            val browser = interactiveSignInBrowser
+                                            val cookie = if (browser != null) {
+                                                DesktopBrowserSignIn.capture(browser)
+                                            } else {
+                                                DesktopWebSignIn.captureYouTube()
+                                            }
+                                            signIn(cookie, browser?.label ?: "YouTube Music")
+                                            if (signInError != null || accounts.isEmpty()) {
+                                                welcomeError = signInError ?: "Could not connect YouTube Music."
+                                            }
+                                        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                            welcomeError = "YouTube Music sign-in was cancelled. You can retry."
+                                        } catch (failure: Exception) {
+                                            welcomeError = failure.message ?: "Could not connect YouTube Music."
+                                        } finally {
+                                            welcomeBusy = null
+                                        }
+                                    }
+                                }
+                            },
+                            onSpotify = {
+                                if (welcomeBusy == null) {
+                                    welcomeBusy = "spotify"
+                                    welcomeError = null
+                                    scope.launch {
+                                        try {
+                                            val captured = DesktopWebSignIn.captureSpotify()
+                                            if (captured.isBlank()) error("Spotify did not return a session.")
+                                            DesktopSpotifyToken.setCookie(captured)
+                                            DesktopSpotifyLibraryAuth.invalidate()
+                                            spotifyCanvasCookie = captured
+                                            spotifyReloads++
+                                        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                            welcomeError = "Spotify sign-in was cancelled. You can retry."
+                                        } catch (failure: Exception) {
+                                            welcomeError = failure.message ?: "Could not connect Spotify."
+                                        } finally {
+                                            welcomeBusy = null
+                                        }
+                                    }
+                                }
+                            },
+                            onFinish = {
+                                if (welcomeBusy == null) {
+                                    DesktopWelcomeOnboarding.markCompleted()
+                                    showFirstLaunchWelcome = false
+                                    welcomeError = null
+                                }
+                            },
                         )
                     }
                 },
