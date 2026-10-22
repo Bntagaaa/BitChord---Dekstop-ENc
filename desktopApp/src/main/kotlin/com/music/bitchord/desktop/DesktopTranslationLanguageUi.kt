@@ -65,7 +65,7 @@ internal fun DesktopTranslationLanguageDialog(onDismiss: () -> Unit) {
             Text(
                 DesktopStrings["translation_language", "Translation language"],
                 style = MaterialTheme.typography.titleLarge,
-                color = Color.White,
+                color = DesktopForeground,
             )
             Text(
                 DesktopStrings["d_what_the_translate_button_translates_into", "What the translate button on the lyrics translates into"],
@@ -107,7 +107,7 @@ internal fun DesktopTranslationLanguageDialog(onDismiss: () -> Unit) {
 
         Row(Modifier.fillMaxWidth().padding(horizontal = panelInset(20.dp), vertical = 14.dp)) {
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text(DesktopStrings["done", "Done"], color = Color.White) }
+            TextButton(onClick = onDismiss) { Text(DesktopStrings["done", "Done"], color = DesktopForeground) }
         }
     }
 }
@@ -121,7 +121,7 @@ private fun LanguageRow(name: String, detail: String, selected: Boolean, onClick
             // On a page the row's text sits on the gutter, where a band would have no edge to it;
             // the tick says which is chosen.
             .background(
-                if (selected && !LocalDesktopPanelIsPage.current) Color.White.copy(alpha = 0.06f) else Color.Transparent,
+                if (selected && !LocalDesktopPanelIsPage.current) DesktopForeground.copy(alpha = 0.06f) else Color.Transparent,
             )
             .padding(horizontal = panelInset(20.dp), vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -131,7 +131,7 @@ private fun LanguageRow(name: String, detail: String, selected: Boolean, onClick
                 name,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                color = Color.White,
+                color = DesktopForeground,
             )
             Text(detail, style = MaterialTheme.typography.bodySmall, color = DesktopSecondary)
         }
