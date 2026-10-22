@@ -330,6 +330,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.system.exitProcess
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -373,7 +374,7 @@ private val LocalDesktopHaze = staticCompositionLocalOf<HazeState?> { null }
 private val LocalDesktopBottomInset = staticCompositionLocalOf { 0.dp }
 
 /** Android's own edge on these bars: `Color.White.copy(alpha = 0.10f)`. */
-private val DesktopBarEdge = Color(0x1AFFFFFF)
+internal val DesktopBarEdge = Color(0x1AFFFFFF)
 internal val DesktopAccent = Color.White
 
 /** Deleting, signing out, and anything that failed — the one place a colour survives, as on Android. */
@@ -532,18 +533,21 @@ fun BitChordDesktopApp() {
     val persistence = remember { DesktopPersistence() }
     val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
-    var query by remember { mutableStateOf("") }
-    var searchFilter by remember { mutableStateOf(SearchFilter.ALL) }
-    var searchRows by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
+    val searchSession = remember { DesktopSearchSession<SearchResult>() }
+    val query by searchSession.query
+    var searchFilter by searchSession.filter
+    val searchRows by searchSession.rows
+    var searchJob by remember { mutableStateOf<Job?>(null) }
+    val fullSearchHaze = remember { HazeState() }
     // What has been searched before, and what YouTube thinks is being typed.
     val searchHistory by DesktopSearchHistory.recent.collectAsState()
     // Whether anything has been searched for since the field was last emptied: until then the
     // page shows recent searches rather than a result set.
-    var searchCommitted by remember { mutableStateOf(false) }
+    val searchCommitted by searchSession.committed
     var searchScrollReset by remember { mutableStateOf(0) }
     var searchFocusRequested by remember { mutableStateOf(false) }
     // A typed query alone must never keep its dropdown open after Search loses focus.
-    var searchInputFocused by remember { mutableStateOf(false) }
+    val searchInputFocused by searchSession.inputFocused
     var shortcutEditorFocused by remember { mutableStateOf(false) }
     val shortcutDispatcher = remember { DesktopShortcutDispatcher() }
     val quickSearchState = remember { DesktopQuickSearchState<SearchResult> { quickSearchEntryKey(it) } }
@@ -564,10 +568,10 @@ fun BitChordDesktopApp() {
     // Playable rows for the half-typed query, shown under the text completions.
     var searchTypeahead by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
     // False while the query is being set *by* the app.
-    var searchTyping by remember { mutableStateOf(false) }
-    var searchLoading by remember { mutableStateOf(false) }
-    var searchRequestGeneration by remember { mutableStateOf(0) }
-    var searchError by remember { mutableStateOf<String?>(null) }
+    var searchTyping by searchSession.typing
+    val searchLoading by searchSession.loading
+    val searchRequestGeneration by searchSession.generation
+    val searchError by searchSession.error
     var homeState by remember { mutableStateOf<UiState<List<HomeShelf>>>(UiState.Loading) }
     // The home feed is paged: `FEmusic_home` answers with a couple of shelves and a token, and
     // everything else arrives by following it.
@@ -2197,33 +2201,13 @@ fun BitChordDesktopApp() {
 
     /** Typing, from the page's field or the sidebar's: the typeahead follows, and an empty field goes back to recents. */
     fun editQuery(text: String) {
-        // Editing invalidates any request for the previous query. Keep the same field mounted and
-        // return to the browse landing so suggestions can float over the category grid.
-        searchRequestGeneration++
-        searchLoading = false
+        searchJob?.cancel()
+        searchSession.edit(text)
         searchSuggestions = emptyList()
         searchTypeahead = emptyList()
-        query = text
-        searchTyping = true
-        searchCommitted = false
-        if (text.isBlank()) {
-            searchRows = emptyList()
-            searchError = null
-        }
     }
 
     fun search() {
-        if (query.isBlank()) return
-        // A newer query/filter replaces the pending request; generation guards discard stale responses.
-        overlays.settingsPage = null
-        destination = DesktopDestination.SEARCH
-        searchTyping = false
-        searchSuggestions = emptyList()
-        val submittedQuery = query
-        val submittedFilter = searchFilter
-        val requestGeneration = ++searchRequestGeneration
-        // Submitting is picking the first track the typeahead offered, as on the phone — or, with
-        // none, the first the results bring back.
         val typedHit = searchTypeahead.firstNotNullOfOrNull { row ->
             when (row) {
                 is SearchResult.TopTrack -> row.song
@@ -2231,81 +2215,81 @@ fun BitChordDesktopApp() {
                 else -> null
             }
         }
+        val request = searchSession.submit() ?: return
         typedHit?.let(::recordSongSearch)
-        searchCommitted = true
+        searchJob?.cancel()
+        overlays.settingsPage = null
+        selectedMoodGenre = null
+        openedArtist = null
+        openedCollection = null
+        destination = DesktopDestination.SEARCH
+        searchSuggestions = emptyList()
+        searchTypeahead = emptyList()
+        searchFocusRequested = false
         searchScrollReset++
-        searchLoading = true
-        searchError = null
-        scope.launch {
+        searchJob = scope.launch {
             try {
-                DesktopMusicSources.search(submittedQuery, submittedFilter).fold(
+                val result = DesktopMusicSources.search(request.query, request.filter)
+                currentCoroutineContext().ensureActive()
+                result.fold(
                     onSuccess = { rows ->
-                        if (requestGeneration == searchRequestGeneration) {
-                            searchRows = rows
-                            if (typedHit == null) {
-                                rows.firstNotNullOfOrNull { row ->
-                                    when (row) {
-                                        is SearchResult.TopTrack -> row.song
-                                        is SearchResult.Track -> row.song
-                                        else -> null
-                                    }
-                                }?.let(::recordSongSearch)
-                            }
+                        if (searchSession.complete(request, rows)) {
+                            if (typedHit == null) rows.firstNotNullOfOrNull { row ->
+                                when (row) {
+                                    is SearchResult.TopTrack -> row.song
+                                    is SearchResult.Track -> row.song
+                                    else -> null
+                                }
+                            }?.let(::recordSongSearch)
                         }
                     },
-                    onFailure = {
-                        if (requestGeneration == searchRequestGeneration) {
-                            searchError = it.message ?: "Search failed"
-                        }
-                    },
+                    onFailure = { searchSession.fail(request, it.message ?: "Search failed") },
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (failure: Throwable) {
-                if (requestGeneration == searchRequestGeneration) {
-                    searchError = failure.message ?: "Search failed"
-                }
-            } finally {
-                // Older requests must never clear the loading state of a newer query.
-                if (requestGeneration == searchRequestGeneration) searchLoading = false
+            } catch (failure: Exception) {
+                searchSession.fail(request, failure.message ?: "Search failed")
             }
         }
     }
 
     /** The typeahead, one request behind the keystrokes rather than one per. */
-    LaunchedEffect(query, searchTyping) {
+    LaunchedEffect(query, searchTyping, searchRequestGeneration) {
         if (!searchTyping || query.isBlank()) {
             searchSuggestions = emptyList()
             return@LaunchedEffect
         }
         val requestedQuery = query
+        val requestedGeneration = searchRequestGeneration
         delay(SUGGESTION_DEBOUNCE_MS)
         if (!searchTyping || query != requestedQuery) return@LaunchedEffect
-        DesktopSearchClient.searchSuggestions(requestedQuery)
-            .onSuccess { if (searchTyping && query == requestedQuery) searchSuggestions = it }
-            .onFailure { if (searchTyping && query == requestedQuery) searchSuggestions = emptyList() }
+        val response = DesktopSearchClient.searchSuggestions(requestedQuery)
+        currentCoroutineContext().ensureActive()
+        response
+            .onSuccess { if (searchTyping && query == requestedQuery && searchRequestGeneration == requestedGeneration) searchSuggestions = it }
+            .onFailure { if (searchTyping && query == requestedQuery && searchRequestGeneration == requestedGeneration) searchSuggestions = emptyList() }
     }
 
     // Its own pass, on its own delay: a search costs far more than a completion, so it waits for a
     // longer pause in the typing rather than riding the same one.
-    LaunchedEffect(query, searchTyping) {
+    LaunchedEffect(query, searchTyping, searchRequestGeneration) {
         if (!searchTyping || query.isBlank()) {
             searchTypeahead = emptyList()
             return@LaunchedEffect
         }
         val requestedQuery = query
+        val requestedGeneration = searchRequestGeneration
         delay(TYPEAHEAD_MEDIA_DEBOUNCE_MS)
         if (!searchTyping || query != requestedQuery) return@LaunchedEffect
-        DesktopSearchClient.searchTypeahead(requestedQuery)
-            .onSuccess { if (searchTyping && query == requestedQuery) searchTypeahead = it.take(TYPEAHEAD_MEDIA_LIMIT) }
-            .onFailure { if (searchTyping && query == requestedQuery) searchTypeahead = emptyList() }
+        val response = DesktopSearchClient.searchTypeahead(requestedQuery)
+        currentCoroutineContext().ensureActive()
+        response
+            .onSuccess { if (searchTyping && query == requestedQuery && searchRequestGeneration == requestedGeneration) searchTypeahead = it.take(TYPEAHEAD_MEDIA_LIMIT) }
+            .onFailure { if (searchTyping && query == requestedQuery && searchRequestGeneration == requestedGeneration) searchTypeahead = emptyList() }
     }
 
     fun runSearch(term: String) {
-        query = term
-        searchTyping = false
-        searchSuggestions = emptyList()
-        searchTypeahead = emptyList()
+        editQuery(term)
         search()
     }
 
@@ -2357,6 +2341,8 @@ fun BitChordDesktopApp() {
 
     fun selectDestination(next: DesktopDestination) {
         val page = if (next == DesktopDestination.EXPLORE) DesktopDestination.SEARCH else next
+        val alreadyOnSearch = destination == DesktopDestination.SEARCH && selectedMoodGenre == null &&
+            openedArtist == null && openedCollection == null && overlays.settingsPage == null
         if (page != DesktopDestination.SEARCH) releaseShortcutTextFocus()
         if (page == DesktopDestination.LIBRARY && libraryStale) {
             libraryStale = false
@@ -2369,11 +2355,12 @@ fun BitChordDesktopApp() {
         selectedMoodGenre = null
         libraryShowAll = null
         if (page == DesktopDestination.SEARCH) {
-            query = ""
-            searchCommitted = false
-            searchTyping = false
-            searchSuggestions = emptyList()
-            searchTypeahead = emptyList()
+            if (!alreadyOnSearch) {
+                searchJob?.cancel()
+                searchSession.reset()
+                searchSuggestions = emptyList()
+                searchTypeahead = emptyList()
+            }
             searchFocusRequested = true
         }
         destination = page
@@ -3261,11 +3248,17 @@ fun BitChordDesktopApp() {
                 containerColor = DesktopBackground,
                 // Only Replay dresses itself; everywhere else the chrome sits on the plain surface.
                 backdrop = { transparentBase ->
-                    DesktopPageBackdrop(
-                        artworkUrl = replaySummary.songs.firstOrNull()?.song?.thumbnailUrl
-                            .takeIf { overlays.replay },
-                        transparentBase = transparentBase,
-                    )
+                    Box(Modifier.fillMaxSize().then(
+                        if (destination == DesktopDestination.SEARCH) {
+                            Modifier.hazeSource(fullSearchHaze, zIndex = -1f)
+                        } else Modifier,
+                    )) {
+                        DesktopPageBackdrop(
+                            artworkUrl = replaySummary.songs.firstOrNull()?.song?.thumbnailUrl
+                                .takeIf { overlays.replay },
+                            transparentBase = transparentBase,
+                        )
+                    }
                 },
                 modifier = Modifier
                     .focusRequester(shortcutRootFocusRequester)
@@ -4420,13 +4413,9 @@ fun BitChordDesktopApp() {
                                         onQueryChange = ::editQuery,
                                         onSearch = ::search,
                                         focusRequester = focusRequester,
+                                        searchHaze = fullSearchHaze,
                                         onFocusChanged = { focused ->
-                                            searchInputFocused = focused
-                                            // A click back into a partially typed query reopens
-                                            // fresh suggestions without requiring another keystroke.
-                                            if (focused && !searchCommitted && query.isNotBlank()) {
-                                                searchTyping = true
-                                            }
+                                            searchSession.focus(focused)
                                         },
                                         modifier = Modifier.widthIn(max = 540.dp).padding(horizontal = 24.dp),
                                         placeholder = "Artists, Songs, Lyrics, and More",
@@ -4440,22 +4429,17 @@ fun BitChordDesktopApp() {
                                 // Observe, don't consume, the click: the first press may also
                                 // open a mood card or scroll the Explore landing underneath.
                                 if (searchInputFocused || searchTyping) {
-                                    searchInputFocused = false
-                                    searchTyping = false
+                                    searchSession.focus(false)
                                     searchSuggestions = emptyList()
                                     searchTypeahead = emptyList()
                                     searchFocusRequested = false
                                     releaseShortcutTextFocus()
                                 }
                             },
-                            // Decorate *behind* the results. A nearly-opaque Surface here would
-                            // cover the Haze output and make "blur on" look the same as "blur off".
-                            landingPanelDecoration = if (searchBlurReduced) {
-                                Modifier.background(Color(0xFF27272B), RoundedCornerShape(14.dp))
-                                    .border(0.5.dp, DesktopBarEdge, RoundedCornerShape(14.dp))
-                            } else {
-                                Modifier.desktopBarGlass(RoundedCornerShape(14.dp))
-                            },
+                            landingContentModifier = Modifier.hazeSource(fullSearchHaze),
+                            landingPanelDecoration = Modifier.desktopSearchGlass(
+                                fullSearchHaze, RoundedCornerShape(14.dp), searchBlurReduced,
+                            ),
                             landingPanelColor = Color.Transparent,
                             landingContent = {
                                 ExploreScreen(
@@ -5337,12 +5321,15 @@ internal fun DesktopSearchField(
     onFocusChanged: (Boolean) -> Unit = {},
     placeholder: String = "Search",
     pill: Boolean = false,
+    searchHaze: HazeState? = null,
 ) {
     val searchShape = if (pill) RoundedCornerShape(percent = 50) else RoundedCornerShape(7.dp)
     val onShortcutFocusChanged = LocalDesktopShortcutTextFocus.current
     val shortcutModalVisible = LocalDesktopShortcutModalVisible.current
     val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
-    val searchSurface = if (reduceDynamicBlur) {
+    val searchSurface = if (searchHaze != null) {
+        Modifier.desktopSearchGlass(searchHaze, searchShape, reduceDynamicBlur)
+    } else if (reduceDynamicBlur) {
         Modifier.background(Color(0xFF27272B), searchShape)
             .border(1.dp, Color.White.copy(alpha = 0.10f), searchShape)
     } else {

@@ -168,6 +168,8 @@ fun SearchScreen(
     /** Keep the browse landing mounted while editing, so the input never loses focus on empty/non-empty transitions. */
     showLanding: Boolean = false,
     landingContent: (@Composable () -> Unit)? = null,
+    /** Capture only the landing, excluding its sibling field and suggestion surface. */
+    landingContentModifier: Modifier = Modifier,
     /** Desktop supplies its frosted/solid surface, following the existing Remove Blur switch. */
     landingPanelDecoration: Modifier = Modifier,
     landingPanelColor: Color = Color(0xFF27272B),
@@ -279,7 +281,7 @@ fun SearchScreen(
                 // Keep the browse landing visible and interactive even while typing.
                 // Observing Initial-pass presses lets the first click reach a mood card
                 // while the Search field simultaneously releases keyboard focus.
-                Box(Modifier.matchParentSize().then(outsidePressObserver)) {
+                Box(Modifier.matchParentSize().then(landingContentModifier).then(outsidePressObserver)) {
                     landingContent()
                 }
                 if (suggesting && query.isNotBlank() && (suggestions.size > 1 || showTypeahead)) {
@@ -294,7 +296,12 @@ fun SearchScreen(
                             Surface(
                                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                                     .clip(RoundedCornerShape(14.dp))
-                                    .then(landingPanelDecoration),
+                                    .then(landingPanelDecoration)
+                                    // Give the whole panel a hit target so gaps between suggestions
+                                    // cannot click category cards behind it. Child rows keep their taps.
+                                    .pointerInput(Unit) {
+                                        awaitEachGesture { awaitFirstDown(requireUnconsumed = false) }
+                                    },
                                 shape = RoundedCornerShape(14.dp),
                                 color = landingPanelColor,
                                 shadowElevation = 12.dp,
