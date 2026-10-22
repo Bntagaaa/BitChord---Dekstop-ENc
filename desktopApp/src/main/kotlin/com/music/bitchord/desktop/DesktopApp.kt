@@ -2213,7 +2213,8 @@ fun BitChordDesktopApp() {
     }
 
     fun search() {
-        if (query.isBlank() || searchLoading) return
+        if (query.isBlank()) return
+        // A newer query/filter replaces the pending request; generation guards discard stale responses.
         overlays.settingsPage = null
         destination = DesktopDestination.SEARCH
         searchTyping = false
@@ -4447,16 +4448,15 @@ fun BitChordDesktopApp() {
                                     releaseShortcutTextFocus()
                                 }
                             },
+                            // Decorate *behind* the results. A nearly-opaque Surface here would
+                            // cover the Haze output and make "blur on" look the same as "blur off".
                             landingPanelDecoration = if (searchBlurReduced) {
-                                Modifier.clip(RoundedCornerShape(14.dp))
+                                Modifier.background(Color(0xFF27272B), RoundedCornerShape(14.dp))
                                     .border(0.5.dp, DesktopBarEdge, RoundedCornerShape(14.dp))
                             } else {
-                                Modifier.clip(RoundedCornerShape(14.dp))
-                                    .desktopBarGlass(RoundedCornerShape(14.dp))
+                                Modifier.desktopBarGlass(RoundedCornerShape(14.dp))
                             },
-                            // Never use a fully transparent Surface: result text must stay above
-                            // the artwork/mood grid instead of bleeding through the frosted pane.
-                            landingPanelColor = if (searchBlurReduced) Color(0xFF27272B) else Color(0xE827272B),
+                            landingPanelColor = Color.Transparent,
                             landingContent = {
                                 ExploreScreen(
                                     state = exploreState,
@@ -5381,9 +5381,13 @@ internal fun DesktopSearchField(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         BitChordIcons.Search,
-                        contentDescription = null,
+                        contentDescription = "Search",
                         tint = DesktopSecondary,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onSearch() }
+                            .padding(3.dp),
                     )
                     Spacer(Modifier.width(8.dp))
                     Box(Modifier.weight(1f)) {
