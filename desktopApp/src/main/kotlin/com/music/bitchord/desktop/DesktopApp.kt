@@ -524,7 +524,7 @@ private enum class DesktopRepeatMode {
 }
 
 @Composable
-fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) {
+internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) {
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val shortcutRootFocusRequester = remember { FocusRequester() }
