@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
@@ -19,9 +20,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.music.bitchord.ui.screens.LibraryGridPage
+import com.music.bitchord.sharedui.resources.Res as SharedUiRes
+import com.music.bitchord.sharedui.resources.spotify_logo
+import org.jetbrains.compose.resources.painterResource
 
 import com.music.bitchord.data.model.SPOTIFY_MISSING_PREFIX
 import com.music.bitchord.data.model.SPOTIFY_PENDING_PREFIX
@@ -173,6 +178,12 @@ internal fun DesktopSpotifyLibraryPage(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Icon(
+                painter = painterResource(SharedUiRes.drawable.spotify_logo),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.height(32.dp),
+            )
             Text("Spotify", style = MaterialTheme.typography.headlineLarge)
             Spacer(Modifier.weight(1f))
             TextButton(onClick = onManageAccount) {
