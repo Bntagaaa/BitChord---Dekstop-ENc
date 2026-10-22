@@ -5341,13 +5341,19 @@ internal fun DesktopSearchField(
     val searchShape = if (pill) RoundedCornerShape(percent = 50) else RoundedCornerShape(7.dp)
     val onShortcutFocusChanged = LocalDesktopShortcutTextFocus.current
     val shortcutModalVisible = LocalDesktopShortcutModalVisible.current
+    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+    val searchSurface = if (reduceDynamicBlur) {
+        Modifier.background(Color(0xFF27272B), searchShape)
+            .border(1.dp, Color.White.copy(alpha = 0.10f), searchShape)
+    } else {
+        Modifier.desktopBarGlass(searchShape)
+    }
     Box(
         modifier
             .fillMaxWidth()
             .height(if (pill) 42.dp else 36.dp)
             .clip(searchShape)
-            .background(Color.White.copy(alpha = 0.07f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), searchShape)
+            .then(searchSurface)
             .clickable { focusRequester.requestFocus() }
             .padding(horizontal = 9.dp),
         contentAlignment = Alignment.CenterStart,
