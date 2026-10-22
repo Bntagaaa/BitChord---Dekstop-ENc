@@ -55,6 +55,13 @@ internal fun DesktopSidePanelColumn(
     // Held through the exit, so the column slides out with what it had in it rather than empty.
     var shown by remember { mutableStateOf(panel) }
     if (panel != null) shown = panel
+    // Keep a fully opaque theme surface behind the lyrics/queue crossfade too.
+    // This prevents the page backdrop from showing through between animated panels.
+    val panelFill = if ((panel ?: shown) == DesktopSidePanel.LYRICS) {
+        DesktopTheme.palette.lyricsSurface
+    } else {
+        DesktopTheme.palette.sidebarSurface
+    }
     AnimatedVisibility(
         visible = panel != null,
         enter = expandHorizontally(tween(SLIDE_MS, easing = FastOutSlowInEasing), expandFrom = Alignment.Start) +
@@ -62,20 +69,20 @@ internal fun DesktopSidePanelColumn(
         exit = shrinkHorizontally(tween(SLIDE_MS, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Start) +
             fadeOut(tween(SLIDE_MS / 2)),
     ) {
-        Row(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight()) {
+        Row(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight().background(panelFill)) {
             Box(Modifier.width(1.dp).fillMaxHeight().background(DesktopDivider))
             Crossfade(
                 targetState = shown ?: return@Row,
                 animationSpec = tween(CROSSFADE_MS),
                 label = "sidePanel",
             ) { which ->
-                Box(Modifier.fillMaxSize()) {
-                    // The lyrics stand on the window itself, as in Apple Music; the queue is a list
-                    // and takes the sidebar's glass.
-                    Box(Modifier.fillMaxSize().background(
+                Box(
+                    Modifier.fillMaxSize().background(
                         if (which == DesktopSidePanel.LYRICS) DesktopTheme.palette.lyricsSurface
                         else DesktopTheme.palette.sidebarSurface,
-                    ))
+                    ),
+                ) {
+                    // Both lyrics and queue use solid, theme-aware fills with no Haze overlay.
                     Column(Modifier.fillMaxSize()) {
                         Row(
                             modifier = Modifier
