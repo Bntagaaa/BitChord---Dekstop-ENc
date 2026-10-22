@@ -84,7 +84,7 @@ internal fun DesktopSidePanelColumn(
                             // need a name over them.
                             Text(
                                 text = if (which == DesktopSidePanel.LYRICS) DesktopStrings["lyrics", "Lyrics"] else "",
-                                color = Color.White,
+                                color = DesktopForeground,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.weight(1f),
