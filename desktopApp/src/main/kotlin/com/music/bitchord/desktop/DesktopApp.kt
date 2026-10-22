@@ -3675,6 +3675,27 @@ fun BitChordDesktopApp() {
                             busy = signInBusy,
                             error = signInError,
                             interactiveBrowser = interactiveSignInBrowser,
+                            webSignInAvailable = DesktopWebSignIn.available,
+                            onWebSignIn = {
+                                browserSignInJob?.cancel()
+                                browserSignInJob = scope.launch {
+                                    signInError = null
+                                    signInBusy = "In-app YouTube Music"
+                                    try {
+                                        val cookie = DesktopWebSignIn.captureYouTube()
+                                        // Use the same verified account/session code as the existing
+                                        // Chrome/Edge path (including multi-profile selection).
+                                        signIn(cookie, "In-app YouTube Music")
+                                    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                        throw cancelled
+                                    } catch (failure: Exception) {
+                                        signInError = failure.message ?: "Could not complete in-app sign-in."
+                                    } finally {
+                                        signInBusy = null
+                                        browserSignInJob = null
+                                    }
+                                }
+                            },
                             onBrowserSignIn = { browser ->
                                 browserSignInJob?.cancel()
                                 browserSignInJob = scope.launch {
