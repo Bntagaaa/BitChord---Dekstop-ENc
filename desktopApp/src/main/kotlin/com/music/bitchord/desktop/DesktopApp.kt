@@ -5087,6 +5087,7 @@ private fun DesktopSidebar(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DesktopSidebarItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
