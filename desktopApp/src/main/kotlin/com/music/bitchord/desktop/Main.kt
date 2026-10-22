@@ -95,6 +95,17 @@ private fun desktopMain() = application {
     ) {
         val composeWindow = window
         val isDarkTheme = DesktopTheme.isDark
+        val playerFullscreen by DesktopWindowMode.fullScreen.collectAsState()
+        // Windows keeps its already-created, decorated Skiko peer. Rather than switching to
+        // Compose's white-screen-prone Fullscreen placement, remove only the native frame.
+        LaunchedEffect(composeWindow, playerFullscreen) {
+            if (DesktopPlatform.isWindows &&
+                !DesktopWindowsPlayerFullscreen.set(composeWindow, playerFullscreen)
+            ) {
+                DesktopTrackLog.log("Could not switch the Windows player fullscreen mode")
+                if (playerFullscreen) DesktopWindowMode.exit()
+            }
+        }
         // System mode follows changes while the app remains open. Native probes run off the UI thread.
         LaunchedEffect(Unit) {
             while (true) {
@@ -116,7 +127,11 @@ private fun desktopMain() = application {
             }
         }
         DisposableEffect(composeWindow) {
-            onDispose { DesktopWindowsCaptionAppearance.detach(composeWindow) }
+            onDispose {
+                // Never leave a modified Win32 window style behind after the Compose peer goes.
+                DesktopWindowsPlayerFullscreen.set(composeWindow, false)
+                DesktopWindowsCaptionAppearance.detach(composeWindow)
+            }
         }
         LaunchedEffect(raiseRequest) {
             if (raiseRequest == 0L) return@LaunchedEffect
