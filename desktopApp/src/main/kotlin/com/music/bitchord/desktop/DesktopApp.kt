@@ -999,7 +999,7 @@ fun BitChordDesktopApp() {
                 if (match == null) {
                     DesktopPlayerHost.showMessage("Could not find ${spotify.title} on YouTube Music")
                     val current = openedCollection
-                    if (current?.browseId == playlistIdAtTap) {
+                    if (current != null && current.browseId == playlistIdAtTap) {
                         val remaining = current.songs.toMutableList()
                         val position = remaining.indexOfFirst { it.videoId == selected.videoId }
                         if (position >= 0) {
@@ -1013,7 +1013,7 @@ fun BitChordDesktopApp() {
                 val playable = match.copy(thumbnailUrl = match.thumbnailUrl ?: spotify.imageUrl)
                 val updatedQueue = songs.toMutableList().also { it[startIndex] = playable }
                 val current = openedCollection
-                if (current?.browseId == playlistIdAtTap && playlistIdAtTap?.startsWith(SPOTIFY_PAGE_PREFIX) == true) {
+                if (current != null && current.browseId == playlistIdAtTap && playlistIdAtTap?.startsWith(SPOTIFY_PAGE_PREFIX) == true) {
                     val currentRows = current.songs.toMutableList()
                     val currentIndex = currentRows.indexOfFirst { it.videoId == selected.videoId ||
                         it.videoId == SPOTIFY_PENDING_PREFIX + spotify.id ||
