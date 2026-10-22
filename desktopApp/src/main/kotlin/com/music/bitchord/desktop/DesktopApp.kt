@@ -165,6 +165,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -5689,28 +5690,40 @@ private fun DesktopSettingsScreen(
                         "Zoom text, controls, and panels throughout BitChord.",
                     ]
                     if (settingsRowVisible(uiScaleTitle, uiScaleSubtitle)) {
-                        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(uiScaleTitle, fontWeight = FontWeight.Medium)
-                                    Text(uiScaleSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Text("$uiScalePercent%", color = DesktopSecondary, style = MaterialTheme.typography.bodyMedium)
+                        var uiScaleMenuOpen by remember { mutableStateOf(false) }
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(uiScaleTitle, fontWeight = FontWeight.Medium)
+                                Text(uiScaleSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
                             }
-                            Spacer(Modifier.height(8.dp))
-                            // Presets avoid changing the slider's size under the pointer while dragging.
-                            Row(
-                                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                DesktopUiScaleSettings.options.forEach { percent ->
-                                    FilterChip(
-                                        colors = desktopChipColors(),
-                                        selected = uiScalePercent == percent,
-                                        onClick = { DesktopUiScaleSettings.setPercent(percent) },
-                                        label = { Text("$percent%") },
-                                    )
+                            Spacer(Modifier.width(12.dp))
+                            Box {
+                                OutlinedButton(onClick = { uiScaleMenuOpen = true }) {
+                                    Text("$uiScalePercent%")
+                                    Spacer(Modifier.width(4.dp))
+                                    Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
+                                }
+                                DropdownMenu(
+                                    expanded = uiScaleMenuOpen,
+                                    onDismissRequest = { uiScaleMenuOpen = false },
+                                ) {
+                                    DesktopUiScaleSettings.options.forEach { percent ->
+                                        DropdownMenuItem(
+                                            text = { Text("$percent%") },
+                                            trailingIcon = if (percent == uiScalePercent) {
+                                                { Icon(BitChordIcons.Check, contentDescription = null) }
+                                            } else {
+                                                null
+                                            },
+                                            onClick = {
+                                                uiScaleMenuOpen = false
+                                                DesktopUiScaleSettings.setPercent(percent)
+                                            },
+                                        )
+                                    }
                                 }
                             }
                         }
