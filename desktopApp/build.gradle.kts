@@ -3,11 +3,12 @@ import java.util.zip.ZipFile
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
-/** What the packages, the launcher and the settings footer all say. */
+/** Public display label; test builds may use words rather than numeric versions. */
+val defaultAppVersion = "1.8-beta1"
 val appVersion: String = providers.gradleProperty("bitchord.version").orNull
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: "1.8-beta1"
+    ?: defaultAppVersion
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
@@ -18,11 +19,20 @@ val targetOs: String = (providers.gradleProperty("bitchord.target").orNull ?: wh
     else -> error("BitChord desktop supports Linux and Windows only")
 }).lowercase()
 
-// Windows installer metadata requires MAJOR.MINOR.BUILD even though the app's public version is
-// intentionally displayed without a patch number (1.7 rather than 1.7.0).
-// The build number is the desktop version code; it also keeps "-beta1" out of the numeric installer version.
+// Installer metadata needs numeric versions (including Windows' MAJOR.MINOR.BUILD).
+// Keep user-supplied names for test artifacts and the app footer, but fall back to
+// the project's numeric release base when the name is not a valid version prefix.
 val desktopVersionCode = 29
-val nativePackageVersion = appVersion.substringBefore('-').split('.').take(2).joinToString(".") + ".$desktopVersionCode"
+val numericPackageBase = appVersion.substringBefore('-').trim()
+    .takeIf { it.matches(Regex("""\d+(\.\d+)*""")) }
+    ?: defaultAppVersion.substringBefore('-')
+val nativePackageVersion = numericPackageBase.split('.').take(2).joinToString(".") + ".$desktopVersionCode"
+
+if (numericPackageBase != appVersion.substringBefore('-').trim()) {
+    logger.lifecycle(
+        "App version '$appVersion' is a label; native installers will use '$nativePackageVersion'.",
+    )
+}
 
 // FFmpeg decodes audio; see DesktopAudioDecoder.
 val javacppVersion = "1.5.12"
@@ -409,7 +419,7 @@ val windowsPortableAssemble by tasks.registering {
                 appendLine("set \"HERE=%~dp0\"")
                 appendLine("set \"RUNNER=java\"")
                 appendLine("if defined JAVA_HOME set \"RUNNER=%JAVA_HOME%\\bin\\java\"")
-                append("\"%RUNNER%\" -Dbitchord.version=$version")
+                append("\"%RUNNER%\" \"-Dbitchord.version=$version\"")
                 if (moduleIndex.isNotBlank()) append(" -Dbitchord.module.index=$moduleIndex")
                 if (lastfmKey.isNotBlank() && lastfmSharedSecret.isNotBlank()) {
                     append(" -Dbitchord.lastfm.key=$lastfmKey -Dbitchord.lastfm.secret=$lastfmSharedSecret")
