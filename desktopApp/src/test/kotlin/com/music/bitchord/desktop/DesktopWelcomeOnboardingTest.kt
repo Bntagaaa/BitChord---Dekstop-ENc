@@ -16,6 +16,38 @@ class DesktopWelcomeOnboardingTest {
         }
     }
 
+    @Test fun `first launch is detected before the preferences node exists`() {
+        val root = Preferences.userRoot().node("bitchord-onboarding-root-" + UUID.randomUUID())
+        try {
+            assertTrue(DesktopWelcomeOnboarding.shouldShowBeforeInitialization(root, "fresh"))
+            assertFalse(root.nodeExists("fresh"))
+        } finally {
+            root.removeNode()
+        }
+    }
+
+    @Test fun `old app preferences are not treated as first launch`() {
+        val root = Preferences.userRoot().node("bitchord-onboarding-root-" + UUID.randomUUID())
+        try {
+            root.node("existing").putBoolean("autoplay", true)
+            assertFalse(DesktopWelcomeOnboarding.shouldShowBeforeInitialization(root, "existing"))
+        } finally {
+            root.removeNode()
+        }
+    }
+
+    @Test fun `presence install id does not impersonate a real first launch`() = withPreferences { prefs ->
+        prefs.put("presence_install_id", UUID.randomUUID().toString())
+        assertFalse(DesktopWelcomeOnboarding.shouldShow(prefs))
+    }
+
+    @Test fun `explicit test override accepts enabled forms only`() {
+        assertTrue(DesktopWelcomeOnboarding.forceRequested("1"))
+        assertTrue(DesktopWelcomeOnboarding.forceRequested("TRUE"))
+        assertFalse(DesktopWelcomeOnboarding.forceRequested("0"))
+        assertFalse(DesktopWelcomeOnboarding.forceRequested(null))
+    }
+
     @Test fun `fresh profile sees welcome`() = withPreferences { prefs ->
         assertTrue(DesktopWelcomeOnboarding.shouldShow(prefs))
     }
