@@ -1,3 +1,13 @@
+//! Cross-platform local audio adapter. Miniaudio is retained on Linux;
+//! Windows uses rodio/CPAL while the miniaudio MSVC binding bug remains.
+
+#[cfg(target_os = "windows")]
+mod windows;
+#[cfg(target_os = "windows")]
+pub use windows::{LocalAudioPlayer, PlaybackSnapshot};
+
+#[cfg(not(target_os = "windows"))]
+mod miniaudio_backend {
 //! First native output path: local MP3/FLAC/WAV/Ogg Vorbis through miniaudio's built-in
 //! decoder and Windows WASAPI / Linux desktop output. Other Kotlin formats,
 //! networking, decode-ahead, transitions, and device selection remain open.
@@ -179,3 +189,8 @@ mod tests {
         assert!(output[4] < -0.49 && output[4] > -0.51);
     }
 }
+
+}
+
+#[cfg(not(target_os = "windows"))]
+pub use miniaudio_backend::{LocalAudioPlayer, PlaybackSnapshot};
