@@ -809,7 +809,7 @@ private fun SweptLyricLine(
         Text(
             text = line.text,
             style = style,
-            color = LocalLyricsPanelColors.current.primary.copy(alpha = dimAlpha),
+            color = LocalLyricsPanelColors.current.primary.copy(alpha = if (LocalLyricsPanelColors.current.isLight) dimAlpha.coerceAtLeast(0.68f) else dimAlpha),
             maxLines = maxLines,
             overflow = overflow,
             onTextLayout = { layout = it },
@@ -1862,7 +1862,9 @@ internal fun LyricsPanel(
                     // Reading by hand is not following along: the stack flattens
                     // to one brightness so no row is being pointed at.
                     browsing -> BROWSING_ALPHA
-                    else -> LINE_FALLOFF_ALPHA[step]
+                    else -> if (LocalLyricsPanelColors.current.isLight) {
+                        LINE_FALLOFF_ALPHA[step].coerceAtLeast(0.78f)
+                    } else LINE_FALLOFF_ALPHA[step]
                 },
                 animationSpec = tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING),
                 label = "lyricAlpha",
