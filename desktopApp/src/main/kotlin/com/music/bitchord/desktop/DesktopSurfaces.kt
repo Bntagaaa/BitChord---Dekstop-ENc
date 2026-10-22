@@ -3,6 +3,7 @@ package com.music.bitchord.desktop
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -25,6 +26,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -240,6 +242,10 @@ internal fun DesktopFlyoutBackdrop(onDismiss: () -> Unit, blockScroll: Boolean =
             },
     )
 }
+
+/** Input and results share a focus lifetime, so a row can finish its click. */
+internal fun Modifier.desktopSearchFocus(session: DesktopSearchSession<*>): Modifier =
+    onFocusChanged { if (!it.hasFocus) session.dismissSuggestions() }.focusGroup()
 
 /** Search captures its landing as a sibling, never the subtree containing this effect. */
 @Composable

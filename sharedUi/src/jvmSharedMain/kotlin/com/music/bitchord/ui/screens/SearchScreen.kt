@@ -173,7 +173,9 @@ fun SearchScreen(
     /** Desktop supplies its frosted/solid surface, following the existing Remove Blur switch. */
     landingPanelDecoration: Modifier = Modifier,
     landingPanelColor: Color = Color(0xFF27272B),
-    /** Desktop typeahead is visible only while the Search input actually owns focus. */
+    /** Transparent desktop glass must not cast a Surface shadow over its own blur. */
+    landingPanelShadowElevation: Dp = 12.dp,
+    /** Desktop owns dismissal across the input and result rows, including focus transfers. */
     landingSuggestionsEnabled: Boolean = true,
     /** Observes presses on the browse landing without consuming category clicks or scrolling. */
     onLandingOutsidePress: (() -> Unit)? = null,
@@ -304,7 +306,7 @@ fun SearchScreen(
                                     },
                                 shape = RoundedCornerShape(14.dp),
                                 color = landingPanelColor,
-                                shadowElevation = 12.dp,
+                                shadowElevation = landingPanelShadowElevation,
                             ) {
                             Column(
                                 Modifier

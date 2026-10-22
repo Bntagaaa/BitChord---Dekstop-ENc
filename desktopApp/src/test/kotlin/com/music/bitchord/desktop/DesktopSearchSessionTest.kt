@@ -33,6 +33,9 @@ class DesktopSearchSessionTest {
         session.focus(true)
         session.edit("song")
         session.focus(false)
+        // Losing input focus to a result must not unmount the pending click.
+        assertTrue(session.typing.value)
+        session.dismissSuggestions()
         assertFalse(session.typing.value)
         assertFalse(session.inputFocused.value)
         assertFalse(session.committed.value)
