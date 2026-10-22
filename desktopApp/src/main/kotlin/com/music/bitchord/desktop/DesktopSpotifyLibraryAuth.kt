@@ -5,6 +5,7 @@ import com.music.bitchord.data.spotify.SpotifyLibrary
 import javafx.application.Platform
 import javafx.concurrent.Worker
 import javafx.scene.web.WebEngine
+import javafx.scene.web.WebView
 import netscape.javascript.JSObject
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
@@ -37,7 +38,7 @@ import java.util.UUID
  */
 internal object DesktopSpotifyLibraryAuth {
     private const val BRIDGE_NAME = "BitChordSpotifyTokenBridge"
-    private const val TOKEN_TIMEOUT_MS = 20_000L
+    private const val TOKEN_TIMEOUT_MS = 25_000L
     private const val DEFAULT_TOKEN_LIFETIME_MS = 3_600_000L
     private const val CLIENT_TOKEN_URL = "https://clienttoken.spotify.com/v1/clienttoken"
 
@@ -58,8 +59,24 @@ internal object DesktopSpotifyLibraryAuth {
     suspend fun tokens(): SpotifyLibrary.Tokens? = withContext(Dispatchers.IO) {
         val cookie = DesktopSpotifyToken.cookie().ifBlank { return@withContext null }
         useCookie(cookie)
-        val bearer = accessToken(cookie) ?: return@withContext null
+        // A saved sp_dc cookie means sign-in succeeded. A missing bearer is a *desktop token
+        // harvest failure*, not proof the Spotify account has expired.
+        val bearer = accessToken(cookie) ?: throw IllegalStateException(
+            "Spotify is connected, but its web-player token could not be loaded. " +
+                "Try Refresh, or choose Reconnect Spotify."
+        )
         SpotifyLibrary.Tokens(bearer, clientToken())
+    }
+
+    /** Clear cached access/client tokens without discarding the user's saved Spotify login. */
+    @Synchronized
+    fun invalidate() {
+        cachedAccessToken = null
+        accessTokenExpiresAtMs = 0L
+        cachedClientId = null
+        cachedClientToken = null
+        clientTokenExpiresAtMs = 0L
+        cachedSession = null
     }
 
     /** Cached companion header for the synchronous HTTP helpers in the Canvas provider. */
@@ -118,6 +135,10 @@ internal object DesktopSpotifyLibraryAuth {
         val profile = runCatching { Files.createTempDirectory("bitchord-spotify-token-") }.getOrNull()
             ?: return null
         val engineRef = arrayOfNulls<WebEngine>(1)
+        // JavaFX's JS-to-Java bridge retains only weak references to Java objects. Keep both the
+        // real WebView and the bridge strongly reachable until the harvest has finished.
+        val viewRef = arrayOfNulls<WebView>(1)
+        val bridgeRef = arrayOfNulls<DesktopSpotifyTokenBridge>(1)
 
         try {
             Platform.runLater {
@@ -135,17 +156,33 @@ internal object DesktopSpotifyLibraryAuth {
                         ),
                     )
 
-                    val engine = WebEngine()
+                    val view = WebView()
+                    viewRef[0] = view
+                    val engine = view.engine
                     engineRef[0] = engine
                     engine.userAgent = CANVAS_UA
                     engine.userDataDirectory = profile.toFile()
 
-                    val bridge = DesktopSpotifyTokenBridge { payload ->
-                        acceptTokenPayload(payload, result)
-                    }
                     var reloadAttempted = false
+                    val bridge = DesktopSpotifyTokenBridge(
+                        handler = { payload -> acceptTokenPayload(payload, result) },
+                        onReloadRequested = {
+                            if (result.isActive && !reloadAttempted) {
+                                reloadAttempted = true
+                                Platform.runLater {
+                                    if (result.isActive) engine.reload()
+                                }
+                            }
+                        },
+                    )
+                    bridgeRef[0] = bridge
+                    var lastHookAttemptMs = 0L
 
-                    fun installHook() {
+                    fun installHook(force: Boolean = false) {
+                        if (!result.isActive) return
+                        val now = System.currentTimeMillis()
+                        if (!force && now - lastHookAttemptMs < 120L) return
+                        lastHookAttemptMs = now
                         runCatching {
                             val window = engine.executeScript("window") as JSObject
                             window.setMember(BRIDGE_NAME, bridge)
@@ -153,30 +190,34 @@ internal object DesktopSpotifyLibraryAuth {
                         }
                     }
 
+                    // Unlike Android's onPageStarted callback, a JavaFX RUNNING notification can
+                    // arrive before the new document exists. Retry as the DOM and resources load.
+                    engine.documentProperty().addListener { _, _, document ->
+                        if (document != null) installHook(force = true)
+                    }
+                    engine.loadWorker.progressProperty().addListener { _, _, progress ->
+                        if (progress.toDouble() in 0.01..0.99) installHook()
+                    }
                     engine.loadWorker.stateProperty().addListener { _, _, state ->
                         when (state) {
-                            Worker.State.SCHEDULED, Worker.State.RUNNING -> {
-                                // JavaFX has no Android-style onPageStarted callback. Inject at the
-                                // earliest load-worker transitions and reassert after document load.
-                                installHook()
-                            }
+                            Worker.State.SCHEDULED, Worker.State.RUNNING ->
+                                installHook(force = true)
                             Worker.State.SUCCEEDED -> {
-                                installHook()
-                                if (!result.isCompleted && !reloadAttempted) {
-                                    // The first navigation can finish before JavaFX exposes the
-                                    // page context to the listener. Its profile is new, so clearing
-                                    // storage and reloading gives the hook another chance to observe
-                                    // the web player's authenticated token mint.
-                                    reloadAttempted = true
-                                    runCatching {
-                                        engine.executeScript(
-                                            "try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}",
+                                installHook(force = true)
+                                // The web player might already have requested /api/token before
+                                // JavaFX exposed its window. Replay the exact observed request
+                                // *inside* the authenticated Spotify page instead of blindly
+                                // reloading and losing our injected hook.
+                                runCatching { engine.executeScript(TOKEN_RECOVERY_SCRIPT) }
+                                    .onFailure {
+                                        DesktopTrackLog.log(
+                                            "spotify: token recovery script unavailable (" +
+                                                it.javaClass.simpleName + ")"
                                         )
                                     }
-                                    Platform.runLater { runCatching { engine.reload() } }
-                                }
                             }
                             Worker.State.FAILED, Worker.State.CANCELLED -> {
+                                DesktopTrackLog.log("spotify: web-player load ended in " + state.name)
                                 if (!result.isCompleted) result.complete(null)
                             }
                             else -> Unit
@@ -208,6 +249,8 @@ internal object DesktopSpotifyLibraryAuth {
                     engineRef[0]?.let { engine ->
                         runCatching { engine.load("about:blank") }
                     }
+                    bridgeRef[0] = null
+                    viewRef[0] = null
                 }
             }
             withContext(Dispatchers.IO) {
@@ -279,6 +322,47 @@ internal object DesktopSpotifyLibraryAuth {
             } catch (e) {}
             return originalSend.apply(this, arguments);
           };
+        })();
+    """.trimIndent()
+
+    /**
+     * JavaFX can expose the new document *after* Spotify's scripts requested /api/token.
+     * Recover that request URL from the page's resource timing entries and ask the browser to
+     * fetch it with its own authenticated cookies. No cookie or bearer is logged or exported.
+     * A single delayed reload is requested only if interception and replay both fail.
+     */
+    private val TOKEN_RECOVERY_SCRIPT = """
+        (function () {
+          if (window.__bitchordSpotifyTokenRecovery) return;
+          window.__bitchordSpotifyTokenRecovery = true;
+          var bridge = window.BitChordSpotifyTokenBridge;
+          if (!bridge) return;
+          var attempted = {};
+          var replay = function () {
+            try {
+              if (!window.fetch || !window.performance || !performance.getEntriesByType) return;
+              var entries = performance.getEntriesByType('resource');
+              for (var i = entries.length - 1; i >= 0; i--) {
+                var url = entries[i].name;
+                if (String(url).indexOf('https://open.spotify.com/api/token?') !== 0) continue;
+                if (attempted[url]) continue;
+                attempted[url] = true;
+                window.fetch(url, {credentials: 'include', cache: 'no-store'})
+                  .then(function (res) { return res.text(); })
+                  .then(function (body) {
+                    try { bridge.onTokenPayload(String(body)); } catch (e) {}
+                  }).catch(function () {});
+                break;
+              }
+            } catch (e) {}
+          };
+          replay();
+          setTimeout(replay, 900);
+          setTimeout(replay, 2500);
+          setTimeout(replay, 4500);
+          setTimeout(function () {
+            try { bridge.onReloadRequested(); } catch (e) {}
+          }, 6000);
         })();
     """.trimIndent()
 
@@ -361,6 +445,10 @@ internal object DesktopSpotifyLibraryAuth {
 
 
 /** Public JVM bridge surface required by JavaFX's JavaScript-to-Java bridge. */
-internal class DesktopSpotifyTokenBridge(private val handler: (String?) -> Unit) {
+class DesktopSpotifyTokenBridge(
+    private val handler: (String?) -> Unit,
+    private val onReloadRequested: () -> Unit,
+) {
     fun onTokenPayload(payload: String?) = handler(payload)
+    fun onReloadRequested() = onReloadRequested.invoke()
 }
