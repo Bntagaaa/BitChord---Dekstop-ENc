@@ -4641,6 +4641,7 @@ private fun DesktopTopBar(
     val currentProgress by rememberUpdatedState(progress)
 
     // This is the application toolbar. Windows owns a separate system caption above it.
+    // Render the whole bar as a flat, opaque theme surface even if dynamic blur is enabled.
     Box(Modifier.fillMaxWidth().height(64.dp)) {
         Box(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
@@ -4648,7 +4649,7 @@ private fun DesktopTopBar(
                 Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .desktopWindowGlass(DesktopChromeEdge.BOTTOM)
+                    .background(DesktopTheme.palette.chromeSurface)
                     .padding(start = 14.dp, end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -4908,13 +4909,14 @@ private fun DesktopSidebar(
     onOpenLocalPlaylist: (DesktopPlaylist) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    // Search owns its input on the Search page; the sidebar is navigation only.
+    // The navigation rail stays flat and opaque regardless of Reduce dynamic blur.
+    // A hazeEffect here would put a reflective gradient on top of sidebarSurface and
+    // make the navigation look lighter whenever blur is enabled.
     Box(
         Modifier
             .width(220.dp)
             .fillMaxHeight()
-            .background(DesktopTheme.palette.sidebarSurface)
-            .desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f),
+            .background(DesktopTheme.palette.sidebarSurface),
     ) {
         Column(Modifier.fillMaxSize()) {
         Column(
