@@ -5909,7 +5909,7 @@ private fun DesktopSettingsScreen(
                 }
                 CompositionLocalProvider(LocalSettingsQuery provides settingsQuery.trim()) {
                 LazyColumn(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).desktopTopScrollFade(listState),
                     state = listState,
                     contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp),
                 ) {
@@ -6526,6 +6526,7 @@ private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
 /** Everything this build is assembled from, and the terms each part came under. A page of Settings. */
 @Composable
 private fun DesktopLicensesPage(onDismiss: () -> Unit) {
+    val licensesListState = rememberLazyListState()
     DesktopSettingsPageFrame {
         Text(
             DesktopStrings["d_third_party_licenses", "Third-party licenses"],
@@ -6539,7 +6540,8 @@ private fun DesktopLicensesPage(onDismiss: () -> Unit) {
             style = MaterialTheme.typography.bodySmall,
         )
         LazyColumn(
-            modifier = Modifier.weight(1f),
+            state = licensesListState,
+            modifier = Modifier.weight(1f).desktopTopScrollFade(licensesListState),
             contentPadding = PaddingValues(vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -6851,8 +6853,11 @@ private fun DesktopCollectionPage(
         val seconds = songs.sumOf { it.durationText.durationMillis() / 1_000L }
         if (seconds > 0) add(formatCollectionDuration(seconds))
     }.joinToString(" • ").uppercase()
+    val collectionListState = remember(collection.browseId) { LazyListState() }
     DesktopPageScaffold(contentPadding) {
         LazyColumn(
+            state = collectionListState,
+            modifier = Modifier.fillMaxSize().desktopTopScrollFade(collectionListState),
             contentPadding = pagePadding(
                 start = DesktopPageGutter,
                 top = DesktopPageGutter,
