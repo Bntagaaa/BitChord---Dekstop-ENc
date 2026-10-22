@@ -32,6 +32,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
 
 // The look every modal card in the app shares.
 
@@ -236,4 +239,29 @@ internal fun DesktopFlyoutBackdrop(onDismiss: () -> Unit, blockScroll: Boolean =
                 }
             },
     )
+}
+
+/** Search captures its landing as a sibling, never the subtree containing this effect. */
+@Composable
+internal fun Modifier.desktopSearchGlass(
+    haze: HazeState,
+    shape: Shape,
+    reduceBlur: Boolean,
+): Modifier {
+    val fill = Color(0xFF27272B)
+    val surface = if (reduceBlur) {
+        Modifier.background(fill)
+    } else {
+        // Paint underneath the effect, so an unattached/unsupported source cannot flash clear.
+        // The effect still paints its blurred sibling sources over this base.
+        Modifier.background(fill).hazeEffect(state = haze) {
+            blurEnabled = true
+            backgroundColor = fill
+            blurRadius = 32.dp
+            tints = listOf(HazeTint(fill.copy(alpha = 0.82f)))
+            fallbackTint = HazeTint(fill)
+            noiseFactor = 0.02f
+        }
+    }
+    return clip(shape).then(surface).border(0.5.dp, DesktopBarEdge, shape)
 }
