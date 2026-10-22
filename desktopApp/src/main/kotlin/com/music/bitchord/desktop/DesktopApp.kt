@@ -6531,7 +6531,7 @@ private fun DesktopSettingsScreen(
                                 DesktopThemeMode.entries.forEach { option ->
                                     FilterChip(
                                         selected = DesktopTheme.mode == option,
-                                        onClick = { DesktopTheme.setMode(option) },
+                                        onClick = { DesktopTheme.selectMode(option) },
                                         colors = desktopChipColors(),
                                         label = { Text(option.label) },
                                     )
