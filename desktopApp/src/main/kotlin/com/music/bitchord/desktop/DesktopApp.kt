@@ -549,6 +549,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
     val persistence = remember { DesktopPersistence() }
     var sidebarCollapsed by remember { mutableStateOf(persistence.string("sidebar_collapsed", "false") == "true") }
     val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
+    val useOldExploreCards by DesktopAppearanceSettings.useOldExploreCards.collectAsState()
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
     val searchSession = remember { DesktopSearchSession<SearchResult>() }
     val query by searchSession.query
@@ -4579,6 +4580,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                                     modifier = Modifier.fillMaxSize(),
                                     showTitle = false,
                                     showSectionHeadings = true,
+                                    useOldCards = useOldExploreCards,
                                 )
                             },
                         )
@@ -6780,6 +6782,13 @@ private fun DesktopSettingsScreen(
                     }
                     val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
                     val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
+                    val useOldExploreCards by DesktopAppearanceSettings.useOldExploreCards.collectAsState()
+                    SettingsToggle(
+                        "Use old Explore cards",
+                        "Bring back the v1.7 gradient cards with angled cover art in Moods & moments and Genres",
+                        useOldExploreCards,
+                        DesktopAppearanceSettings::setUseOldExploreCards,
+                    )
                     SettingsToggle(
                         "Enable old top music player style",
                         "Use the original desktop top player instead of the new floating bottom player",
