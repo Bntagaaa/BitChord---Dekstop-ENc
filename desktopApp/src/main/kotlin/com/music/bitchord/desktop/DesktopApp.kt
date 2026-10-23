@@ -64,6 +64,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.Canvas
@@ -156,6 +158,7 @@ import androidx.compose.material.icons.rounded.RemoveCircleOutline
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VolumeUp
@@ -548,6 +551,8 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
     var welcomeError by remember { mutableStateOf<String?>(null) }
     val persistence = remember { DesktopPersistence() }
     var sidebarCollapsed by remember { mutableStateOf(persistence.string("sidebar_collapsed", "false") == "true") }
+    // Expanded drawer is temporary and must not change the saved desktop preference.
+    var sidebarDrawerOpen by remember { mutableStateOf(false) }
     val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
     val searchSession = remember { DesktopSearchSession<SearchResult>() }
@@ -3274,6 +3279,13 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
             DesktopFrame(
                 // The phone's page is black, not the near-black of its cards.
                 containerColor = DesktopBackground,
+                sidebarCollapsed = sidebarCollapsed,
+                sidebarDrawerOpen = sidebarDrawerOpen,
+                onSidebarCollapsedChange = { collapsed ->
+                    sidebarCollapsed = collapsed
+                    persistence.saveString("sidebar_collapsed", collapsed.toString())
+                },
+                onSidebarDrawerOpenChange = { sidebarDrawerOpen = it },
                 // Only Replay dresses itself; everywhere else the chrome sits on the plain surface.
                 backdrop = { transparentBase ->
                     Box(Modifier.fillMaxSize().then(
@@ -3379,6 +3391,10 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                                     false
                                 }
                                 Key.Escape -> when {
+                                    sidebarDrawerOpen -> {
+                                        sidebarDrawerOpen = false
+                                        true
+                                    }
                                     overlays.shortcuts -> {
                                         overlays.shortcuts = false
                                         true
@@ -3448,13 +3464,10 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                         true
                     }
                     .focusable(),
-                sidebar = {
+                sidebar = { collapsed, onToggleCollapse, dismissDrawer ->
                     DesktopSidebar(
-                        collapsed = sidebarCollapsed,
-                        onToggleCollapse = {
-                            sidebarCollapsed = !sidebarCollapsed
-                            persistence.saveString("sidebar_collapsed", sidebarCollapsed.toString())
-                        },
+                        collapsed = collapsed,
+                        onToggleCollapse = onToggleCollapse,
                         destination = destination,
                         settingsOpen = overlays.settingsPage != null,
                         accountPlaylists = sidebarAccountPlaylists,
@@ -3465,13 +3478,26 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                             ?: activeAccount?.profiles?.firstOrNull()?.avatar,
                         showAccountInSidebar = !oldTopPlayerEnabled,
                         onOpenAccounts = {
+                            dismissDrawer()
                             DesktopTrackLog.log("accounts: opening the switcher")
                             overlays.accounts = true
                         },
-                        onDestinationSelected = ::selectDestination,
-                        onOpenAccountPlaylist = { openShelfItem(it, PLAYLISTS_SHELF) },
-                        onOpenLocalPlaylist = ::openPlaylist,
-                        onOpenSettings = ::openSettings,
+                        onDestinationSelected = {
+                            dismissDrawer()
+                            selectDestination(it)
+                        },
+                        onOpenAccountPlaylist = {
+                            dismissDrawer()
+                            openShelfItem(it, PLAYLISTS_SHELF)
+                        },
+                        onOpenLocalPlaylist = {
+                            dismissDrawer()
+                            openPlaylist(it)
+                        },
+                        onOpenSettings = {
+                            dismissDrawer()
+                            openSettings()
+                        },
                     )
                 },
                 topBar = { compact ->
@@ -5062,11 +5088,11 @@ private fun DesktopSidebar(
             if (collapsed) {
                 Box(Modifier.fillMaxWidth().height(35.dp), contentAlignment = Alignment.Center) {
                     IconButton(onClick = onToggleCollapse) {
-                        Image(
-                            painter = painterResource(Res.drawable.bitchord_logo_original),
+                        Icon(
+                            Icons.Rounded.Menu,
                             contentDescription = "Expand sidebar",
-                            colorFilter = ColorFilter.tint(DesktopForeground),
-                            modifier = Modifier.width(28.dp).height(18.dp),
+                            tint = DesktopForeground,
+                            modifier = Modifier.size(22.dp),
                         )
                     }
                 }
