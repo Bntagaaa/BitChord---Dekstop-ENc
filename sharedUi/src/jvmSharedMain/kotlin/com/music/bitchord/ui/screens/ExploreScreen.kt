@@ -12,10 +12,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -25,17 +26,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -175,9 +171,9 @@ private fun MoodGenreRow(
 }
 
 /**
- * A solid stripe down the left and the category's cover filling the rest,
- * redrawn as a duotone of the stripe's colour so every card reads as one
- * tinted sleeve rather than a photo pasted onto a swatch.
+ * v1.7-style Explore card: one uninterrupted colour gradient with a cropped,
+ * tilted album sleeve in the lower-right corner. The v1.8 duotone split made
+ * artwork look pasted onto a separate solid panel on desktop.
  */
 @Composable
 private fun MoodGenreCard(
@@ -185,99 +181,71 @@ private fun MoodGenreCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val tone = remember(item.stripeColor, item.title) { moodTone(item) }
+    val color = moodColor(item.title)
     Box(
         modifier = modifier
             .aspectRatio(MOOD_CARD_ASPECT)
             .clip(MOOD_CARD_SHAPE)
-            .background(tone.stripe)
-            .clickable(onClick = onClick),
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        color,
+                        color.copy(
+                            red = color.red * .68f,
+                            green = color.green * .68f,
+                            blue = color.blue * .68f,
+                        ),
+                    ),
+                ),
+            )
+            .clickable(onClick = onClick)
+            .padding(12.dp),
     ) {
-        Box(
-            Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-                .fillMaxWidth(1f - MOOD_STRIPE_FRACTION)
-                .background(tone.placeholder),
-        ) {
-            item.thumbnailUrl?.let { artwork ->
-                AsyncImage(
-                    model = artwork,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    colorFilter = tone.duotone,
-                    modifier = Modifier.fillMaxSize(),
-                )
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            // v1.7 used an 82dp sleeve in a 100dp card. Scale that proportion
+            // with the responsive desktop card height instead of fixing dp.
+            val artworkSize = (maxHeight + 24.dp) * MOOD_ARTWORK_HEIGHT_FRACTION
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 10.dp, y = 12.dp)
+                    .size(artworkSize)
+                    .graphicsLayer { rotationZ = 16f }
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(Color.White.copy(alpha = .22f)),
+            ) {
+                item.thumbnailUrl?.let { artwork ->
+                    AsyncImage(
+                        model = artwork,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
-        // Pale stripes (Energize's cream, Feel good's mint) would swallow
-        // white type; a soft shade under the title keeps it legible.
-        Box(
-            Modifier
-                .matchParentSize()
-                .background(Brush.verticalGradient(0f to Color.Black.copy(alpha = .24f), .62f to Color.Transparent)),
-        )
         Text(
             text = item.title,
-            style = MaterialTheme.typography.titleMedium.copy(
-                shadow = Shadow(Color.Black.copy(alpha = .35f), offset = Offset(0f, 1f), blurRadius = 6f),
-            ),
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = Color.White,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.align(Alignment.TopStart).padding(end = 48.dp),
         )
     }
 }
 
-private class MoodTone(val stripe: Color, val placeholder: Color, val duotone: ColorFilter)
-
-private fun moodTone(item: MoodGenre): MoodTone {
-    val base = item.stripeColor?.let { Color(it.toInt()) } ?: fallbackMoodColor(item.title)
-    // YouTube's palette is already pastel; a touch of black keeps it from
-    // glowing against the black page.
-    val stripe = lerp(base, Color.Black, .08f)
-    val shadow = lerp(base, Color.Black, .68f)
-    val highlight = lerp(base, Color.White, .32f)
-    return MoodTone(
-        stripe = stripe,
-        placeholder = lerp(shadow, highlight, .45f),
-        duotone = duotone(shadow, highlight),
-    )
-}
-
-/**
- * Maps each pixel's luminance onto the ramp [shadow] to [highlight]. Offsets
- * are in 0..255, which Compose honours on Skia too (it rescales them).
- */
-private fun duotone(shadow: Color, highlight: Color): ColorFilter {
-    fun channel(from: Float, to: Float): FloatArray {
-        val span = to - from
-        return floatArrayOf(span * .299f, span * .587f, span * .114f, 0f, from * 255f)
-    }
-    return ColorFilter.colorMatrix(
-        ColorMatrix(
-            channel(shadow.red, highlight.red) +
-                channel(shadow.green, highlight.green) +
-                channel(shadow.blue, highlight.blue) +
-                floatArrayOf(0f, 0f, 0f, 1f, 0f),
-        ),
-    )
-}
-
-/** For a button that came without YouTube's colour: muted, never neon. */
-private fun fallbackMoodColor(title: String): Color = when ((title.hashCode() and Int.MAX_VALUE) % 8) {
-    0 -> Color(0xFFCC6A55)
-    1 -> Color(0xFFC07A92)
-    2 -> Color(0xFF9C8AC0)
-    3 -> Color(0xFF8090C8)
-    4 -> Color(0xFFD0A060)
-    5 -> Color(0xFF6A88B0)
-    6 -> Color(0xFF7AAED0)
-    else -> Color(0xFF86B890)
+/** Original v1.7 palette, independent of fluctuating remote artwork colours. */
+private fun moodColor(title: String): Color = when ((title.hashCode() and Int.MAX_VALUE) % 8) {
+    0 -> Color(0xFFE64A19)
+    1 -> Color(0xFFEC0B65)
+    2 -> Color(0xFF8664AC)
+    3 -> Color(0xFF6B4EFF)
+    4 -> Color(0xFFBE6100)
+    5 -> Color(0xFF233C78)
+    6 -> Color(0xFF4D97E5)
+    else -> Color(0xFFAA267E)
 }
 
 /** Gap between mood cards, in both directions. */
@@ -288,8 +256,8 @@ private val MOOD_CARD_SHAPE = RoundedCornerShape(18.dp)
 /** Width over height; a two-column phone row lands at about 100dp tall. */
 private const val MOOD_CARD_ASPECT = 1.72f
 
-/** How much of the card the solid stripe covers before the artwork starts. */
-private const val MOOD_STRIPE_FRACTION = .28f
+/** Size of the v1.7 sleeve relative to the card height (82dp / 100dp). */
+private const val MOOD_ARTWORK_HEIGHT_FRACTION = .82f
 
 /**
  * The narrowest a mood card is let get before the row drops a column.
