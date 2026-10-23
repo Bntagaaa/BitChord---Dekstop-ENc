@@ -3391,12 +3391,12 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                                     false
                                 }
                                 Key.Escape -> when {
-                                    sidebarDrawerOpen -> {
-                                        sidebarDrawerOpen = false
-                                        true
-                                    }
                                     overlays.shortcuts -> {
                                         overlays.shortcuts = false
+                                        true
+                                    }
+                                    sidebarDrawerOpen -> {
+                                        sidebarDrawerOpen = false
                                         true
                                     }
                                     overlays.nowPlaying && DesktopWindowMode.fullScreen.value -> {
