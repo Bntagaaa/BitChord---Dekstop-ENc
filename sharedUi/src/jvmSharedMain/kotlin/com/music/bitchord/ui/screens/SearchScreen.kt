@@ -189,6 +189,7 @@ fun SearchScreen(
             currentOnLandingOutsidePress?.invoke()
         }
     } else Modifier
+    val suggestionScrollState = rememberScrollState()
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -311,7 +312,8 @@ fun SearchScreen(
                             Column(
                                 Modifier
                                     .heightIn(max = 420.dp)
-                                    .verticalScroll(rememberScrollState())
+                                    .desktopTopScrollFade(suggestionScrollState)
+                                    .verticalScroll(suggestionScrollState)
                                     .padding(vertical = 6.dp),
                             ) {
                                 suggestions.drop(1).take(3).forEach { term ->

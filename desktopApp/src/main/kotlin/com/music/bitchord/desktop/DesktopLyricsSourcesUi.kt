@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.ui.screens.desktopTopScrollFade
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -62,6 +64,7 @@ internal fun DesktopLyricsSourcesDialog(
     onReset: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val sourcesScrollState = rememberScrollState()
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 420) {
         Column(
             Modifier.fillMaxWidth().padding(horizontal = panelInset(20.dp), vertical = 18.dp),
@@ -94,7 +97,8 @@ internal fun DesktopLyricsSourcesDialog(
             Modifier
                 .fillMaxWidth()
                 .then(desktopPanelBody(cardMax = 340.dp))
-                .verticalScroll(rememberScrollState()),
+                .desktopTopScrollFade(sourcesScrollState)
+                .verticalScroll(sourcesScrollState),
         ) {
             ReorderableSourceList(order, enabled, onReorder, onToggle)
         }

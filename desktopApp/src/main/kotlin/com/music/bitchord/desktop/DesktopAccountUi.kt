@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.ui.screens.desktopTopScrollFade
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -111,6 +114,7 @@ internal fun DesktopAccountSelector(
 ) {
     DesktopRegisterFlyout(DesktopFlyoutLayer.ACCOUNT, onDismiss = onDismiss)
     var managing by remember { mutableStateOf(false) }
+    val accountsListState = rememberLazyListState()
     Box(Modifier.fillMaxSize()) {
         // The scrim is its own layer rather than a modifier on the container.
         Box(
@@ -148,7 +152,10 @@ internal fun DesktopAccountSelector(
                 Spacer(Modifier.weight(1f))
                 if (busy) CircularProgressIndicator(color = DesktopAccent, modifier = Modifier.size(16.dp))
             }
-            LazyColumn(Modifier.heightIn(max = 460.dp)) {
+            LazyColumn(
+                state = accountsListState,
+                modifier = Modifier.heightIn(max = 460.dp).desktopTopScrollFade(accountsListState),
+            ) {
                 if (accounts.isEmpty()) {
                     item {
                         Text(
@@ -287,6 +294,7 @@ internal fun DesktopSignInDialog(
     var profiles by remember { mutableStateOf<List<DesktopBrowserCookies.Profile>?>(null) }
     var pasting by remember { mutableStateOf(false) }
     var pasted by remember { mutableStateOf("") }
+    val browserListState = rememberLazyListState()
     LaunchedEffect(Unit) {
         profiles = withContext(Dispatchers.IO) {
             DesktopBrowserCookies.profiles().filterNot {
@@ -387,7 +395,10 @@ internal fun DesktopSignInDialog(
                     Spacer(Modifier.width(12.dp))
                     Text(DesktopStrings["d_looking_for_browsers", "Looking for browsers…"], color = DesktopSecondary)
                 }
-                else -> LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                else -> LazyColumn(
+                    state = browserListState,
+                    modifier = Modifier.heightIn(max = 320.dp).desktopTopScrollFade(browserListState),
+                ) {
                     val found = profiles.orEmpty()
                     if (webSignInAvailable) {
                         item(key = "in-app-webview") {

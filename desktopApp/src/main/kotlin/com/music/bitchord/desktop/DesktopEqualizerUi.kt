@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.ui.screens.desktopTopScrollFade
+
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -78,6 +80,7 @@ internal fun DesktopEqualizerDialog(onDismiss: () -> Unit) {
     val enabled by DesktopEqualizerSettings.enabled.collectAsState()
     val mode by DesktopEqualizerSettings.mode.collectAsState()
     val balance by DesktopEqualizerSettings.balance.collectAsState()
+    val equalizerScrollState = rememberScrollState()
 
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 560) {
         Row(
@@ -111,7 +114,8 @@ internal fun DesktopEqualizerDialog(onDismiss: () -> Unit) {
                 .graphicsLayer { this.alpha = alpha }
                 .then(if (enabled) Modifier else Modifier.pointerInput(Unit) {})
                 .then(desktopPanelBody(cardMax = 520.dp))
-                .verticalScroll(rememberScrollState()),
+                .desktopTopScrollFade(equalizerScrollState)
+                .verticalScroll(equalizerScrollState),
         ) {
             Spacer(Modifier.height(14.dp))
             ModeTabs(mode, DesktopEqualizerSettings::setMode)
@@ -516,7 +520,8 @@ private fun BandFader(value: Float, onChange: (Float) -> Unit) {
 
 @Composable
 private fun PresetList(selected: EqualizerPreset, modifier: Modifier = Modifier) {
-    Column(modifier.heightIn(max = 186.dp).verticalScroll(rememberScrollState())) {
+    val presetScrollState = rememberScrollState()
+    Column(modifier.heightIn(max = 186.dp).desktopTopScrollFade(presetScrollState).verticalScroll(presetScrollState)) {
         EqualizerPreset.entries.forEach { preset ->
             // Custom is a state the bands can be in, not a curve anyone can choose.
             if (preset == EqualizerPreset.CUSTOM && selected != EqualizerPreset.CUSTOM) return@forEach
