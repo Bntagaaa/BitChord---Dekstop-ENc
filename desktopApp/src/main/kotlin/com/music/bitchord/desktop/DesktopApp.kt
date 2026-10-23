@@ -3501,10 +3501,9 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                         },
                     )
                 },
-                topBar = { compact ->
+                topBar = { _ ->
                     if (oldTopPlayerEnabled) {
                         DesktopTopBar(
-                            compact = compact,
                             song = selectedSong,
                             isPlaying = playback.isPlaying,
                             isLoading = playback.isLoading,
@@ -4745,7 +4744,6 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
 
 @Composable
 private fun DesktopTopBar(
-    compact: Boolean,
     song: Song?,
     isPlaying: Boolean,
     isLoading: Boolean,
@@ -4776,7 +4774,12 @@ private fun DesktopTopBar(
 
     // This is the application toolbar. Windows owns a separate system caption above it.
     // Render the whole bar as a flat, opaque theme surface even if dynamic blur is enabled.
-    Box(Modifier.fillMaxWidth().height(64.dp)) {
+    BoxWithConstraints(Modifier.fillMaxWidth().height(64.dp)) {
+        // The top player adapts to the actual space beside the sidebar, not the
+        // sidebar's rail breakpoint. The current track must never disappear.
+        val fullControls = DesktopTopBarWidthPolicy.showFullControls(maxWidth.value)
+        val showCompactSkip = DesktopTopBarWidthPolicy.showCompactSkipControls(maxWidth.value)
+        val showCompactPanels = DesktopTopBarWidthPolicy.showCompactSidePanels(maxWidth.value)
         Box(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             Row(
@@ -4789,7 +4792,7 @@ private fun DesktopTopBar(
             ) {
                 // Brand, navigation and account switching live in the sidebar.
                 // The legacy top bar hosts playback controls only.
-                if (!compact) {
+                if (fullControls) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(0.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -4930,13 +4933,114 @@ private fun DesktopTopBar(
                         }
                     }
                 } else {
-                    Spacer(Modifier.weight(1f))
+                    // Narrow desktop windows retain transport and track information.
+                    // Lower-priority controls give way before the song title does.
+                    if (showCompactSkip) {
+                        DesktopToolbarButton(onClick = onPrevious, enabled = previousEnabled, size = 32.dp) {
+                            Icon(
+                                painterResource(Res.drawable.player_transport_previous),
+                                DesktopStrings["widget_previous", "Previous"],
+                                tint = if (previousEnabled) DesktopForeground else DesktopSecondary.copy(alpha = 0.40f),
+                                modifier = Modifier.size(21.dp),
+                            )
+                        }
+                    }
+                    DesktopToolbarButton(onClick = onPlayPause, size = 36.dp) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = DesktopForeground,
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Icon(
+                                painterResource(if (isPlaying) Res.drawable.player_transport_pause else Res.drawable.player_transport_play),
+                                if (isPlaying) "Pause" else "Play",
+                                tint = DesktopForeground,
+                                modifier = Modifier.size(23.dp),
+                            )
+                        }
+                    }
+                    if (showCompactSkip) {
+                        DesktopToolbarButton(onClick = onNext, size = 32.dp) {
+                            Icon(
+                                painterResource(Res.drawable.player_transport_next),
+                                DesktopStrings["widget_next", "Next"],
+                                tint = DesktopForeground,
+                                modifier = Modifier.size(21.dp),
+                            )
+                        }
+                    }
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 8.dp, end = 4.dp)
+                            .height(46.dp)
+                            .border(1.dp, DesktopForeground.copy(alpha = 0.06f), RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable(onClick = onOpenNowPlaying),
+                        color = DesktopTheme.palette.topPlayerSurface,
+                        tonalElevation = 0.dp,
+                    ) {
+                        if (song == null) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Icon(
+                                    BitChordIcons.MusicNote,
+                                    DesktopStrings["playback_channel_name", "Now playing"],
+                                    tint = DesktopSecondary.copy(alpha = 0.65f),
+                                    modifier = Modifier.size(21.dp),
+                                )
+                            }
+                        } else {
+                            Box(Modifier.fillMaxSize()) {
+                                Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                                    DesktopArtwork(
+                                        song.thumbnailUrl,
+                                        Modifier.size(44.dp).clip(RoundedCornerShape(3.dp)),
+                                        px = ROW_ART_PX,
+                                    )
+                                    Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                                        Text(
+                                            song.title,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                        Text(
+                                            song.artist,
+                                            color = DesktopSecondary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            style = MaterialTheme.typography.labelSmall,
+                                        )
+                                    }
+                                }
+                                Box(
+                                    Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(start = 44.dp)
+                                        .fillMaxWidth()
+                                        .height(2.dp)
+                                        .drawBehind {
+                                            val base = currentProgress.coerceIn(0f, 1f)
+                                            val fraction = base + (1f - base) * mixPulse.cover
+                                            drawRect(
+                                                color = DesktopForeground.copy(alpha = mixPulse.alpha(0.48f)),
+                                                size = Size(size.width * fraction, size.height),
+                                            )
+                                        },
+                                )
+                            }
+                        }
+                    }
                 }
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(1.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    if (fullControls) {
                     Icon(
                         Icons.Rounded.VolumeUp,
                         DesktopStrings["d_volume", "Volume"],
@@ -4960,6 +5064,8 @@ private fun DesktopTopBar(
                             modifier = Modifier.size(19.dp),
                         )
                     }
+                    }
+                    if (fullControls || showCompactPanels) {
                     DesktopToolbarButton(onClick = onOpenLyrics, size = 32.dp) {
                         Icon(
                             painterResource(Res.drawable.player_transport_lyrics),
@@ -4975,6 +5081,7 @@ private fun DesktopTopBar(
                             tint = if (sidePanel == DesktopSidePanel.QUEUE) DesktopForeground else DesktopSecondary,
                             modifier = Modifier.size(19.dp),
                         )
+                    }
                     }
                 }
             }
