@@ -3123,12 +3123,6 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
         overlays.lastfmLogin || overlays.listenBrainzToken || overlays.discordToken ||
         overlays.listenTogether || overlays.audioOutput || overlays.pipeline || playerMenuOpen
 
-    // Any route that leaves Now Playing (artist, album, Listen Together, no more songs)
-    // must also leave immersive mode, not only a click on the sheet's dismiss handle.
-    LaunchedEffect(overlays.nowPlaying, selectedSong == null) {
-        if (!overlays.nowPlaying || selectedSong == null) DesktopWindowMode.exit()
-    }
-
     val playerBackDepth = PlayerBack.depth.value
     var previousPlayerBackDepth by remember { mutableStateOf(playerBackDepth) }
     var shortcutNowPlayingWasOpen by remember { mutableStateOf(overlays.nowPlaying) }
@@ -3384,12 +3378,6 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                                 // One layer at a time, innermost first. A text editor is a layer too:
                                 // Escape leaves it without navigating away, then keyboard shortcuts
                                 // immediately belong to the app again.
-                                Key.F11 -> if (overlays.nowPlaying && selectedSong != null) {
-                                    DesktopWindowMode.toggle()
-                                    true
-                                } else {
-                                    false
-                                }
                                 Key.Escape -> when {
                                     overlays.shortcuts -> {
                                         overlays.shortcuts = false
@@ -3397,10 +3385,6 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                                     }
                                     sidebarDrawerOpen -> {
                                         sidebarDrawerOpen = false
-                                        true
-                                    }
-                                    overlays.nowPlaying && DesktopWindowMode.fullScreen.value -> {
-                                        DesktopWindowMode.exit()
                                         true
                                     }
                                     overlays.nowPlaying && PlayerBack.dispatch() -> true
@@ -3738,12 +3722,6 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                             onDismissLyricsOffset = {},
                             windowWidth = windowWidth,
                             windowHeight = windowHeight,
-                        )
-                        // The same corner control as BitChord Web, above the artwork-driven
-                        // player rather than in the window's native caption.
-                        DesktopPlayerFullscreenButton(
-                            modifier = Modifier.align(Alignment.TopEnd)
-                                .padding(top = 12.dp, end = 16.dp),
                         )
                         if (playerMenuOpen) {
                             // Where the player's "…" sits: the right column's credits row, at
