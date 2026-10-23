@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.ui.screens.desktopTopScrollFade
+
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -195,7 +197,7 @@ internal fun DesktopQuickSearch(
                         if (state.items.isNotEmpty()) Box(Modifier.fillMaxWidth()) {
                             LazyColumn(
                                 state = listState,
-                                modifier = Modifier.fillMaxWidth().heightIn(max = listHeight).padding(end = 10.dp),
+                                modifier = Modifier.fillMaxWidth().heightIn(max = listHeight).desktopTopScrollFade(listState).padding(end = 10.dp),
                             ) {
                                 itemsIndexed(state.items, key = { _, item -> quickSearchEntryKey(item) }) { index, item ->
                                     QuickSearchRow(

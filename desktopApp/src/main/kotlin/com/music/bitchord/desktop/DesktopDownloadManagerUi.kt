@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.ui.screens.desktopTopScrollFade
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -47,6 +50,7 @@ internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
     val items = remember(active) { active.values.sortedBy(DesktopDownloadItem::sequence) }
     val failed = items.count { it.state is DesktopDownloadState.Failed }
     val busy = items.any { it.state !is DesktopDownloadState.Failed }
+    val downloadListState = rememberLazyListState()
 
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 520) {
         Row(
@@ -78,7 +82,8 @@ internal fun DesktopDownloadManagerDialog(onDismiss: () -> Unit) {
             }
         } else {
             LazyColumn(
-                Modifier.fillMaxWidth().heightIn(max = 360.dp),
+                state = downloadListState,
+                modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).desktopTopScrollFade(downloadListState),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 items(items, key = { it.song.videoId }) { item -> DownloadRow(item) }

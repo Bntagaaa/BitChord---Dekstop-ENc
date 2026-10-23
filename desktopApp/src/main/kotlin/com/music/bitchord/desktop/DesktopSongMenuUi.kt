@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.ui.screens.desktopTopScrollFade
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -309,6 +311,7 @@ private fun sleepTimerLabel(minutes: Int?, afterTrack: Boolean): String = when {
 /** The panel a menu is drawn in: a floating card in the app's own glass. */
 @Composable
 private fun DesktopMenuSurface(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    val menuScrollState = rememberScrollState()
     Popup(
         popupPositionProvider = remember { DesktopMenuPosition() },
         onDismissRequest = onDismiss,
@@ -324,7 +327,8 @@ private fun DesktopMenuSurface(onDismiss: () -> Unit, content: @Composable () ->
                 // A menu with every optional row on it is taller than a small window; capped and
                 // scrolled rather than run off the screen.
                 .heightIn(max = 460.dp)
-                .verticalScroll(rememberScrollState()),
+                .desktopTopScrollFade(menuScrollState)
+                .verticalScroll(menuScrollState),
         ) {
             content()
         }
