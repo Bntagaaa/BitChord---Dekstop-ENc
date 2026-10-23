@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.ui.screens.desktopTopScrollFade
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -74,6 +77,7 @@ internal fun DesktopPlaylistDialog(
     onDismiss: () -> Unit,
 ) {
     var creating by remember { mutableStateOf(song == null) }
+    val playlistListState = rememberLazyListState()
 
     DesktopDialogFrame(onDismiss = onDismiss) {
         if (creating) {
@@ -121,7 +125,10 @@ internal fun DesktopPlaylistDialog(
                 color = DesktopSecondary,
                 modifier = Modifier.padding(horizontal = 22.dp, vertical = 14.dp),
             )
-            else -> LazyColumn(Modifier.heightIn(max = 320.dp)) {
+            else -> LazyColumn(
+                state = playlistListState,
+                modifier = Modifier.heightIn(max = 320.dp).desktopTopScrollFade(playlistListState),
+            ) {
                 if (account.isNotEmpty()) {
                     item(key = "heading:account") { DialogSectionHeading("On your account") }
                     items(account.size, key = { account[it].playlistId }) { index ->

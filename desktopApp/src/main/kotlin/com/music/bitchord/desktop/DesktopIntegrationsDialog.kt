@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.ui.screens.desktopTopScrollFade
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -63,10 +65,13 @@ internal fun DesktopIntegrationsDialog(
 ) {
     var choosing by remember { mutableStateOf<DiscordChoice?>(null) }
     var editing by remember { mutableStateOf<DiscordField?>(null) }
+    val integrationsScrollState = rememberScrollState()
 
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 460) {
         Column(
-            desktopPanelBody(cardMax = 620.dp).verticalScroll(rememberScrollState()),
+            desktopPanelBody(cardMax = 620.dp)
+                .desktopTopScrollFade(integrationsScrollState)
+                .verticalScroll(integrationsScrollState),
         ) {
             Text(
                 DesktopStrings["account_integrations", "Account & integrations"],

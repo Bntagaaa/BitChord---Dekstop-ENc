@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.ui.screens.desktopTopScrollFade
+
 import com.music.bitchord.ui.replay.ReplayCreditCard
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -80,9 +83,14 @@ internal fun DesktopReplayPage(
     onOpenArtist: (String) -> Unit,
     contentPadding: PaddingValues,
 ) {
+    val replayListState = rememberLazyListState()
     // The mesh behind this page is painted by the frame, so the chrome is tinted by it too.
     Box(Modifier.fillMaxSize().background(DesktopTheme.palette.replaySurface)) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
+        LazyColumn(
+            state = replayListState,
+            modifier = Modifier.fillMaxSize().desktopTopScrollFade(replayListState),
+            contentPadding = contentPadding,
+        ) {
             item("heading") {
                 // No arrow of its own: the top bar's back is the way out, as the gesture is on
                 // Android.

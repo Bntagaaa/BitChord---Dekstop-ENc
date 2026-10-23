@@ -3285,6 +3285,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                     persistence.saveString("sidebar_collapsed", collapsed.toString())
                 },
                 onSidebarDrawerOpenChange = { sidebarDrawerOpen = it },
+                hasFloatingPlayer = selectedSong != null,
                 // Only Replay dresses itself; everywhere else the chrome sits on the plain surface.
                 backdrop = { transparentBase ->
                     Box(Modifier.fillMaxSize().then(
@@ -5300,7 +5301,7 @@ private fun DesktopBottomChrome(
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -5620,6 +5621,7 @@ internal fun DesktopSearchField(
 @Composable
 private fun DesktopFrame(
     containerColor: Color,
+    hasFloatingPlayer: Boolean,
     modifier: Modifier = Modifier,
     sidebarCollapsed: Boolean,
     sidebarDrawerOpen: Boolean,
@@ -5681,7 +5683,12 @@ private fun DesktopFrame(
                                                 PaddingValues(
                                                     start = 0.dp,
                                                     end = 0.dp,
-                                                    bottom = if (oldTopPlayerEnabled) 16.dp else 112.dp,
+                                                    bottom = when {
+                                                        oldTopPlayerEnabled -> 16.dp
+                                                        narrow && hasFloatingPlayer -> 132.dp
+                                                        narrow -> 24.dp
+                                                        else -> 132.dp
+                                                    },
                                                 ),
                                             )
                                         }

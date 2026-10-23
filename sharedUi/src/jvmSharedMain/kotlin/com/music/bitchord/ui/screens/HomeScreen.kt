@@ -99,31 +99,61 @@ import com.music.bitchord.ui.player.MeshPalette
 /** Desktop-only typography; Android keeps the original larger styles. */
 val LocalDesktopCompactHeadings = staticCompositionLocalOf { false }
 
-/** A shared, lightweight top-edge fade for all desktop scrolling lists and grids. */
-fun Modifier.desktopTopScrollFade(state: LazyListState): Modifier = desktopTopScrollFadeWhen {
-    state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0
-}
+/** Stable edge masking for desktop scrollable content. The mask is alpha-only, independent of the
+ * foreground/background palette, and therefore looks correct in dark, light and Follow System.
+ *
+ * At the top only the bottom edge fades (there is more below); at the bottom only the top edge
+ * fades (there is more above). When both directions scroll, both edges fade. A non-scrollable
+ * list gets no mask, so static content keeps full contrast.
+ */
+fun Modifier.desktopTopScrollFade(state: LazyListState): Modifier = desktopVerticalScrollFadeWhen(
+    canScrollBackward = { state.canScrollBackward },
+    canScrollForward = { state.canScrollForward },
+)
 
-/** Grids use the same fade and the same scroll threshold as song lists. */
-fun Modifier.desktopTopScrollFade(state: LazyGridState): Modifier = desktopTopScrollFadeWhen {
-    state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0
-}
+fun Modifier.desktopTopScrollFade(state: LazyGridState): Modifier = desktopVerticalScrollFadeWhen(
+    canScrollBackward = { state.canScrollBackward },
+    canScrollForward = { state.canScrollForward },
+)
 
-private fun Modifier.desktopTopScrollFadeWhen(hasScrolled: () -> Boolean): Modifier =
-    graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-        .drawWithContent {
-            drawContent()
-            if (hasScrolled()) {
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black),
-                        startY = 0f,
-                        endY = 34.dp.toPx(),
-                    ),
-                    blendMode = BlendMode.DstIn,
-                )
-            }
+/** Regular ScrollState pages (dialogs, options, etc.) get exactly the same edge behavior. */
+fun Modifier.desktopTopScrollFade(state: androidx.compose.foundation.ScrollState): Modifier =
+    desktopVerticalScrollFadeWhen(
+        canScrollBackward = { state.value > 0 },
+        canScrollForward = { state.value < state.maxValue },
+    )
+
+private fun Modifier.desktopVerticalScrollFadeWhen(
+    canScrollBackward: () -> Boolean,
+    canScrollForward: () -> Boolean,
+): Modifier = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        // Limit masks in small scrolling panels so the bands can never cover the entire viewport.
+        val topPx = minOf(34.dp.toPx(), size.height / 3f).coerceAtLeast(0f)
+        val bottomPx = minOf(54.dp.toPx(), size.height / 3f).coerceAtLeast(0f)
+        if (topPx <= 0f || bottomPx <= 0f) return@drawWithContent
+        if (canScrollBackward()) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color.Transparent, Color.Black),
+                    startY = 0f,
+                    endY = topPx,
+                ),
+                blendMode = BlendMode.DstIn,
+            )
         }
+        if (canScrollForward()) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color.Black, Color.Transparent),
+                    startY = size.height - bottomPx,
+                    endY = size.height,
+                ),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+    }
 
 /** How far the Listen now heading and feed sit above the shared top inset. */
 private val HOME_TITLE_LIFT = 28.dp
