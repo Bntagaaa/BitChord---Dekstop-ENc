@@ -312,7 +312,7 @@ fun SearchScreen(
                             Column(
                                 Modifier
                                     .heightIn(max = 420.dp)
-                                    .desktopTopScrollFade(suggestionScrollState)
+                                    .then(if (LocalDesktopCompactHeadings.current) Modifier.desktopTopScrollFade(suggestionScrollState) else Modifier)
                                     .verticalScroll(suggestionScrollState)
                                     .padding(vertical = 6.dp),
                             ) {
