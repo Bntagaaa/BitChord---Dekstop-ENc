@@ -5719,7 +5719,7 @@ private fun DesktopFrame(
                         }
 
                         // A temporary Task-Manager-style drawer: no reflow of the content below.
-                        AnimatedVisibility(
+                        androidx.compose.animation.AnimatedVisibility(
                             visible = drawerVisible,
                             enter = fadeIn(animationSpec = tween(150)),
                             exit = fadeOut(animationSpec = tween(120)),
@@ -5734,7 +5734,7 @@ private fun DesktopFrame(
                                     ) { onSidebarDrawerOpenChange(false) },
                             )
                         }
-                        AnimatedVisibility(
+                        androidx.compose.animation.AnimatedVisibility(
                             visible = drawerVisible,
                             modifier = Modifier.align(Alignment.CenterStart),
                             enter = slideInHorizontally(
