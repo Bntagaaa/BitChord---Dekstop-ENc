@@ -5299,7 +5299,8 @@ private fun DesktopBottomChrome(
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            // Lift the floating player/navigation above the lower fade and give it breathing room.
+            .padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -5667,8 +5668,8 @@ private fun DesktopFrame(
                                                 // Room for the bar that floats over this, so the
                                                 // last row can still be scrolled clear of it.
                                                 bottom = if (oldTopPlayerEnabled) {
-                                                    if (compact) 104.dp else 16.dp
-                                                } else 112.dp,
+                                                    if (compact) 120.dp else 16.dp
+                                                } else 132.dp,
                                             ),
                                         )
                                     }
