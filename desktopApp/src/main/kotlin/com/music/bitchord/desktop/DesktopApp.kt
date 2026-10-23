@@ -3274,6 +3274,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
             DesktopFrame(
                 // The phone's page is black, not the near-black of its cards.
                 containerColor = DesktopBackground,
+                hasFloatingPlayer = selectedSong != null,
                 // Only Replay dresses itself; everywhere else the chrome sits on the plain surface.
                 backdrop = { transparentBase ->
                     Box(Modifier.fillMaxSize().then(
@@ -5620,6 +5621,7 @@ internal fun DesktopSearchField(
 @Composable
 private fun DesktopFrame(
     containerColor: Color,
+    hasFloatingPlayer: Boolean,
     modifier: Modifier = Modifier,
     /**
      * The open page's own colours, painted across the whole window rather than only the content
@@ -5667,9 +5669,14 @@ private fun DesktopFrame(
                                                 end = 0.dp,
                                                 // Room for the bar that floats over this, so the
                                                 // last row can still be scrolled clear of it.
-                                                bottom = if (oldTopPlayerEnabled) {
-                                                    if (compact) 120.dp else 16.dp
-                                                } else 132.dp,
+                                                bottom = when {
+                                                    oldTopPlayerEnabled -> if (compact) 120.dp else 16.dp
+                                                    // Compact mode stacks the player above its mobile-style
+                                                    // nav; both must clear the last scrollable item.
+                                                    compact && hasFloatingPlayer -> 192.dp
+                                                    compact -> 112.dp
+                                                    else -> 132.dp
+                                                },
                                             ),
                                         )
                                     }
