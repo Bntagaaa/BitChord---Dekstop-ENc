@@ -41,6 +41,11 @@ class DesktopThemeTest {
         assertTrue(contrastRatio(LIGHT_PALETTE.foreground, LIGHT_PALETTE.background) >= 7.0)
         assertTrue(contrastRatio(LIGHT_PALETTE.secondary, LIGHT_PALETTE.background) >= 4.5)
         assertTrue(contrastRatio(LIGHT_PALETTE.onAccent, LIGHT_PALETTE.accent) >= 7.0)
+        // The floating player and chrome must not turn their controls into white-on-white.
+        assertTrue(contrastRatio(LIGHT_PALETTE.foreground, LIGHT_PALETTE.floatingPlayerSurface) >= 7.0)
+        assertTrue(contrastRatio(LIGHT_PALETTE.secondary, LIGHT_PALETTE.floatingPlayerSurface) >= 4.5)
+        assertNotEquals(LIGHT_PALETTE.background, LIGHT_PALETTE.floatingPlayerSurface)
+        assertNotEquals(LIGHT_PALETTE.searchSurface, LIGHT_PALETTE.surfaceRaised)
     }
 
     private fun contrastRatio(foreground: Color, background: Color): Double {
