@@ -158,7 +158,6 @@ import androidx.compose.material.icons.rounded.RemoveCircleOutline
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VolumeUp
@@ -279,7 +278,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import bitchord.desktopapp.generated.resources.Res
 import bitchord.desktopapp.generated.resources.logo
-import bitchord.desktopapp.generated.resources.logo_mark
 import bitchord.desktopapp.generated.resources.bitchord_logo_original
 import bitchord.desktopapp.generated.resources.player_transport_lyrics
 import bitchord.desktopapp.generated.resources.player_transport_next
@@ -3476,7 +3474,8 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                         accountName = activeAccount?.name?.takeIf(String::isNotBlank) ?: "Sign in",
                         accountAvatar = activeAccount?.avatar
                             ?: activeAccount?.profiles?.firstOrNull()?.avatar,
-                        showAccountInSidebar = !oldTopPlayerEnabled,
+                        // Account switching belongs in the sidebar for both player layouts.
+                        showAccountInSidebar = true,
                         onOpenAccounts = {
                             dismissDrawer()
                             DesktopTrackLog.log("accounts: opening the switcher")
@@ -3538,10 +3537,6 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                                 overlays.toggleSidePanel(DesktopSidePanel.QUEUE)
                             },
                             sidePanel = overlays.sidePanel,
-                            accountAvatar = activeAccount?.avatar ?: activeAccount?.profiles?.firstOrNull()?.avatar,
-                            onOpenAccounts = { overlays.accounts = true },
-                            canGoBack = navHistory.isNotEmpty(),
-                            onBack = ::goBack,
                         )
                     }
                 },
@@ -4768,11 +4763,6 @@ private fun DesktopTopBar(
     onOpenQueue: () -> Unit,
     /** Which of the two the column beside the page is showing, lit on its button. */
     sidePanel: DesktopSidePanel?,
-    accountAvatar: String?,
-    onOpenAccounts: () -> Unit,
-    /** The app's one way back — every page's own arrow was folded into this. */
-    canGoBack: Boolean,
-    onBack: () -> Unit,
 ) {
     // The same beat clock the player's scrubber runs, so this line and the player breathe
     // together through an Automix blend.
@@ -4794,24 +4784,8 @@ private fun DesktopTopBar(
                     .padding(start = 14.dp, end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // The mark leads the player's own controls, now that the sidebar runs to the top.
-                Image(
-                    painter = painterResource(Res.drawable.logo_mark),
-                    contentDescription = "BitChord",
-                    // The source SVG is white; tint its opaque paths for both appearance modes.
-                    colorFilter = ColorFilter.tint(DesktopForeground),
-                    modifier = Modifier.size(width = 28.dp, height = 18.dp),
-                )
-                Spacer(Modifier.width(14.dp))
-                DesktopToolbarButton(onClick = onBack, enabled = canGoBack, size = 32.dp) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        DesktopStrings["back", "Back"],
-                        tint = if (canGoBack) DesktopForeground else DesktopSecondary.copy(alpha = 0.40f),
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                Spacer(Modifier.width(6.dp))
+                // Brand, navigation and account switching live in the sidebar.
+                // The legacy top bar hosts playback controls only.
                 if (!compact) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(0.dp),
@@ -4999,7 +4973,6 @@ private fun DesktopTopBar(
                             modifier = Modifier.size(19.dp),
                         )
                     }
-                    DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
                 }
             }
             }
@@ -5088,11 +5061,11 @@ private fun DesktopSidebar(
             if (collapsed) {
                 Box(Modifier.fillMaxWidth().height(35.dp), contentAlignment = Alignment.Center) {
                     IconButton(onClick = onToggleCollapse) {
-                        Icon(
-                            Icons.Rounded.Menu,
+                        Image(
+                            painter = painterResource(Res.drawable.bitchord_logo_original),
                             contentDescription = "Expand sidebar",
-                            tint = DesktopForeground,
-                            modifier = Modifier.size(22.dp),
+                            colorFilter = ColorFilter.tint(DesktopForeground),
+                            modifier = Modifier.width(28.dp).height(18.dp),
                         )
                     }
                 }
