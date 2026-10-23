@@ -75,12 +75,13 @@ internal fun Modifier.desktopHoverWash(): Modifier = composed {
         animationSpec = tween(WASH_MS),
         label = "hoverWash",
     )
+    val hoverTint = DesktopForeground
     this
         .hoverable(interaction)
         .drawBehind {
             if (wash <= 0.01f) return@drawBehind
             drawCircle(
-                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f * wash),
+                color = hoverTint.copy(alpha = 0.12f * wash),
                 radius = size.minDimension / 2f,
             )
         }

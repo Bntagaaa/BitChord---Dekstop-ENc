@@ -51,10 +51,10 @@ internal fun DesktopThinSlider(
     transitionWindow: ClosedFloatingPointRange<Float>? = null,
     idleHeight: Dp = 7.dp,
     activeHeight: Dp = 12.dp,
-    activeColor: Color = Color.White.copy(alpha = 0.92f),
-    inactiveColor: Color = Color.White.copy(alpha = 0.26f),
+    activeColor: Color = DesktopForeground.copy(alpha = 0.92f),
+    inactiveColor: Color = DesktopForeground.copy(alpha = if (DesktopTheme.isDark) 0.26f else 0.30f),
     /** Halfway between the two track colours: visible against unplayed, invisible under played. */
-    markerColor: Color = Color.White.copy(alpha = 0.5f),
+    markerColor: Color = DesktopForeground.copy(alpha = 0.50f),
 ) {
     var dragging by remember { mutableStateOf(false) }
     val height by animateDpAsState(

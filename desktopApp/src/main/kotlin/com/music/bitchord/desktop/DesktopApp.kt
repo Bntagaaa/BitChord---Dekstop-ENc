@@ -64,6 +64,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.Canvas
@@ -276,7 +278,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import bitchord.desktopapp.generated.resources.Res
 import bitchord.desktopapp.generated.resources.logo
-import bitchord.desktopapp.generated.resources.logo_mark
 import bitchord.desktopapp.generated.resources.bitchord_logo_original
 import bitchord.desktopapp.generated.resources.player_transport_lyrics
 import bitchord.desktopapp.generated.resources.player_transport_next
@@ -548,7 +549,10 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
     var welcomeError by remember { mutableStateOf<String?>(null) }
     val persistence = remember { DesktopPersistence() }
     var sidebarCollapsed by remember { mutableStateOf(persistence.string("sidebar_collapsed", "false") == "true") }
+    // Expanded drawer is temporary and must not change the saved desktop preference.
+    var sidebarDrawerOpen by remember { mutableStateOf(false) }
     val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
+    val useOldExploreCards by DesktopAppearanceSettings.useOldExploreCards.collectAsState()
     var destination by remember { mutableStateOf(DesktopDestination.LISTEN_NOW) }
     val searchSession = remember { DesktopSearchSession<SearchResult>() }
     val query by searchSession.query
@@ -3274,6 +3278,13 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
             DesktopFrame(
                 // The phone's page is black, not the near-black of its cards.
                 containerColor = DesktopBackground,
+                sidebarCollapsed = sidebarCollapsed,
+                sidebarDrawerOpen = sidebarDrawerOpen,
+                onSidebarCollapsedChange = { collapsed ->
+                    sidebarCollapsed = collapsed
+                    persistence.saveString("sidebar_collapsed", collapsed.toString())
+                },
+                onSidebarDrawerOpenChange = { sidebarDrawerOpen = it },
                 hasFloatingPlayer = selectedSong != null,
                 // Only Replay dresses itself; everywhere else the chrome sits on the plain surface.
                 backdrop = { transparentBase ->
@@ -3384,6 +3395,10 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                                         overlays.shortcuts = false
                                         true
                                     }
+                                    sidebarDrawerOpen -> {
+                                        sidebarDrawerOpen = false
+                                        true
+                                    }
                                     overlays.nowPlaying && DesktopWindowMode.fullScreen.value -> {
                                         DesktopWindowMode.exit()
                                         true
@@ -3449,13 +3464,10 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                         true
                     }
                     .focusable(),
-                sidebar = {
+                sidebar = { collapsed, onToggleCollapse, dismissDrawer ->
                     DesktopSidebar(
-                        collapsed = sidebarCollapsed,
-                        onToggleCollapse = {
-                            sidebarCollapsed = !sidebarCollapsed
-                            persistence.saveString("sidebar_collapsed", sidebarCollapsed.toString())
-                        },
+                        collapsed = collapsed,
+                        onToggleCollapse = onToggleCollapse,
                         destination = destination,
                         settingsOpen = overlays.settingsPage != null,
                         accountPlaylists = sidebarAccountPlaylists,
@@ -3464,15 +3476,29 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                         accountName = activeAccount?.name?.takeIf(String::isNotBlank) ?: "Sign in",
                         accountAvatar = activeAccount?.avatar
                             ?: activeAccount?.profiles?.firstOrNull()?.avatar,
-                        showAccountInSidebar = !oldTopPlayerEnabled,
+                        // Account switching belongs in the sidebar for both player layouts.
+                        showAccountInSidebar = true,
                         onOpenAccounts = {
+                            dismissDrawer()
                             DesktopTrackLog.log("accounts: opening the switcher")
                             overlays.accounts = true
                         },
-                        onDestinationSelected = ::selectDestination,
-                        onOpenAccountPlaylist = { openShelfItem(it, PLAYLISTS_SHELF) },
-                        onOpenLocalPlaylist = ::openPlaylist,
-                        onOpenSettings = ::openSettings,
+                        onDestinationSelected = {
+                            dismissDrawer()
+                            selectDestination(it)
+                        },
+                        onOpenAccountPlaylist = {
+                            dismissDrawer()
+                            openShelfItem(it, PLAYLISTS_SHELF)
+                        },
+                        onOpenLocalPlaylist = {
+                            dismissDrawer()
+                            openPlaylist(it)
+                        },
+                        onOpenSettings = {
+                            dismissDrawer()
+                            openSettings()
+                        },
                     )
                 },
                 topBar = { compact ->
@@ -3513,10 +3539,6 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                                 overlays.toggleSidePanel(DesktopSidePanel.QUEUE)
                             },
                             sidePanel = overlays.sidePanel,
-                            accountAvatar = activeAccount?.avatar ?: activeAccount?.profiles?.firstOrNull()?.avatar,
-                            onOpenAccounts = { overlays.accounts = true },
-                            canGoBack = navHistory.isNotEmpty(),
-                            onBack = ::goBack,
                         )
                     }
                 },
@@ -4580,6 +4602,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                                     modifier = Modifier.fillMaxSize(),
                                     showTitle = false,
                                     showSectionHeadings = true,
+                                    useOldCards = useOldExploreCards,
                                 )
                             },
                         )
@@ -4743,11 +4766,6 @@ private fun DesktopTopBar(
     onOpenQueue: () -> Unit,
     /** Which of the two the column beside the page is showing, lit on its button. */
     sidePanel: DesktopSidePanel?,
-    accountAvatar: String?,
-    onOpenAccounts: () -> Unit,
-    /** The app's one way back — every page's own arrow was folded into this. */
-    canGoBack: Boolean,
-    onBack: () -> Unit,
 ) {
     // The same beat clock the player's scrubber runs, so this line and the player breathe
     // together through an Automix blend.
@@ -4769,24 +4787,8 @@ private fun DesktopTopBar(
                     .padding(start = 14.dp, end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // The mark leads the player's own controls, now that the sidebar runs to the top.
-                Image(
-                    painter = painterResource(Res.drawable.logo_mark),
-                    contentDescription = "BitChord",
-                    // The source SVG is white; tint its opaque paths for both appearance modes.
-                    colorFilter = ColorFilter.tint(DesktopForeground),
-                    modifier = Modifier.size(width = 28.dp, height = 18.dp),
-                )
-                Spacer(Modifier.width(14.dp))
-                DesktopToolbarButton(onClick = onBack, enabled = canGoBack, size = 32.dp) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        DesktopStrings["back", "Back"],
-                        tint = if (canGoBack) DesktopForeground else DesktopSecondary.copy(alpha = 0.40f),
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                Spacer(Modifier.width(6.dp))
+                // Brand, navigation and account switching live in the sidebar.
+                // The legacy top bar hosts playback controls only.
                 if (!compact) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(0.dp),
@@ -4974,7 +4976,6 @@ private fun DesktopTopBar(
                             modifier = Modifier.size(19.dp),
                         )
                     }
-                    DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
                 }
             }
             }
@@ -5300,7 +5301,6 @@ private fun DesktopBottomChrome(
     Column(
         Modifier
             .fillMaxWidth()
-            // Lift the floating player/navigation above the lower fade and give it breathing room.
             .padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -5623,6 +5623,10 @@ private fun DesktopFrame(
     containerColor: Color,
     hasFloatingPlayer: Boolean,
     modifier: Modifier = Modifier,
+    sidebarCollapsed: Boolean,
+    sidebarDrawerOpen: Boolean,
+    onSidebarCollapsedChange: (Boolean) -> Unit,
+    onSidebarDrawerOpenChange: (Boolean) -> Unit,
     /**
      * The open page's own colours, painted across the whole window rather than only the content
      * area, so the title bar, top bar and sidebar take their tint from the page they are framing
@@ -5630,7 +5634,8 @@ private fun DesktopFrame(
      */
     /** Receives true when its solid base should be left clear for the system material. */
     backdrop: @Composable (transparentBase: Boolean) -> Unit,
-    sidebar: @Composable () -> Unit,
+    // Frame selects inline expanded, inline rail, or floating expanded presentation.
+    sidebar: @Composable (Boolean, () -> Unit, () -> Unit) -> Unit,
     bottomBar: @Composable (Boolean) -> Unit,
     topBar: @Composable (Boolean) -> Unit,
     /** The column on the far side of the page — the lyrics or the queue, when one is open. */
@@ -5638,55 +5643,102 @@ private fun DesktopFrame(
     overlay: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    // Held out here rather than inside the constraints box.
     val haze = remember { HazeState() }
     val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
-    // The decorated peer and Compose client remain opaque. DWM styling affects the native caption.
     CompositionLocalProvider(LocalDesktopHaze provides haze) {
         Box(modifier.fillMaxSize().background(containerColor)) {
-            // The Haze backdrop still feeds intentional floating-bar effects; the sidebar
-            // and legacy top toolbar are opaque and do not sample it.
+            // Preserve blur for the floating player; the sidebar itself remains opaque.
             Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     BoxWithConstraints(Modifier.fillMaxSize()) {
-                        val compact = maxWidth < 980.dp
-                        // The system caption is outside this client layout.
+                        val narrow = DesktopSidebarWidthPolicy.shouldUseRail(maxWidth.value)
+                        val inlineCollapsed = DesktopSidebarWidthPolicy.isInlineCollapsed(
+                            maxWidth.value, sidebarCollapsed,
+                        )
+                        val drawerVisible = DesktopSidebarWidthPolicy.isDrawerVisible(
+                            maxWidth.value, sidebarDrawerOpen,
+                        )
+                        // Resizing back to desktop width must not reopen a stale drawer later.
+                        LaunchedEffect(narrow) {
+                            if (!narrow) onSidebarDrawerOpenChange(false)
+                        }
+
                         Row(Modifier.fillMaxSize()) {
-                            if (!compact) sidebar()
+                            sidebar(
+                                inlineCollapsed,
+                                {
+                                    if (narrow) onSidebarDrawerOpenChange(true)
+                                    else onSidebarCollapsedChange(!sidebarCollapsed)
+                                },
+                                { onSidebarDrawerOpenChange(false) },
+                            )
                             Column(Modifier.weight(1f).fillMaxHeight()) {
-                            topBar(compact)
-                            Row(Modifier.fillMaxWidth().weight(1f)) {
-                                Box(
-                                    Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight(),
-                                ) {
-                                    Box(Modifier.fillMaxSize().hazeSource(haze)) {
-                                        content(
-                                            PaddingValues(
-                                                start = 0.dp,
-                                                end = 0.dp,
-                                                // Room for the bar that floats over this, so the
-                                                // last row can still be scrolled clear of it.
-                                                bottom = when {
-                                                    oldTopPlayerEnabled -> if (compact) 120.dp else 16.dp
-                                                    // Compact mode stacks the player above its mobile-style
-                                                    // nav; both must clear the last scrollable item.
-                                                    compact && hasFloatingPlayer -> 192.dp
-                                                    compact -> 112.dp
-                                                    else -> 132.dp
-                                                },
-                                            ),
-                                        )
+                                // Only the legacy top player uses compact chrome at narrow widths.
+                                topBar(narrow)
+                                Row(Modifier.fillMaxWidth().weight(1f)) {
+                                    Box(Modifier.weight(1f).fillMaxHeight()) {
+                                        Box(Modifier.fillMaxSize().hazeSource(haze)) {
+                                            content(
+                                                PaddingValues(
+                                                    start = 0.dp,
+                                                    end = 0.dp,
+                                                    bottom = when {
+                                                        oldTopPlayerEnabled -> 16.dp
+                                                        narrow && hasFloatingPlayer -> 132.dp
+                                                        narrow -> 24.dp
+                                                        else -> 132.dp
+                                                    },
+                                                ),
+                                            )
+                                        }
+                                        // Navigation stays in the rail, never in the mobile bar.
+                                        Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(false) }
                                     }
-                                    Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(compact) }
+                                    Box(Modifier.fillMaxHeight()) { trailing() }
                                 }
-                                Box(
-                                    Modifier
-                                        .fillMaxHeight(),
-                                ) { trailing() }
                             }
+                        }
+
+                        // A temporary Task-Manager-style drawer: no reflow of the content below.
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = drawerVisible,
+                            enter = fadeIn(animationSpec = tween(150)),
+                            exit = fadeOut(animationSpec = tween(120)),
+                        ) {
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.26f))
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                    ) { onSidebarDrawerOpenChange(false) },
+                            )
+                        }
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = drawerVisible,
+                            modifier = Modifier.align(Alignment.CenterStart),
+                            enter = slideInHorizontally(
+                                initialOffsetX = { -it / 3 }, animationSpec = tween(180),
+                            ),
+                            exit = slideOutHorizontally(
+                                targetOffsetX = { -it / 3 }, animationSpec = tween(140),
+                            ),
+                        ) {
+                            val drawerShape = RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)
+                            Box(
+                                Modifier
+                                    .width(220.dp)
+                                    .fillMaxHeight()
+                                    .shadow(elevation = 18.dp, shape = drawerShape)
+                                    .clip(drawerShape),
+                            ) {
+                                sidebar(
+                                    false,
+                                    { onSidebarDrawerOpenChange(false) },
+                                    { onSidebarDrawerOpenChange(false) },
+                                )
                             }
                         }
                     }
@@ -6788,6 +6840,13 @@ private fun DesktopSettingsScreen(
                     }
                     val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
                     val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
+                    val useOldExploreCards by DesktopAppearanceSettings.useOldExploreCards.collectAsState()
+                    SettingsToggle(
+                        "Use old Explore cards",
+                        "Bring back the v1.7 gradient cards with angled cover art in Moods & moments and Genres",
+                        useOldExploreCards,
+                        DesktopAppearanceSettings::setUseOldExploreCards,
+                    )
                     SettingsToggle(
                         "Enable old top music player style",
                         "Use the original desktop top player instead of the new floating bottom player",
@@ -8077,7 +8136,7 @@ private fun DesktopSongRow(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(DesktopGlass.copy(alpha = 0.38f))
+            .background(if (DesktopTheme.isDark) DesktopGlass.copy(alpha = 0.38f) else DesktopTheme.palette.cardInsetFill)
             .clickable { onClick(song) }
             .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,

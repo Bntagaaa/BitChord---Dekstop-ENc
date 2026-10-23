@@ -252,7 +252,7 @@ private fun ChartRow(row: DesktopReplayRow, circular: Boolean, onClick: () -> Un
             Text(
                 listOfNotNull(row.subtitle, formatListening(row.ms)).joinToString(" · "),
                 style = MaterialTheme.typography.bodyMedium,
-                color = DesktopForeground.copy(alpha = 0.55f),
+                color = if (DesktopTheme.isLight) DesktopSecondary else DesktopForeground.copy(alpha = 0.55f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -261,7 +261,7 @@ private fun ChartRow(row: DesktopReplayRow, circular: Boolean, onClick: () -> Un
             Text(
                 row.plays.toString(),
                 style = MaterialTheme.typography.labelMedium,
-                color = DesktopForeground.copy(alpha = 0.45f),
+                color = if (DesktopTheme.isLight) DesktopSecondary else DesktopForeground.copy(alpha = 0.45f),
             )
         }
     }
