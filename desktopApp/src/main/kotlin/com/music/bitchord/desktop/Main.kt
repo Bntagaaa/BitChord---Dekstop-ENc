@@ -31,6 +31,8 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.painterResource
 
 fun main() {
+    // Read the per-install welcome marker before services initialize or write preferences.
+    val welcomeLaunch = DesktopWelcomeOnboarding.inspectStartup()
     // Before any WebView exists, so sign-in and PoToken pages share the same cookie jar.
     DesktopWebCookies.install()
     // The player is the phone's, from the shared UI module; this is what it reads underneath.
@@ -64,10 +66,10 @@ fun main() {
     )
     // The public "apps open right now" count; see Presence.
     DesktopPresence.install()
-    desktopMain()
+    desktopMain(welcomeLaunch)
 }
 
-private fun desktopMain() = application {
+private fun desktopMain(welcomeLaunch: DesktopWelcomeOnboarding.Launch) = application {
     // Closing puts the window away rather than ending the process, while there is a tray icon to
     // bring it back from — see [DesktopWindowVisibility].
     val visible by DesktopWindowVisibility.visible.collectAsState()
@@ -192,7 +194,7 @@ private fun desktopMain() = application {
         }
         CompositionLocalProvider(LocalDensity provides uiDensity) {
             DesktopFlyoutHost {
-                BitChordDesktopApp()
+                BitChordDesktopApp(welcomeLaunch)
             }
         }
     }
