@@ -52,7 +52,7 @@ internal fun DesktopThinSlider(
     idleHeight: Dp = 7.dp,
     activeHeight: Dp = 12.dp,
     activeColor: Color = DesktopForeground.copy(alpha = 0.92f),
-    inactiveColor: Color = DesktopForeground.copy(alpha = 0.30f),
+    inactiveColor: Color = DesktopForeground.copy(alpha = if (DesktopTheme.isDark) 0.26f else 0.30f),
     /** Halfway between the two track colours: visible against unplayed, invisible under played. */
     markerColor: Color = DesktopForeground.copy(alpha = 0.50f),
 ) {
