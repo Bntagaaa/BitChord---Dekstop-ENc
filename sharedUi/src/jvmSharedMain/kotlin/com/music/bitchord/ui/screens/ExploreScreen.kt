@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -26,12 +27,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -65,6 +72,8 @@ fun ExploreScreen(
     showTitle: Boolean = true,
     /** Render each server-provided category section with its own heading. */
     showSectionHeadings: Boolean = false,
+    /** Keep the current v1.8 card treatment by default; desktop users may opt into v1.7. */
+    useOldCards: Boolean = false,
 ) {
     PullToRefresh(
         refreshing = refreshing,
@@ -127,7 +136,7 @@ fun ExploreScreen(
                                     rows,
                                     key = { row -> "${section.title}:${row.first().browseId}|${row.first().params}" },
                                 ) { row ->
-                                    MoodGenreRow(row = row, columns = columns, onCategoryClick = onCategoryClick)
+                                    MoodGenreRow(row = row, columns = columns, onCategoryClick = onCategoryClick, useOldCards = useOldCards)
                                 }
                             }
                         } else {
@@ -136,7 +145,7 @@ fun ExploreScreen(
                                 .distinctBy { it.browseId to it.params }
                                 .chunked(columns)
                             items(rows, key = { row -> row.first().let { "${it.browseId}|${it.params}" } }) { row ->
-                                MoodGenreRow(row = row, columns = columns, onCategoryClick = onCategoryClick)
+                                MoodGenreRow(row = row, columns = columns, onCategoryClick = onCategoryClick, useOldCards = useOldCards)
                             }
                         }
                     }
@@ -151,6 +160,7 @@ private fun MoodGenreRow(
     row: List<MoodGenre>,
     columns: Int,
     onCategoryClick: (MoodGenre) -> Unit,
+    useOldCards: Boolean,
 ) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(MOOD_SPACING),
@@ -163,10 +173,29 @@ private fun MoodGenreRow(
                 item = item,
                 onClick = { onCategoryClick(item) },
                 modifier = Modifier.weight(1f),
+                useOldCards = useOldCards,
             )
         }
         // Short rows keep their cards the size of a full row's.
         repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+    }
+}
+
+/**
+ * Both card designs share one Explore grid, category click behavior and artwork data.
+ * The preference only affects drawing; switching it never reloads the Explore feed.
+ */
+@Composable
+private fun MoodGenreCard(
+    item: MoodGenre,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    useOldCards: Boolean,
+) {
+    if (useOldCards) {
+        OldMoodGenreCard(item = item, onClick = onClick, modifier = modifier)
+    } else {
+        ModernMoodGenreCard(item = item, onClick = onClick, modifier = modifier)
     }
 }
 
@@ -176,7 +205,7 @@ private fun MoodGenreRow(
  * artwork look pasted onto a separate solid panel on desktop.
  */
 @Composable
-private fun MoodGenreCard(
+private fun OldMoodGenreCard(
     item: MoodGenre,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -248,6 +277,112 @@ private fun moodColor(title: String): Color = when ((title.hashCode() and Int.MA
     else -> Color(0xFFAA267E)
 }
 
+/**
+ * A solid stripe down the left and the category's cover filling the rest,
+ * redrawn as a duotone of the stripe's colour so every card reads as one
+ * tinted sleeve rather than a photo pasted onto a swatch.
+ */
+@Composable
+private fun ModernMoodGenreCard(
+    item: MoodGenre,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tone = remember(item.stripeColor, item.title) { moodTone(item) }
+    Box(
+        modifier = modifier
+            .aspectRatio(MOOD_CARD_ASPECT)
+            .clip(MOOD_CARD_SHAPE)
+            .background(tone.stripe)
+            .clickable(onClick = onClick),
+    ) {
+        Box(
+            Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .fillMaxWidth(1f - MOOD_STRIPE_FRACTION)
+                .background(tone.placeholder),
+        ) {
+            item.thumbnailUrl?.let { artwork ->
+                AsyncImage(
+                    model = artwork,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    colorFilter = tone.duotone,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        // Pale stripes (Energize's cream, Feel good's mint) would swallow
+        // white type; a soft shade under the title keeps it legible.
+        Box(
+            Modifier
+                .matchParentSize()
+                .background(Brush.verticalGradient(0f to Color.Black.copy(alpha = .24f), .62f to Color.Transparent)),
+        )
+        Text(
+            text = item.title,
+            style = MaterialTheme.typography.titleMedium.copy(
+                shadow = Shadow(Color.Black.copy(alpha = .35f), offset = Offset(0f, 1f), blurRadius = 6f),
+            ),
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        )
+    }
+}
+
+private class MoodTone(val stripe: Color, val placeholder: Color, val duotone: ColorFilter)
+
+private fun moodTone(item: MoodGenre): MoodTone {
+    val base = item.stripeColor?.let { Color(it.toInt()) } ?: fallbackMoodColor(item.title)
+    // YouTube's palette is already pastel; a touch of black keeps it from
+    // glowing against the black page.
+    val stripe = lerp(base, Color.Black, .08f)
+    val shadow = lerp(base, Color.Black, .68f)
+    val highlight = lerp(base, Color.White, .32f)
+    return MoodTone(
+        stripe = stripe,
+        placeholder = lerp(shadow, highlight, .45f),
+        duotone = duotone(shadow, highlight),
+    )
+}
+
+/**
+ * Maps each pixel's luminance onto the ramp [shadow] to [highlight]. Offsets
+ * are in 0..255, which Compose honours on Skia too (it rescales them).
+ */
+private fun duotone(shadow: Color, highlight: Color): ColorFilter {
+    fun channel(from: Float, to: Float): FloatArray {
+        val span = to - from
+        return floatArrayOf(span * .299f, span * .587f, span * .114f, 0f, from * 255f)
+    }
+    return ColorFilter.colorMatrix(
+        ColorMatrix(
+            channel(shadow.red, highlight.red) +
+                channel(shadow.green, highlight.green) +
+                channel(shadow.blue, highlight.blue) +
+                floatArrayOf(0f, 0f, 0f, 1f, 0f),
+        ),
+    )
+}
+
+/** For a button that came without YouTube's colour: muted, never neon. */
+private fun fallbackMoodColor(title: String): Color = when ((title.hashCode() and Int.MAX_VALUE) % 8) {
+    0 -> Color(0xFFCC6A55)
+    1 -> Color(0xFFC07A92)
+    2 -> Color(0xFF9C8AC0)
+    3 -> Color(0xFF8090C8)
+    4 -> Color(0xFFD0A060)
+    5 -> Color(0xFF6A88B0)
+    6 -> Color(0xFF7AAED0)
+    else -> Color(0xFF86B890)
+}
+
 /** Gap between mood cards, in both directions. */
 private val MOOD_SPACING = 12.dp
 
@@ -258,6 +393,9 @@ private const val MOOD_CARD_ASPECT = 1.72f
 
 /** Size of the v1.7 sleeve relative to the card height (82dp / 100dp). */
 private const val MOOD_ARTWORK_HEIGHT_FRACTION = .82f
+
+/** The modern card places a solid stripe to the left of its tinted image. */
+private const val MOOD_STRIPE_FRACTION = .28f
 
 /**
  * The narrowest a mood card is let get before the row drops a column.
