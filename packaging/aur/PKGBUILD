@@ -1,0 +1,79 @@
+# Maintainer: BitChord Desktop Revived contributors
+# Binary package for Arch Linux and Arch-based distributions (including CachyOS).
+# Source is the project's published Linux AppImage, not an unofficial fork.
+pkgname=bitchord-desktop-revived-bin
+pkgver=1.8.2
+pkgrel=1
+pkgdesc='Community-maintained BitChord desktop music player'
+arch=('x86_64')
+url='https://github.com/Bntagaaa/BitChord-Desktop-Revived'
+license=('GPL-3.0-only')
+depends=(
+  'alsa-lib' 'fontconfig' 'freetype2' 'gcc-libs' 'glibc' 'gtk3'
+  'libpulse' 'libx11' 'libxext' 'libxi' 'libxrandr' 'libxrender'
+  'libxtst' 'mesa' 'nss'
+)
+optdepends=('libsecret: Secret Service credential storage, if available')
+provides=('bitchord-desktop-revived')
+conflicts=('bitchord-desktop-revived')
+options=('!strip' '!debug')
+
+_appimage="BitChord-${pkgver}-linux-x86_64.AppImage"
+_localimage="${pkgname}-${pkgver}.AppImage"
+source=("${_localimage}::${url}/releases/download/v${pkgver}/${_appimage}")
+noextract=("${_localimage}")
+sha256sums=('07f7069323d5bcdd0397616be31a1bd104a6d0af1fac9c56942ad7b05c3a7b8c')
+
+prepare() {
+  cd "${srcdir}"
+  rm -rf squashfs-root
+  chmod +x "${_localimage}"
+  # AppImage type 2 extracts without mounting FUSE, so Arch users need no fuse2
+  # dependency and don't pay the AppImage mount/extract cost on every launch.
+  "./${_localimage}" --appimage-extract > /dev/null
+  [[ -x squashfs-root/usr/bin/BitChord ]] || {
+    printf 'BitChord launcher is missing from the AppImage.\n' >&2
+    return 1
+  }
+  [[ -f squashfs-root/bitchord.png ]] || {
+    printf 'BitChord icon is missing from the AppImage.\n' >&2
+    return 1
+  }
+}
+
+package() {
+  # The release AppImage wraps a jpackage image under AppDir/usr/. Preserve
+  # its bin/lib layout: the bundled Java runtime and native libraries need it.
+  install -dm755 "${pkgdir}/opt/bitchord-desktop-revived"
+  cp -a "${srcdir}/squashfs-root/usr/." "${pkgdir}/opt/bitchord-desktop-revived/"
+  chmod -R a+rX "${pkgdir}/opt/bitchord-desktop-revived"
+
+  install -dm755 "${pkgdir}/usr/bin"
+  cat > "${pkgdir}/usr/bin/bitchord-desktop-revived" <<'LAUNCHER'
+#!/bin/sh
+# Match the AppImage launcher workaround for niri while leaving KDE/GNOME alone.
+desktop_hint="$(printf '%s:%s:%s' "${XDG_CURRENT_DESKTOP:-}" "${XDG_SESSION_DESKTOP:-}" "${NIRI_SOCKET:+niri}" | tr '[:upper:]' '[:lower:]')"
+case "$desktop_hint" in
+  *niri*) export _JAVA_AWT_WM_NONREPARENTING=1 ;;
+esac
+exec /opt/bitchord-desktop-revived/bin/BitChord "$@"
+LAUNCHER
+  chmod 755 "${pkgdir}/usr/bin/bitchord-desktop-revived"
+
+  install -dm755 "${pkgdir}/usr/share/applications"
+  cat > "${pkgdir}/usr/share/applications/bitchord-desktop-revived.desktop" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=BitChord Desktop Revived
+GenericName=Music Player
+Comment=Community-maintained BitChord desktop music player
+Exec=bitchord-desktop-revived
+Icon=bitchord-desktop-revived
+Categories=AudioVideo;Audio;Player;
+Terminal=false
+StartupWMClass=com-music-bitchord-desktop-MainKt
+DESKTOP
+
+  install -Dm644 "${srcdir}/squashfs-root/bitchord.png" \
+    "${pkgdir}/usr/share/pixmaps/bitchord-desktop-revived.png"
+}
