@@ -197,13 +197,13 @@ internal fun DesktopDialogPanel(
 internal fun DesktopFlyoutCard(
     modifier: Modifier = Modifier,
     onBackgroundClick: () -> Unit = {},
-    /** Quick Search uses the existing Remove Blur preference; unrelated dialogs stay opaque. */
+    /** Quick Search gets its own blur preference; unrelated dialogs remain opaque. */
     frosted: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(20.dp)
     val decoration = if (frosted) {
-        modifier.clip(shape).desktopBarGlass(shape)
+        modifier.clip(shape).desktopBarGlass(shape, DesktopBlurArea.QUICK_SEARCH)
     } else {
         modifier.desktopCard(shape)
     }

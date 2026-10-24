@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.runtime.collectAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Icon
@@ -60,9 +59,9 @@ internal fun DesktopSidePanelColumn(
     // Held through the exit, so the column slides out with what it had in it rather than empty.
     var shown by remember { mutableStateOf(panel) }
     if (panel != null) shown = panel
-    val reduceBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
     val haze = LocalDesktopHaze.current
-    val glassActive = blurBackground && haze != null && !reduceBlur
+    val glassActive = blurBackground && haze != null &&
+        DesktopAppearanceSettings.blurEnabled(DesktopBlurArea.SIDE_PANELS)
     // Lyrics and Queue share the same material even while crossfading.
     val panelFill = DesktopTheme.palette.lyricsSurface
     AnimatedVisibility(

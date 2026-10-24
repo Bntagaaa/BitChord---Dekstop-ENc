@@ -576,8 +576,8 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
     val shortcutDispatcher = remember { DesktopShortcutDispatcher() }
     val quickSearchState = remember { DesktopQuickSearchState<SearchResult> { quickSearchEntryKey(it) } }
     val quickSearchKeys = remember { DesktopQuickSearchKeys() }
-    // Search suggestions reuse the app-wide blur preference; no second toggle is created.
-    val searchBlurReduced by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+    // Search's own blur preference is still overridden by the global Reduce Blur switch.
+    val searchBlurReduced = !DesktopAppearanceSettings.blurEnabled(DesktopBlurArea.SEARCH_PAGE)
     val quickSearchFocusRequester = remember { FocusRequester() }
     var quickSearchRestorePending by remember { mutableStateOf(false) }
     val shortcutWindowInfo = LocalWindowInfo.current
@@ -5467,7 +5467,7 @@ private fun DesktopFloatingNavigation(
             .widthIn(max = 440.dp)
             .fillMaxWidth()
             .clip(shape)
-            .desktopBarGlass(shape),
+            .desktopBarGlass(shape, DesktopBlurArea.FLOATING_PLAYER),
         shape = shape,
         color = Color.Transparent,
         tonalElevation = 0.dp,
@@ -5520,13 +5520,12 @@ private fun DesktopMiniPlayer(
     onOpenQueue: () -> Unit,
 ) {
     val shape = RoundedCornerShape(16.dp)
-    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
-    val dockSurface = if (reduceDynamicBlur) {
+    val dockSurface = if (DesktopAppearanceSettings.blurEnabled(DesktopBlurArea.FLOATING_PLAYER)) {
+        Modifier.desktopBarGlass(shape, DesktopBlurArea.FLOATING_PLAYER)
+    } else {
         Modifier
             .background(DesktopTheme.palette.floatingPlayerSurface, shape)
             .border(0.5.dp, DesktopBarEdge, shape)
-    } else {
-        Modifier.desktopBarGlass(shape)
     }
     Surface(
         modifier = Modifier
@@ -5642,14 +5641,14 @@ internal fun DesktopSearchField(
     val searchShape = if (pill) RoundedCornerShape(percent = 50) else RoundedCornerShape(7.dp)
     val onShortcutFocusChanged = LocalDesktopShortcutTextFocus.current
     val shortcutModalVisible = LocalDesktopShortcutModalVisible.current
-    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+    val searchBlurReduced = !DesktopAppearanceSettings.blurEnabled(DesktopBlurArea.SEARCH_PAGE)
     val searchSurface = if (searchHaze != null) {
-        Modifier.desktopSearchGlass(searchHaze, searchShape, reduceDynamicBlur)
-    } else if (reduceDynamicBlur) {
+        Modifier.desktopSearchGlass(searchHaze, searchShape, searchBlurReduced)
+    } else if (searchBlurReduced) {
         Modifier.background(DesktopSearchFill, searchShape)
             .border(1.dp, DesktopForeground.copy(alpha = 0.10f), searchShape)
     } else {
-        Modifier.desktopBarGlass(searchShape)
+        Modifier.desktopBarGlass(searchShape, DesktopBlurArea.SEARCH_PAGE)
     }
     Box(
         modifier
@@ -6999,6 +6998,13 @@ private fun DesktopSettingsScreen(
                         reduceDynamicBlur,
                         DesktopAppearanceSettings::setReduceDynamicBlur,
                     )
+                    if (settingsRowVisible(
+                            "Customize blur",
+                            "Choose blur for Lyrics & Queue panels, Quick Search, Search, floating player, menus and top bar",
+                        )
+                    ) {
+                        DesktopBlurCustomization(reduceDynamicBlur)
+                    }
                     if (DesktopSidebarMica.isSupported) {
                         val micaSidebar by DesktopAppearanceSettings.micaSidebar.collectAsState()
                         SettingsToggle(
@@ -7990,16 +7996,26 @@ private val LocalNowPlaying = compositionLocalOf<Song?> { null }
 @Composable
 private fun Song.isNowPlaying(): Boolean = isSameTrackAs(LocalNowPlaying.current)
 
-/** The frosted pane the floating bars are made of. */
+/** The frosted pane shared by floating bars, Search, and Quick Search. */
 @Composable
-internal fun Modifier.desktopBarGlass(shape: Shape): Modifier =
-    desktopFrosted(DesktopBarGlass, tintAlpha = 0.55f).border(0.5.dp, DesktopBarEdge, shape)
+internal fun Modifier.desktopBarGlass(
+    shape: Shape,
+    area: DesktopBlurArea = DesktopBlurArea.APP_CHROME,
+): Modifier =
+    desktopFrosted(
+        DesktopBarGlass,
+        tintAlpha = 0.55f,
+        allowBlur = DesktopAppearanceSettings.blurEnabled(area),
+    ).border(0.5.dp, DesktopBarEdge, shape)
 
 /** Dense glass shared by desktop context menus and the account selector. */
 @Composable
 internal fun Modifier.desktopMenuGlass(shape: Shape, tintAlpha: Float = 0.82f): Modifier =
-    clip(shape).desktopFrosted(DesktopCardFill, tintAlpha = tintAlpha)
-        .border(0.5.dp, DesktopCardEdge, shape)
+    clip(shape).desktopFrosted(
+        DesktopCardFill,
+        tintAlpha = tintAlpha,
+        allowBlur = DesktopAppearanceSettings.blurEnabled(DesktopBlurArea.MENUS_POPUPS),
+    ).border(0.5.dp, DesktopCardEdge, shape)
 
 /** The edge of a chrome pane that meets the page, and so has to dissolve into it. */
 internal enum class DesktopChromeEdge { NONE, BOTTOM, END }
@@ -8018,6 +8034,7 @@ internal fun Modifier.desktopChromeGlass(
 ): Modifier = desktopFrosted(
     opaque = DesktopTheme.palette.chromeSurface.copy(alpha = 0.88f),
     tintAlpha = 0.46f,
+    allowBlur = DesktopAppearanceSettings.blurEnabled(DesktopBlurArea.APP_CHROME),
     edge = edge,
     fade = fade,
 )
@@ -8042,12 +8059,12 @@ internal fun desktopChromeDivider(): Color = DesktopDivider
 private fun Modifier.desktopFrosted(
     opaque: Color,
     tintAlpha: Float,
+    allowBlur: Boolean,
     edge: DesktopChromeEdge = DesktopChromeEdge.NONE,
     fade: Float = 0f,
 ): Modifier {
     val haze = LocalDesktopHaze.current
-    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
-    if (haze == null || reduceDynamicBlur) {
+    if (haze == null || !allowBlur) {
         return this.background(edge.dissolve(opaque, fade) ?: SolidColor(opaque))
     }
     val dissolve = edge.dissolve(DesktopTheme.palette.chromeSurface, fade)
