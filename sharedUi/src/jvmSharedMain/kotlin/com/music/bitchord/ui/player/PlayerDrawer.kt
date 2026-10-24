@@ -106,7 +106,6 @@ fun PlayerDrawer(
     modifier: Modifier = Modifier,
     /** Air between the title and whatever the drawer opens with. */
     titleGap: Dp = 14.dp,
-    frostedSurface: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
@@ -216,11 +215,9 @@ fun PlayerDrawer(
                         Modifier
                             .optimizedHazeEffect(
                                 state = hazeState,
-                                style = HazeMaterials.regular(
-                                    if (frostedSurface) Color(0xFF0B0B0B) else Color(0xFF141414),
-                                ),
+                                style = HazeMaterials.regular(Color(0xFF141414)),
                             )
-                            .background(Color(0xFF121212).copy(alpha = if (frostedSurface) 0.72f else 0.9f))
+                            .background(Color(0xFF121212).copy(alpha = 0.9f))
                     }
                 )
                 .clickable(

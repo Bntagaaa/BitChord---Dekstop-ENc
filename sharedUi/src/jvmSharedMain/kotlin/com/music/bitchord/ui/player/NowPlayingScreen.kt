@@ -736,6 +736,7 @@ fun NowPlayingScreen(
      */
     windowHeight: Dp,
     modifier: Modifier = Modifier,
+    lyricsProviderPresentation: LyricsProviderPresentation = LyricsProviderPresentation.DRAWER,
 ) {
     val density = LocalDensity.current
     val haptics = rememberHaptics()
@@ -1524,6 +1525,7 @@ fun NowPlayingScreen(
                 states = lyricsProviderStates,
                 onSelect = onSelectLyricsProvider,
                 onDismiss = { showLyricsProviders = false },
+                presentation = lyricsProviderPresentation,
             )
         }
         if (showAudioPipeline) {

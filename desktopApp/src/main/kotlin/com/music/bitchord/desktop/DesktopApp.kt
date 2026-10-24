@@ -43,6 +43,7 @@ import com.music.bitchord.data.listentogether.partyQueueIndexOf
 import com.music.bitchord.data.listentogether.partyUpcomingAfter
 import com.music.bitchord.ui.LyricsProviderState
 import com.music.bitchord.ui.player.LyricsSidePanel
+import com.music.bitchord.ui.player.LyricsProviderPresentation
 import com.music.bitchord.ui.player.NowPlayingScreen
 import com.music.bitchord.ui.player.QueueSidePanel
 import com.music.bitchord.ui.player.PlayerBack
@@ -3011,6 +3012,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
         DesktopPlayerSettings.fullBleedArtwork.value = fullBleedArtwork
         DesktopPlayerSettings.legacyMeshGradient.value = legacyMeshGradient
         DesktopPlayerSettings.lyricsBlur.value = lyricsBlur
+        DesktopPlayerSettings.reduceDynamicBlur.value = searchBlurReduced
         DesktopPlayerSettings.syncedLyrics.value = syncedLyrics
         DesktopPlayerSettings.showNerdStats.value = showNerdStats
         DesktopPlayerSettings.smartFadeEnabled.value = automix
@@ -3596,6 +3598,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                                 onSelectLyricsProvider = { source -> lyricsOnly = source.label },
                                 lyricsUnavailable = sharedLyricsUnavailable,
                                 enableUnfocusedBlur = destination == DesktopDestination.LISTEN_NOW,
+                                lyricsProviderPresentation = LyricsProviderPresentation.GLASS_POPUP,
                                 onSeek = ::seekPlayer,
                                 modifier = Modifier.fillMaxSize(),
                             )
@@ -3732,6 +3735,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                             onDismissLyricsOffset = {},
                             windowWidth = windowWidth,
                             windowHeight = windowHeight,
+                            lyricsProviderPresentation = LyricsProviderPresentation.GLASS_POPUP,
                         )
                         if (playerMenuOpen) {
                             // Where the player's "…" sits: the right column's credits row, at
