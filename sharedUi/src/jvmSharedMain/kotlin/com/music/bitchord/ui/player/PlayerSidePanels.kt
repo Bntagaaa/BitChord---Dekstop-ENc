@@ -46,6 +46,7 @@ fun LyricsSidePanel(
     lyricsUnavailable: Boolean,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    enableUnfocusedBlur: Boolean = false,
 ) {
     val haptics = rememberHaptics()
     val lyricsOffsetMs by PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
@@ -117,6 +118,7 @@ fun LyricsSidePanel(
                         onRevealControls = {},
                         onHideControls = {},
                         translationProgress = particleProgress,
+                        enableUnfocusedBlur = enableUnfocusedBlur,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }

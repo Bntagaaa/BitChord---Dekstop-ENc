@@ -72,6 +72,7 @@ internal fun LyricsProviderSheet(
         title = stringResource(Res.string.choose_lyrics_provider),
         onDismiss = onDismiss,
         modifier = modifier,
+        frostedSurface = true,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),

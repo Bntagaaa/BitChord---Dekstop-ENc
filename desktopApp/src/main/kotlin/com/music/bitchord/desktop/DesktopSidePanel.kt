@@ -50,18 +50,12 @@ internal enum class DesktopSidePanel { LYRICS, QUEUE }
 internal fun DesktopSidePanelColumn(
     panel: DesktopSidePanel?,
     onClose: () -> Unit,
+    frosted: Boolean = false,
     content: @Composable (DesktopSidePanel) -> Unit,
 ) {
     // Held through the exit, so the column slides out with what it had in it rather than empty.
     var shown by remember { mutableStateOf(panel) }
     if (panel != null) shown = panel
-    // Keep a fully opaque theme surface behind the lyrics/queue crossfade too.
-    // This prevents the page backdrop from showing through between animated panels.
-    val panelFill = if ((panel ?: shown) == DesktopSidePanel.LYRICS) {
-        DesktopTheme.palette.lyricsSurface
-    } else {
-        DesktopTheme.palette.sidebarSurface
-    }
     AnimatedVisibility(
         visible = panel != null,
         enter = expandHorizontally(tween(SLIDE_MS, easing = FastOutSlowInEasing), expandFrom = Alignment.Start) +
@@ -69,17 +63,22 @@ internal fun DesktopSidePanelColumn(
         exit = shrinkHorizontally(tween(SLIDE_MS, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Start) +
             fadeOut(tween(SLIDE_MS / 2)),
     ) {
-        Row(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight().background(panelFill)) {
+        Row(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight()) {
             Box(Modifier.width(1.dp).fillMaxHeight().background(DesktopDivider))
             Crossfade(
                 targetState = shown ?: return@Row,
                 animationSpec = tween(CROSSFADE_MS),
                 label = "sidePanel",
             ) { which ->
+                val surfaceColor = if (which == DesktopSidePanel.LYRICS) {
+                    DesktopTheme.palette.lyricsSurface
+                } else {
+                    DesktopTheme.palette.sidebarSurface
+                }
                 Box(
-                    Modifier.fillMaxSize().background(
-                        if (which == DesktopSidePanel.LYRICS) DesktopTheme.palette.lyricsSurface
-                        else DesktopTheme.palette.sidebarSurface,
+                    Modifier.fillMaxSize().then(
+                        if (frosted) Modifier.desktopFrosted(surfaceColor, tintAlpha = 0.55f)
+                        else Modifier.background(surfaceColor)
                     ),
                 ) {
                     // Both lyrics and queue use solid, theme-aware fills with no Haze overlay.

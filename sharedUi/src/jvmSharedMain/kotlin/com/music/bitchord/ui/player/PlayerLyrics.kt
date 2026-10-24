@@ -1574,6 +1574,7 @@ internal fun LyricsPanel(
     onPickLine: (Int) -> Unit = {},
     /** Tap while picking: add or drop that line. */
     onTogglePick: (Int) -> Unit = {},
+    enableUnfocusedBlur: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val panelPlaying = isPlaying && active
@@ -1642,7 +1643,7 @@ internal fun LyricsPanel(
     val lyricsBlur by PlayerSettings.lyricsBlur.collectAsStateWithLifecycle()
     val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
 
-    val glowing = !reduceAnimation && !reduceDynamicBlur && lyricsBlur &&
+    val glowing = enableUnfocusedBlur && !reduceAnimation && !reduceDynamicBlur && lyricsBlur &&
         renderEffectBlurSupported
 
     LaunchedEffect(listState) {
@@ -1849,7 +1850,7 @@ internal fun LyricsPanel(
             val step = distance.coerceAtMost(LINE_FALLOFF_ALPHA.lastIndex)
             val blur by animateDpAsState(
                 targetValue = when {
-                    !isSynced || reduceDynamicBlur || !lyricsBlur || browsing || isActive -> 0.dp
+                    !isSynced || reduceDynamicBlur || !lyricsBlur || !enableUnfocusedBlur || browsing || isActive -> 0.dp
                     else -> LINE_FALLOFF_BLUR[step]
                 },
                 animationSpec = tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING),

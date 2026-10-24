@@ -111,6 +111,7 @@ internal fun DesktopAccountSelector(
     onRemoveAccount: (DesktopGoogleAccount) -> Unit,
     onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
+    sidebarCollapsed: Boolean = false,
 ) {
     DesktopRegisterFlyout(DesktopFlyoutLayer.ACCOUNT, onDismiss = onDismiss)
     var managing by remember { mutableStateOf(false) }
@@ -120,7 +121,6 @@ internal fun DesktopAccountSelector(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -130,9 +130,9 @@ internal fun DesktopAccountSelector(
         val shape = RoundedCornerShape(20.dp)
         Column(
             Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 64.dp, end = 24.dp)
-                .widthIn(max = 380.dp)
+                .align(Alignment.BottomStart)
+                .padding(start = if (sidebarCollapsed) 54.dp else 12.dp, bottom = 72.dp)
+                .widthIn(max = 320.dp)
                 .fillMaxWidth()
                 .clip(shape)
                 // The same frosted pane the floating bars are made of, sampling the page underneath
