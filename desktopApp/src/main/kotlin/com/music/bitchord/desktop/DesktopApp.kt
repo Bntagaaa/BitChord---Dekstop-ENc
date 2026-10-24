@@ -3457,9 +3457,11 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                         accountPlaylists = sidebarAccountPlaylists,
                         localPlaylists = playlists,
                         openedCollectionId = openedCollection?.browseId,
-                        accountName = activeAccount?.name?.takeIf(String::isNotBlank) ?: "Sign in",
-                        accountAvatar = activeAccount?.avatar
-                            ?: activeAccount?.profiles?.firstOrNull()?.avatar,
+                        accountName = activeAccount?.profiles?.firstOrNull { it.profileId == activeProfileId }?.name?.takeIf(String::isNotBlank)
+                            ?: activeAccount?.name?.takeIf(String::isNotBlank) ?: "Sign in",
+                        accountAvatar = activeAccount?.profiles?.firstOrNull { it.profileId == activeProfileId }?.avatar?.takeIf { it.isNotBlank() }
+                            ?: activeAccount?.avatar?.takeIf { it.isNotBlank() }
+                            ?: activeAccount?.profiles?.firstOrNull()?.avatar?.takeIf { it.isNotBlank() },
                         // Account switching belongs in the sidebar for both player layouts.
                         showAccountInSidebar = true,
                         onOpenAccounts = {
@@ -3644,7 +3646,8 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                             shuffleEnabled = shuffle,
                             autoplayEnabled = DesktopAutoplay.enabled(partyState, autoplay),
                             signedIn = youtubeSignedIn,
-                            accountName = activeAccount?.name?.takeIf(String::isNotBlank),
+                            accountName = activeAccount?.profiles?.firstOrNull { it.profileId == activeProfileId }?.name?.takeIf(String::isNotBlank)
+                                ?: activeAccount?.name?.takeIf(String::isNotBlank),
                             likeStatus = when (current.videoId) {
                                 in likedIds -> LikeStatus.LIKE
                                 in dislikedIds -> LikeStatus.DISLIKE
