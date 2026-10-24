@@ -85,6 +85,16 @@ The currently published `1.8.0-test` packages are **older experimental Windows b
 
 Looking for the original BitChord project instead? Visit the [official upstream repository](https://github.com/kushagrasinghx/BitChord).
 
+## Arch Linux / CachyOS package
+
+An Arch-compatible binary package recipe is included in
+[`packaging/aur`](packaging/aur/README.md). It installs the official BitChord
+Linux release with an application-menu entry and supports upgrades/removal via
+`pacman`. **The recipe is not yet published to AUR**, so the `paru -S` command
+will only become available after an AUR maintainer publishes it. Until then,
+Arch/CachyOS users can build and install the package locally with `makepkg -si`
+using the instructions in the linked README.
+
 ## Building from source
 
 The existing desktop target uses **Java 21** and **Compose Multiplatform**.
