@@ -28,6 +28,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import com.music.bitchord.ui.player.LyricsPanelColors
 import com.music.bitchord.ui.player.LocalLyricsPanelColors
+import com.music.bitchord.ui.player.QueuePanelColors
+import com.music.bitchord.ui.player.LocalQueuePanelColors
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,11 +63,8 @@ internal fun DesktopSidePanelColumn(
     val reduceBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
     val haze = LocalDesktopHaze.current
     val glassActive = blurBackground && haze != null && !reduceBlur
-    val panelFill = if ((panel ?: shown) == DesktopSidePanel.LYRICS) {
-        DesktopTheme.palette.lyricsSurface
-    } else {
-        DesktopTheme.palette.sidebarSurface
-    }
+    // Lyrics and Queue share the same material even while crossfading.
+    val panelFill = DesktopTheme.palette.lyricsSurface
     AnimatedVisibility(
         visible = panel != null,
         enter = expandHorizontally(tween(SLIDE_MS, easing = FastOutSlowInEasing), expandFrom = Alignment.Start) +
@@ -91,8 +90,7 @@ internal fun DesktopSidePanelColumn(
                 ) { which ->
                     Box(
                         Modifier.fillMaxSize().background(
-                            if (glassActive) Color.Transparent else if (which == DesktopSidePanel.LYRICS) DesktopTheme.palette.lyricsSurface
-                            else DesktopTheme.palette.sidebarSurface,
+                            if (glassActive) Color.Transparent else panelFill,
                         ),
                     ) {
                         // Keep the existing panel geometry independent from its background material.
@@ -135,12 +133,21 @@ internal fun DesktopSidePanelColumn(
                                 if (which == DesktopSidePanel.LYRICS && DesktopTheme.isLight) {
                                     CompositionLocalProvider(
                                         LocalLyricsPanelColors provides LyricsPanelColors(
-                                            primary = Color(0xFF1B2230),
-                                            secondary = Color(0xFF596272),
-                                            inactive = Color(0xFF3E485A),
+                                            primary = LIGHT_PANEL_PRIMARY,
+                                            secondary = LIGHT_PANEL_SECONDARY,
+                                            inactive = LIGHT_PANEL_INACTIVE,
                                             iconSurface = Color(0xFF243044),
                                             selection = Color(0xFF1C273B),
                                             isLight = true,
+                                        ),
+                                    ) { content(which) }
+                                } else if (which == DesktopSidePanel.QUEUE && DesktopTheme.isLight) {
+                                    CompositionLocalProvider(
+                                        LocalQueuePanelColors provides QueuePanelColors(
+                                            primary = LIGHT_PANEL_PRIMARY,
+                                            secondary = LIGHT_PANEL_SECONDARY,
+                                            heading = LIGHT_PANEL_INACTIVE,
+                                            muted = LIGHT_PANEL_SECONDARY,
                                         ),
                                     ) { content(which) }
                                 } else content(which)
@@ -152,6 +159,10 @@ internal fun DesktopSidePanelColumn(
         }
     }
 }
+
+private val LIGHT_PANEL_PRIMARY = Color(0xFF1B2230)
+private val LIGHT_PANEL_SECONDARY = Color(0xFF596272)
+private val LIGHT_PANEL_INACTIVE = Color(0xFF3E485A)
 
 private val SIDE_PANEL_WIDTH = 360.dp
 private val HEADER_HEIGHT = 46.dp

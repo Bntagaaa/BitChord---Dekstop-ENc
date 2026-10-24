@@ -5817,8 +5817,20 @@ internal fun DesktopFrame(
                                                 ),
                                             )
                                         }
-                                        // Navigation stays in the rail, never in the mobile bar.
-                                        Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(false) }
+                                        // Home paints beneath the frosted panel, but the floating player
+                                        // must be laid out within the uncovered area just like Search.
+                                        // Read the panel's animated measured width to avoid overlap
+                                        // while opening, closing, or resizing the desktop window.
+                                        val shelfEndInset = LocalDesktopShelfEndInset.current
+                                        val density = LocalDensity.current
+                                        val playerEndPadding = with(density) { shelfEndInset().coerceAtLeast(0).toDp() }
+                                        Box(
+                                            Modifier
+                                                .align(Alignment.BottomCenter)
+                                                .fillMaxWidth()
+                                                .padding(end = playerEndPadding),
+                                            contentAlignment = Alignment.BottomCenter,
+                                        ) { bottomBar(false) }
                                     }
                                 }
                             }
