@@ -51,6 +51,17 @@ jobs:
             makepkg --verifysource
           '
 
+      - name: Exercise release job's DEB reuse helper
+        run: |
+          runuser -u aurbuilder -- bash -c '
+            set -euo pipefail
+            cd packaging/aur
+            version=$(sed -n "s/^pkgver=//p" PKGBUILD)
+            test -n "$version"
+            cp "bitchord-desktop-revived-bin-$version.deb" "BitChord-$version-linux-amd64.deb"
+            python prepare_release.py --version "$version" --deb "BitChord-$version-linux-amd64.deb"
+            makepkg --verifysource
+          '
       - name: Build Arch package without root privileges
         run: |
           runuser -u aurbuilder -- bash -c '
