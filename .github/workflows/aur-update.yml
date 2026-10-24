@@ -1,0 +1,73 @@
+name: Prepare AUR Update
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    name: Open a reviewable AUR package bump
+    if: github.event_name != 'release' || (!github.event.release.prerelease && !github.event.release.draft)
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+
+    steps:
+      # Always update the active package recipe on main, not the release tag's
+      # historical snapshot. Never publish to the AUR without review.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install updater prerequisites
+        run: pacman -Syu --noconfirm --needed python git
+
+      - name: Read release metadata and verify SHA-256
+        id: update
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ -n "$RELEASE_TAG" ]; then
+            python packaging/aur/update.py --tag "$RELEASE_TAG"
+          else
+            python packaging/aur/update.py
+          fi
+
+      - name: Refresh .SRCINFO from makepkg
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          useradd --create-home aurbuilder
+          chown -R aurbuilder:aurbuilder packaging/aur
+          runuser -u aurbuilder -- bash -c '
+            set -e
+            cd packaging/aur
+            makepkg --printsrcinfo > .SRCINFO
+          '
+
+      - name: Open version bump PR (no AUR publish yet)
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automation/update-aur-package
+          base: main
+          delete-branch: true
+          add-paths: |
+            packaging/aur/PKGBUILD
+            packaging/aur/.SRCINFO
+          title: 'build(aur): update BitChord to v${{ steps.update.outputs.version }}'
+          commit-message: 'build(aur): update to v${{ steps.update.outputs.version }}'
+          body: |
+            Automatically prepared from a **published stable GitHub Release**.
+
+            - Updated PKGBUILD version and the release asset's GitHub SHA-256 digest.
+            - Regenerated .SRCINFO with Arch makepkg.
+            - Requires package validation CI and human review before merging.
+            - This workflow **does not publish to AUR** or modify users' machines.
+
+            After merge, the AUR maintainer can publish the PKGBUILD and
+            .SRCINFO to the separately hosted Arch User Repository.
