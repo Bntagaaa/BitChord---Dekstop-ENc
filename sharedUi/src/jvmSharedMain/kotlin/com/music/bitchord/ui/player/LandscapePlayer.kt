@@ -161,7 +161,7 @@ internal fun LandscapePlayerLayout(
 
             Row(
                 modifier = Modifier
-                    .widthIn(max = LANDSCAPE_PLAYER_MAX_WIDTH)
+                    .widthIn(max = if (drawerFollowsListScroll) LANDSCAPE_PLAYER_MAX_WIDTH else 1800.dp)
                     .fillMaxSize()
                     .padding(
                         top = LANDSCAPE_HANDLE_STRIP,

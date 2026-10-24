@@ -1723,16 +1723,18 @@ internal fun LyricsPanel(
     // browse on their own terms.
     // A newer line replaces an unfinished automatic scroll. Only a user's
     // browsing gesture should suspend following, not our own animation.
-    LaunchedEffect(focusLine, browsing, controlsOpen, active) {
+    val centerActiveLine = LocalCenteredLyrics.current
+    LaunchedEffect(focusLine, browsing, controlsOpen, active, centerActiveLine) {
         if (active && isSynced && !browsing &&
             focusLine >= 0 && focusLine in lines.indices
         ) {
             snapshotFlow { listState.layoutInfo.viewportSize.height }.first { it > 0 }
-            // Keep the same top anchor whether the playback controls are visible or hidden.
+            // Desktop keeps the active line near the viewport center without disturbing manual browsing.
+            val centerOffset = if (centerActiveLine) (listState.layoutInfo.viewportStartOffset + listState.layoutInfo.viewportEndOffset) / 2 else 0
             val visible = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == focusLine }
             when {
                 !placed -> {
-                    listState.scrollToItem(focusLine, scrollOffset = 0)
+                    listState.scrollToItem(focusLine, scrollOffset = -centerOffset)
                     placed = true
                 }
                 // Already on screen, which is the ordinary case of handing over
@@ -1741,20 +1743,20 @@ internal fun LyricsPanel(
                 // list's default spring.
                 visible != null -> {
                     val span = scrollLead(lines, clock.longValue).toInt()
-                    run = ScrollRun(run.id + 1, visible.offset.toFloat(), span)
+                    run = ScrollRun(run.id + 1, (visible.offset - centerOffset + if (centerActiveLine) visible.size / 2 else 0).toFloat(), span)
                     // The same curve the rows catch up on. Two different
                     // curves and a row with no delay at all still trails the
                     // list it is sitting in, which is most of the way to
                     // looking like the panel cannot keep up with itself.
                     listState.animateScrollBy(
-                        value = visible.offset.toFloat(),
+                        value = (visible.offset - centerOffset + if (centerActiveLine) visible.size / 2 else 0).toFloat(),
                         animationSpec = tween(durationMillis = span, easing = LYRIC_EASING),
                     )
                 }
                 // Somewhere off screen — after a seek, or a long instrumental
                 // scrolled past. How far is not known without laying the rows
                 // out, so this hands back to the list's own staged scroll.
-                else -> listState.animateScrollToItem(focusLine, scrollOffset = 0)
+                else -> listState.animateScrollToItem(focusLine, scrollOffset = -centerOffset)
             }
         }
     }
@@ -1793,7 +1795,7 @@ internal fun LyricsPanel(
         // list hands that much back — otherwise the lines would sit a glow's
         // width further apart and further in than they used to.
         contentPadding = PaddingValues(
-            top = 40.dp - GLOW_ROOM,
+            top = if (centerActiveLine) with(LocalDensity.current) { viewportHeight.toDp() } / 2 else 40.dp - GLOW_ROOM,
             bottom = with(LocalDensity.current) { viewportHeight.toDp() } * 0.8f,
             start = PLAYER_GUTTER - GLOW_ROOM,
             end = PLAYER_GUTTER - GLOW_ROOM,
@@ -2924,3 +2926,6 @@ internal fun rememberLyricsTranslation(
         toggleRomanization = toggleRomanization,
     )
 }
+
+/** Expanded desktop player opts into centered active lyrics; other layouts keep their anchor. */
+val LocalCenteredLyrics = androidx.compose.runtime.staticCompositionLocalOf { false }

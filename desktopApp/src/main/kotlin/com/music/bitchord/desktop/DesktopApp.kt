@@ -6766,7 +6766,7 @@ private fun DesktopSettingsScreen(
                             DesktopStrings["app_language", "App language"],
                             DesktopStrings.languageLabel(),
                         ) { languageMenuOpen = true }
-                        DropdownMenu(languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
+                        DesktopDropdownMenu(languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
                             DesktopStrings.available.forEach { language ->
                                 DropdownMenuItem(
                                     text = { Text(language.label) },
@@ -6914,7 +6914,7 @@ private fun DesktopSettingsScreen(
                                     Spacer(Modifier.width(4.dp))
                                     Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null)
                                 }
-                                DropdownMenu(
+                                DesktopDropdownMenu(
                                     expanded = uiScaleMenuOpen,
                                     onDismissRequest = { uiScaleMenuOpen = false },
                                 ) {
@@ -7716,7 +7716,7 @@ private fun DesktopCollectionPage(
                             )
                             Box {
                                 DesktopCircleButton(Icons.Rounded.MoreHoriz, DesktopStrings["more", "More"], onClick = { moreOpen = true })
-                                DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
+                                DesktopDropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
                                     DropdownMenuItem(
                                         text = { Text(DesktopStrings["download_all", "Download all"]) },
                                         leadingIcon = { Icon(BitChordIcons.Download, null) },
@@ -7952,6 +7952,12 @@ private fun Song.isNowPlaying(): Boolean = isSameTrackAs(LocalNowPlaying.current
 @Composable
 internal fun Modifier.desktopBarGlass(shape: Shape): Modifier =
     desktopFrosted(DesktopBarGlass, tintAlpha = 0.55f).border(0.5.dp, DesktopBarEdge, shape)
+
+/** Dense glass shared by desktop context menus and the account selector. */
+@Composable
+internal fun Modifier.desktopMenuGlass(shape: Shape): Modifier =
+    clip(shape).desktopFrosted(DesktopCardFill, tintAlpha = 0.82f)
+        .border(0.5.dp, DesktopCardEdge, shape)
 
 /** The edge of a chrome pane that meets the page, and so has to dissolve into it. */
 internal enum class DesktopChromeEdge { NONE, BOTTOM, END }

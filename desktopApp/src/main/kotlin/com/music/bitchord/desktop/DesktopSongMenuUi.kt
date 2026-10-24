@@ -322,7 +322,7 @@ private fun DesktopMenuSurface(onDismiss: () -> Unit, content: @Composable () ->
             Modifier
                 .widthIn(min = 232.dp, max = 300.dp)
                 .clip(shape)
-                .desktopCard(shape)
+                .desktopMenuGlass(shape)
                 .padding(vertical = 6.dp)
                 // A menu with every optional row on it is taller than a small window; capped and
                 // scrolled rather than run off the screen.

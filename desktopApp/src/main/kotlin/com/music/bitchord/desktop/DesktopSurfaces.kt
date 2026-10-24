@@ -271,3 +271,22 @@ internal fun Modifier.desktopSearchGlass(
     }
     return clip(shape).then(surface).border(0.5.dp, DesktopBarEdge, shape)
 }
+
+/** Shared appearance for desktop dropdown menus; actions retain their existing focus handling. */
+@Composable
+internal fun DesktopDropdownMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val shape = RoundedCornerShape(12.dp)
+    androidx.compose.material3.DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismissRequest,
+        modifier = modifier.desktopMenuGlass(shape),
+        shape = shape,
+        containerColor = Color.Transparent,
+        content = content,
+    )
+}
