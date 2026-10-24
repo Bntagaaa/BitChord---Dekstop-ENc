@@ -61,14 +61,27 @@ internal object DesktopWelcomeOnboarding {
         return MARKER_PREFIX + digest.take(40)
     }
 
-    private fun installationIdentity(): String {
-        // jpackage's launcher property is preferred over the Java runtime binary: two separately
-        // installed BitChord copies can share accounts but must have separate onboarding.
-        val launcher = sequenceOf(
-            System.getProperty("jpackage.app-path"),
-            runCatching { ProcessHandle.current().info().command().orElse(null) }.getOrNull(),
-            System.getProperty("java.home"),
-        ).filterNotNull().firstOrNull(String::isNotBlank)
+    private fun installationIdentity(): String = installationIdentity(
+        // AppImage exports its original file path via APPIMAGE. The jpackage launcher lives
+        // under a temporary /tmp/.mount_* or extracted AppDir that changes on every start.
+        // Using that transient path creates a new first-run marker on every launch.
+        appImagePath = if (DesktopPlatform.isLinux) System.getenv("APPIMAGE") else null,
+        launcherPath = System.getProperty("jpackage.app-path"),
+        processCommand = runCatching { ProcessHandle.current().info().command().orElse(null) }.getOrNull(),
+        javaHome = System.getProperty("java.home"),
+    )
+
+    /** Resolve the stable host launcher before hashing it; injectable for launch-path tests. */
+    internal fun installationIdentity(
+        appImagePath: String?,
+        launcherPath: String?,
+        processCommand: String?,
+        javaHome: String?,
+    ): String {
+        // The AppImage file wins over the ephemeral executable inside its mount. Other
+        // packages keep the existing jpackage/command/runtime fallback behaviour.
+        val launcher = sequenceOf(appImagePath, launcherPath, processCommand, javaHome)
+            .filterNotNull().firstOrNull(String::isNotBlank)
             ?: "unknown-launcher"
         return runCatching { fileIdentity(Path.of(launcher)) }
             .getOrDefault(launcher)
