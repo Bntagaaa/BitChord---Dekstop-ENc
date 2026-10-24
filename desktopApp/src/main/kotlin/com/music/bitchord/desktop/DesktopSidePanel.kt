@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,9 +38,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import kotlin.math.roundToInt
 
 /** What the column beside the page is showing. */
 internal enum class DesktopSidePanel { LYRICS, QUEUE }
@@ -63,6 +68,7 @@ internal fun DesktopSidePanelColumn(
     val blur by DesktopAppearanceSettings.sidePanelBlur.collectAsState()
     val reduceBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
     val haze = LocalDesktopHaze.current
+    val homeSnapshot = LocalDesktopHomeSnapshot.current
     val glassActive = blurBackground && haze != null && !reduceBlur
     // Keep the material stable while destinations change to avoid a glass/solid flash.
     val panelFill = if ((panel ?: shown) == DesktopSidePanel.LYRICS) {
@@ -85,68 +91,86 @@ internal fun DesktopSidePanelColumn(
                 tints = listOf(HazeTint(panelFill.copy(alpha = opacity)))
             }
         } else Modifier.background(panelFill)
-        Row(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight().then(glass)) {
-            Box(Modifier.width(1.dp).fillMaxHeight().background(DesktopDivider))
-            Crossfade(
-                targetState = shown ?: return@Row,
-                animationSpec = tween(CROSSFADE_MS),
-                label = "sidePanel",
-            ) { which ->
-                Box(
-                    Modifier.fillMaxSize().background(
-                        if (glassActive) Color.Transparent else if (which == DesktopSidePanel.LYRICS) DesktopTheme.palette.lyricsSurface
-                        else DesktopTheme.palette.sidebarSurface,
-                    ),
-                ) {
-                    // Keep the existing panel geometry independent from its background material.
-                    Column(Modifier.fillMaxSize()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(if (which == DesktopSidePanel.LYRICS) HEADER_HEIGHT else QUEUE_HEADER_HEIGHT)
-                                .padding(start = 18.dp, end = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            // The queue heads itself ("Queue", then its sections); only the lyrics
-                            // need a name over them.
-                            Text(
-                                text = if (which == DesktopSidePanel.LYRICS) DesktopStrings["lyrics", "Lyrics"] else "",
-                                color = DesktopForeground,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f),
-                            )
-                            DesktopToolbarButton(onClick = onClose, size = 28.dp) {
-                                Icon(
-                                    Icons.Rounded.Close,
-                                    DesktopStrings["close", "Close"],
-                                    tint = DesktopSecondary,
-                                    modifier = Modifier.size(16.dp),
+        Box(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight()) {
+            if (glassActive && homeSnapshot != null) {
+                // A single frame of the actual Home feed, captured before the feed narrows.
+                // This gives Haze real page pixels to sample without composing Home twice.
+                Canvas(Modifier.matchParentSize().hazeSource(requireNotNull(haze))) {
+                    val width = size.width.roundToInt().coerceAtLeast(1)
+                    val height = size.height.roundToInt().coerceAtLeast(1)
+                    val sourceWidth = minOf(width, homeSnapshot.width)
+                    val sourceHeight = minOf(height, homeSnapshot.height)
+                    drawImage(
+                        image = homeSnapshot,
+                        srcOffset = IntOffset(homeSnapshot.width - sourceWidth, 0),
+                        srcSize = IntSize(sourceWidth, sourceHeight),
+                        dstSize = IntSize(width, height),
+                    )
+                }
+            }
+            Row(Modifier.matchParentSize().then(glass)) {
+                Box(Modifier.width(1.dp).fillMaxHeight().background(DesktopDivider))
+                Crossfade(
+                    targetState = shown ?: return@Row,
+                    animationSpec = tween(CROSSFADE_MS),
+                    label = "sidePanel",
+                ) { which ->
+                    Box(
+                        Modifier.fillMaxSize().background(
+                            if (glassActive) Color.Transparent else if (which == DesktopSidePanel.LYRICS) DesktopTheme.palette.lyricsSurface
+                            else DesktopTheme.palette.sidebarSurface,
+                        ),
+                    ) {
+                        // Keep the existing panel geometry independent from its background material.
+                        Column(Modifier.fillMaxSize()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(if (which == DesktopSidePanel.LYRICS) HEADER_HEIGHT else QUEUE_HEADER_HEIGHT)
+                                    .padding(start = 18.dp, end = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                // The queue heads itself ("Queue", then its sections); only the lyrics
+                                // need a name over them.
+                                Text(
+                                    text = if (which == DesktopSidePanel.LYRICS) DesktopStrings["lyrics", "Lyrics"] else "",
+                                    color = DesktopForeground,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f),
                                 )
+                                DesktopToolbarButton(onClick = onClose, size = 28.dp) {
+                                    Icon(
+                                        Icons.Rounded.Close,
+                                        DesktopStrings["close", "Close"],
+                                        tint = DesktopSecondary,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
                             }
-                        }
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .padding(
-                                    start = if (which == DesktopSidePanel.LYRICS) 18.dp else 14.dp,
-                                    end = if (which == DesktopSidePanel.LYRICS) 18.dp else 4.dp,
-                                    bottom = 14.dp,
-                                ),
-                        ) {
-                            if (which == DesktopSidePanel.LYRICS && DesktopTheme.isLight) {
-                                CompositionLocalProvider(
-                                    LocalLyricsPanelColors provides LyricsPanelColors(
-                                        primary = Color(0xFF1B2230),
-                                        secondary = Color(0xFF596272),
-                                        inactive = Color(0xFF3E485A),
-                                        iconSurface = Color(0xFF243044),
-                                        selection = Color(0xFF1C273B),
-                                        isLight = true,
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .padding(
+                                        start = if (which == DesktopSidePanel.LYRICS) 18.dp else 14.dp,
+                                        end = if (which == DesktopSidePanel.LYRICS) 18.dp else 4.dp,
+                                        bottom = 14.dp,
                                     ),
-                                ) { content(which) }
-                            } else content(which)
+                            ) {
+                                if (which == DesktopSidePanel.LYRICS && DesktopTheme.isLight) {
+                                    CompositionLocalProvider(
+                                        LocalLyricsPanelColors provides LyricsPanelColors(
+                                            primary = Color(0xFF1B2230),
+                                            secondary = Color(0xFF596272),
+                                            inactive = Color(0xFF3E485A),
+                                            iconSurface = Color(0xFF243044),
+                                            selection = Color(0xFF1C273B),
+                                            isLight = true,
+                                        ),
+                                    ) { content(which) }
+                                } else content(which)
+                            }
                         }
                     }
                 }

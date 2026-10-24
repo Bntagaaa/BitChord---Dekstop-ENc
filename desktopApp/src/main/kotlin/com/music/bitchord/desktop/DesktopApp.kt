@@ -234,6 +234,8 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.input.key.Key
@@ -381,6 +383,7 @@ private val DesktopBarGlass: Color get() = DesktopTheme.palette.barGlass
 
 /** The backdrop the floating bars blur. */
 internal val LocalDesktopHaze = staticCompositionLocalOf<HazeState?> { null }
+internal val LocalDesktopHomeSnapshot = staticCompositionLocalOf<ImageBitmap?> { null }
 
 /** How much a page's scrollable should keep clear of the floating bars. */
 private val LocalDesktopBottomInset = staticCompositionLocalOf { 0.dp }
@@ -3281,6 +3284,8 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                 },
                 onSidebarDrawerOpenChange = { sidebarDrawerOpen = it },
                 hasFloatingPlayer = !oldTopPlayerEnabled,
+                captureHome = destination == DesktopDestination.LISTEN_NOW,
+                sidePanelOpen = overlays.sidePanel != null,
                 menuPortal = menuPortal,
                 onMenuClosed = { runCatching { shortcutRootFocusRequester.requestFocus() } },
                 // Only Replay dresses itself; everywhere else the chrome sits on the plain surface.
@@ -5729,6 +5734,8 @@ internal fun DesktopSearchField(
 private fun DesktopFrame(
     containerColor: Color,
     hasFloatingPlayer: Boolean,
+    captureHome: Boolean,
+    sidePanelOpen: Boolean,
     menuPortal: DesktopMenuPortalState,
     onMenuClosed: () -> Unit,
     modifier: Modifier = Modifier,
@@ -5753,9 +5760,26 @@ private fun DesktopFrame(
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val haze = remember { HazeState() }
+    val homeLayer = rememberGraphicsLayer()
+    var homeSnapshot by remember { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(captureHome, sidePanelOpen) {
+        when {
+            !captureHome -> homeSnapshot = null
+            sidePanelOpen -> homeSnapshot = runCatching { homeLayer.toImageBitmap() }.getOrNull()
+            else -> {
+                // Keep the captured feed beneath the panel until its exit animation finishes.
+                delay(260)
+                homeSnapshot = null
+            }
+        }
+    }
     menuPortal.onClosed = onMenuClosed
     val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
-    CompositionLocalProvider(LocalDesktopHaze provides haze, LocalDesktopMenuPortal provides menuPortal) {
+    CompositionLocalProvider(
+        LocalDesktopHaze provides haze,
+        LocalDesktopHomeSnapshot provides homeSnapshot,
+        LocalDesktopMenuPortal provides menuPortal,
+    ) {
         Box(modifier.fillMaxSize().background(containerColor)) {
             // Preserve blur for the floating player; the sidebar itself remains opaque.
             Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }
@@ -5788,7 +5812,12 @@ private fun DesktopFrame(
                                 topBar(narrow)
                                 Row(Modifier.fillMaxWidth().weight(1f)) {
                                     Box(Modifier.weight(1f).fillMaxHeight()) {
-                                        Box(Modifier.fillMaxSize().hazeSource(haze)) {
+                                        Box(Modifier.fillMaxSize().hazeSource(haze).drawWithContent {
+                                            if (captureHome && !sidePanelOpen) {
+                                                homeLayer.record { this@drawWithContent.drawContent() }
+                                                drawLayer(homeLayer)
+                                            } else drawContent()
+                                        }) {
                                             content(
                                                 PaddingValues(
                                                     start = 0.dp,
