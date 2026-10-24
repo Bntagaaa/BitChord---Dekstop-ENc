@@ -1,0 +1,17 @@
+[package]
+name = "bitchord-audio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Miniaudio's archived Rust wrapper currently fails to compile against its
+# pre-generated MSVC bitfields (E0615/E0308). Preserve the verified Linux
+# backend while using native CPAL/WASAPI playback on Windows.
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+miniaudio = { package = "om-fork-miniaudio", version = "=0.12.2", default-features = false, features = ["ma-log-level-error", "ma-enable-vorbis"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+rodio = { version = "=0.20.1", default-features = true }
+
+[dev-dependencies]
+tempfile = "3"

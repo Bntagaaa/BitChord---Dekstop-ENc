@@ -1,0 +1,273 @@
+import "../../../assets/sf_pro_display_regular.otf";
+import "../../../assets/sf_pro_display_semibold.otf";
+import "../../../assets/sf_pro_display_bold.otf";
+import { ListView } from "std-widgets.slint";
+
+export struct LocalTrackRow {
+    title: string,
+    artist: string,
+    codec: string,
+}
+
+component NavRow inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    in property <bool> dark;
+    callback activated();
+
+    height: 42px;
+    border-radius: 9px;
+    background: active ? (dark ? #29292e : #dfe3eb) : (dark ? #0d0d0f : #e9ecf2);
+
+    Text {
+        text: root.label;
+        x: 14px;
+        width: parent.width - 28px;
+        height: parent.height;
+        vertical-alignment: center;
+        font-family: "SF Pro Display";
+        font-size: 14px;
+        font-weight: active ? 600 : 400;
+        color: dark ? #ffffff : #1b1c20;
+    }
+    TouchArea {
+        clicked => { root.activated(); }
+    }
+}
+
+export component MainWindow inherits Window {
+    title: "BitChord";
+    preferred-width: 1220px;
+    preferred-height: 780px;
+    min-width: 900px;
+    min-height: 600px;
+    background: dark-mode ? #202020 : #f7f8fb;
+
+    in-out property <string> current-page: "home";
+    in-out property <string> page-title: "Home";
+    in-out property <bool> dark-mode: true;
+    in-out property <string> theme-mode: "SYSTEM";
+    in-out property <int> ui-scale-percent: 100;
+    in-out property <[LocalTrackRow]> local-tracks;
+    in-out property <bool> local-scanning: false;
+    in-out property <string> local-error: "";
+    in-out property <bool> has-local-track: false;
+    in-out property <string> playing-title: "";
+    in-out property <string> playing-artist: "";
+    in-out property <bool> local-playing: false;
+    in-out property <string> local-time: "0:00 / 0:00";
+    callback navigate(string);
+    callback toggle-theme();
+    callback select-theme-mode(string);
+    callback select-ui-scale(int);
+    callback play-local(int);
+    callback toggle-local-playback();
+    callback next-local-track();
+    callback previous-local-track();
+
+    HorizontalLayout {
+        spacing: 0px;
+
+        Rectangle {
+            width: 220px;
+            background: root.dark-mode ? #0d0d0f : #e9ecf2;
+
+            VerticalLayout {
+                padding: 16px;
+                spacing: 5px;
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    padding-bottom: 24px;
+                    Image {
+                        source: @image-url("../../../assets/bitchord_logo_original.svg");
+                        width: 28px;
+                        height: 24px;
+                        image-fit: contain;
+                        colorize: root.dark-mode ? #ffffff : #1b1c20;
+                    }
+                    Text {
+                        text: "BitChord";
+                        font-family: "SF Pro Display";
+                        font-size: 20px;
+                        font-weight: 700;
+                        color: root.dark-mode ? #ffffff : #1b1c20;
+                        vertical-alignment: center;
+                    }
+                }
+
+                NavRow { label: "Home"; active: root.current-page == "home"; dark: root.dark-mode; activated => { root.navigate("home"); } }
+                NavRow { label: "Search"; active: root.current-page == "search"; dark: root.dark-mode; activated => { root.navigate("search"); } }
+                NavRow { label: "Library"; active: root.current-page == "library" || root.current-page == "spotify"; dark: root.dark-mode; activated => { root.navigate("library"); } }
+                NavRow { label: "Spotify"; active: root.current-page == "spotify"; dark: root.dark-mode; activated => { root.navigate("spotify"); } }
+                NavRow { label: "History"; active: root.current-page == "history"; dark: root.dark-mode; activated => { root.navigate("history"); } }
+                NavRow { label: "Downloads"; active: root.current-page == "downloads"; dark: root.dark-mode; activated => { root.navigate("downloads"); } }
+                NavRow { label: "Local Music"; active: root.current-page == "local-music"; dark: root.dark-mode; activated => { root.navigate("local-music"); } }
+
+                Rectangle { vertical-stretch: 1; background: transparent; }
+
+                NavRow { label: root.dark-mode ? "Light theme" : "Dark theme"; dark: root.dark-mode; activated => { root.toggle-theme(); } }
+                NavRow { label: "Settings"; active: root.current-page == "settings"; dark: root.dark-mode; activated => { root.navigate("settings"); } }
+            }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+            background: root.dark-mode ? #202020 : #f7f8fb;
+            VerticalLayout {
+                padding: 32px;
+                spacing: 18px;
+                Text {
+                    text: root.page-title;
+                    font-family: "SF Pro Display";
+                    font-size: 28px;
+                    font-weight: 700;
+                    color: root.dark-mode ? #ffffff : #1b1c20;
+                }
+                Rectangle {
+                    height: 1px;
+                    background: root.dark-mode ? #2c2c2e : #d5dae4;
+                }
+                if root.current-page == "settings": VerticalLayout {
+                    spacing: 12px;
+                    Text {
+                        text: "Appearance";
+                        font-family: "SF Pro Display";
+                        font-size: 18px;
+                        font-weight: 600;
+                        color: root.dark-mode ? #ffffff : #1b1c20;
+                    }
+                    Text {
+                        text: "Theme";
+                        font-family: "SF Pro Display";
+                        font-size: 15px;
+                        color: root.dark-mode ? #ffffff : #1b1c20;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        for option in ["SYSTEM", "LIGHT", "DARK"]: Rectangle {
+                            width: 100px;
+                            height: 36px;
+                            border-radius: 8px;
+                            background: root.theme-mode == option ? (root.dark-mode ? #fa586a : #cd3659) : (root.dark-mode ? #323236 : #e4e8ef);
+                            Text {
+                                text: option == "SYSTEM" ? "System" : (option == "LIGHT" ? "Light" : "Dark");
+                                vertical-alignment: center;
+                                horizontal-alignment: center;
+                                color: root.theme-mode == option ? #ffffff : (root.dark-mode ? #ffffff : #1b1c20);
+                                font-family: "SF Pro Display";
+                                font-size: 14px;
+                            }
+                            TouchArea { clicked => { root.select-theme-mode(option); } }
+                        }
+                    }
+                    Text {
+                        text: "UI scale: " + root.ui-scale-percent + "% (applies on next launch)";
+                        font-family: "SF Pro Display";
+                        font-size: 15px;
+                        color: root.dark-mode ? #ffffff : #1b1c20;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        for option in [80, 90, 100, 110, 125]: Rectangle {
+                            width: 60px;
+                            height: 36px;
+                            border-radius: 8px;
+                            background: root.ui-scale-percent == option ? (root.dark-mode ? #fa586a : #cd3659) : (root.dark-mode ? #323236 : #e4e8ef);
+                            Text {
+                                text: option + "%";
+                                vertical-alignment: center;
+                                horizontal-alignment: center;
+                                color: root.ui-scale-percent == option ? #ffffff : (root.dark-mode ? #ffffff : #1b1c20);
+                                font-family: "SF Pro Display";
+                                font-size: 14px;
+                            }
+                            TouchArea { clicked => { root.select-ui-scale(option); } }
+                        }
+                    }
+                }
+                if root.current-page == "local-music": VerticalLayout {
+                    spacing: 10px;
+                    Text {
+                        text: root.local-scanning ? "Scanning Music and Downloads…" : root.local-tracks.length + " songs";
+                        font-family: "SF Pro Display";
+                        font-size: 14px;
+                        color: root.dark-mode ? #8e8e93 : #596171;
+                    }
+                    if root.local-error != "": Text {
+                        text: root.local-error;
+                        font-family: "SF Pro Display";
+                        color: #fa586a;
+                    }
+                    ListView {
+                        vertical-stretch: 1;
+                        for track[index] in root.local-tracks: Rectangle {
+                                height: 60px;
+                                border-radius: 8px;
+                                background: touch.has-hover ? (root.dark-mode ? #323236 : #e4e8ef) : transparent;
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    spacing: 10px;
+                                    VerticalLayout {
+                                        Text {
+                                            text: track.title;
+                                            font-family: "SF Pro Display";
+                                            font-size: 14px;
+                                            font-weight: 600;
+                                            color: root.dark-mode ? #ffffff : #1b1c20;
+                                            overflow: elide;
+                                        }
+                                        Text {
+                                            text: track.artist;
+                                            font-family: "SF Pro Display";
+                                            font-size: 12px;
+                                            color: root.dark-mode ? #8e8e93 : #596171;
+                                            overflow: elide;
+                                        }
+                                    }
+                                    Text {
+                                        text: track.codec;
+                                        font-size: 11px;
+                                        color: root.dark-mode ? #8e8e93 : #596171;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                touch := TouchArea { clicked => { root.play-local(index); } }
+                        }
+                    }
+                }
+                if root.current-page != "settings" && root.current-page != "local-music": Text {
+                    text: "Native Rust foundation — this page is not yet ported.";
+                    font-family: "SF Pro Display";
+                    font-size: 14px;
+                    color: root.dark-mode ? #8e8e93 : #596171;
+                }
+                if root.current-page != "local-music": Rectangle { vertical-stretch: 1; background: transparent; }
+                if root.has-local-track: Rectangle {
+                    height: 74px;
+                    border-radius: 12px;
+                    background: root.dark-mode ? #323236 : #e4e8ef;
+                    HorizontalLayout {
+                        padding-left: 16px;
+                        padding-right: 16px;
+                        spacing: 16px;
+                        VerticalLayout {
+                            Text { text: root.playing-title; font-family: "SF Pro Display"; font-size: 14px; font-weight: 600; color: root.dark-mode ? #ffffff : #1b1c20; overflow: elide; }
+                            Text { text: root.playing-artist; font-family: "SF Pro Display"; font-size: 12px; color: root.dark-mode ? #8e8e93 : #596171; overflow: elide; }
+                        }
+                        Text {
+                            text: root.local-time;
+                            vertical-alignment: center;
+                            color: root.dark-mode ? #8e8e93 : #596171;
+                            font-size: 12px;
+                        }
+                        Rectangle { width: 34px; Text { text: "⏮"; vertical-alignment: center; horizontal-alignment: center; color: root.dark-mode ? #ffffff : #1b1c20; } TouchArea { clicked => { root.previous-local-track(); } } }
+                        Rectangle { width: 34px; Text { text: root.local-playing ? "⏸" : "▶"; vertical-alignment: center; horizontal-alignment: center; color: root.dark-mode ? #ffffff : #1b1c20; } TouchArea { clicked => { root.toggle-local-playback(); } } }
+                        Rectangle { width: 34px; Text { text: "⏭"; vertical-alignment: center; horizontal-alignment: center; color: root.dark-mode ? #ffffff : #1b1c20; } TouchArea { clicked => { root.next-local-track(); } } }
+                    }
+                }
+            }
+        }
+    }
+}

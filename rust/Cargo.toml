@@ -1,0 +1,12 @@
+[workspace]
+members = ["crates/bitchord-app", "crates/bitchord-audio", "crates/bitchord-core", "crates/bitchord-ui"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+
+[workspace.dependencies]
+slint = { version = "=1.18.1", default-features = false, features = ["std", "backend-winit", "renderer-software", "compat-1-2"] }
+tracing = "0.1"
