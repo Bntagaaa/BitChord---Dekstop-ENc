@@ -63,7 +63,7 @@ internal object DesktopUpdateChecker {
     /** Match os-release ID/ID_LIKE tokens rather than arbitrary product-name substrings. */
     private fun isArchFamily(osRelease: String): Boolean {
         val identifiers = osRelease.lineSequence()
-            .map(String::trim)
+            .map { it.trim() }
             .filter { it.startsWith("ID=") || it.startsWith("ID_LIKE=") }
             .flatMap { it.substringAfter('=').trim().trim('"', '\'').lowercase().splitToSequence(' ', '\t') }
             .filter(String::isNotBlank)
