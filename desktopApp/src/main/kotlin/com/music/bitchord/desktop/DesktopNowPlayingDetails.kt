@@ -58,6 +58,7 @@ import com.music.bitchord.playback.PlaybackPosition
 @Composable
 internal fun DesktopNowPlayingDetailsPanel(
     song: Song,
+    isPlaying: Boolean,
     lyrics: List<LyricLine>?,
     lyricsLoading: Boolean,
     position: PlaybackPosition,
@@ -90,9 +91,9 @@ internal fun DesktopNowPlayingDetailsPanel(
     var spotifyCanvas by remember(song.videoId, song.title, song.artist) {
         mutableStateOf<DesktopCanvasArtwork?>(null)
     }
-    LaunchedEffect(song.videoId, song.title, song.artist, song.albumName, animatedCanvas) {
+    LaunchedEffect(song.videoId, song.title, song.artist, song.albumName, animatedCanvas, isPlaying) {
         spotifyCanvas = null
-        if (animatedCanvas && DesktopSpotifyToken.cookie().isNotBlank()) {
+        if (animatedCanvas && isPlaying && DesktopSpotifyToken.cookie().isNotBlank()) {
             spotifyCanvas = DesktopCanvasClient.lookupSpotify(song)
         }
     }
@@ -127,7 +128,7 @@ internal fun DesktopNowPlayingDetailsPanel(
                         url = clip.url,
                         fallbackUrl = clip.fallbackUrl,
                         modifier = Modifier.fillMaxSize(),
-                        isPlaying = true,
+                        isPlaying = isPlaying,
                     )
                 }
             }
