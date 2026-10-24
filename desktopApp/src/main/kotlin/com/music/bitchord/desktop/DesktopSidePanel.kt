@@ -9,7 +9,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,21 +37,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
-import kotlin.math.roundToInt
 
 /** What the column beside the page is showing. */
 internal enum class DesktopSidePanel { LYRICS, QUEUE }
 
 /**
  * Apple Music's right-hand sidebar: the lyrics or the queue in a column beside the page, while the
- * player itself stays closed. The page narrows to make room rather than being covered, so whatever
- * was being browsed stays usable next to the words.
+ * player itself stays closed. Home extends beneath the glass; other pages reserve a solid column.
  */
 @Composable
 internal fun DesktopSidePanelColumn(
@@ -64,13 +58,9 @@ internal fun DesktopSidePanelColumn(
     // Held through the exit, so the column slides out with what it had in it rather than empty.
     var shown by remember { mutableStateOf(panel) }
     if (panel != null) shown = panel
-    val opacity by DesktopAppearanceSettings.sidePanelOpacity.collectAsState()
-    val blur by DesktopAppearanceSettings.sidePanelBlur.collectAsState()
     val reduceBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
     val haze = LocalDesktopHaze.current
-    val homeSnapshot = LocalDesktopHomeSnapshot.current
     val glassActive = blurBackground && haze != null && !reduceBlur
-    // Keep the material stable while destinations change to avoid a glass/solid flash.
     val panelFill = if ((panel ?: shown) == DesktopSidePanel.LYRICS) {
         DesktopTheme.palette.lyricsSurface
     } else {
@@ -85,29 +75,13 @@ internal fun DesktopSidePanelColumn(
     ) {
         val glass = if (glassActive) {
             Modifier.hazeEffect(state = requireNotNull(haze)) {
-                blurEnabled = blur > 0f
-                blurRadius = blur.dp
+                blurEnabled = true
+                blurRadius = 40.dp
                 backgroundColor = panelFill
-                tints = listOf(HazeTint(panelFill.copy(alpha = opacity)))
+                tints = listOf(HazeTint(panelFill.copy(alpha = 0.73f)))
             }
         } else Modifier.background(panelFill)
         Box(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight()) {
-            if (glassActive && homeSnapshot != null) {
-                // A single frame of the actual Home feed, captured before the feed narrows.
-                // This gives Haze real page pixels to sample without composing Home twice.
-                Canvas(Modifier.matchParentSize().hazeSource(requireNotNull(haze))) {
-                    val width = size.width.roundToInt().coerceAtLeast(1)
-                    val height = size.height.roundToInt().coerceAtLeast(1)
-                    val sourceWidth = minOf(width, homeSnapshot.width)
-                    val sourceHeight = minOf(height, homeSnapshot.height)
-                    drawImage(
-                        image = homeSnapshot,
-                        srcOffset = IntOffset(homeSnapshot.width - sourceWidth, 0),
-                        srcSize = IntSize(sourceWidth, sourceHeight),
-                        dstSize = IntSize(width, height),
-                    )
-                }
-            }
             Row(Modifier.matchParentSize().then(glass)) {
                 Box(Modifier.width(1.dp).fillMaxHeight().background(DesktopDivider))
                 Crossfade(

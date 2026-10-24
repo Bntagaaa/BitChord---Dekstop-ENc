@@ -1,6 +1,5 @@
 package com.music.bitchord.desktop
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -15,14 +14,21 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -31,7 +37,32 @@ import kotlin.math.roundToInt
 internal class DesktopMenuPortalState {
     internal val entry: MutableState<DesktopMenuPortalEntry?> = mutableStateOf(null)
     internal var onClosed: () -> Unit = {}
+    internal var originInRoot: Offset = Offset.Zero
+    private var press: Offset? = null
+    private var pressedAt = 0L
+
+    internal fun recordPress(position: Offset) {
+        press = position + originInRoot
+        pressedAt = System.nanoTime()
+    }
+
+    internal fun recentPress(): Rect? = press
+        ?.takeIf { System.nanoTime() - pressedAt < 500_000_000L }
+        ?.let { Rect(it, Size.Zero) }
 }
+
+internal fun Modifier.desktopMenuPointer(state: DesktopMenuPortalState): Modifier =
+    onGloballyPositioned { state.originInRoot = it.positionInRoot() }
+        .pointerInput(state) {
+            awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    if (event.type == PointerEventType.Press) {
+                        event.changes.firstOrNull()?.let { state.recordPress(it.position) }
+                    }
+                }
+            }
+        }
 
 internal data class DesktopMenuPortalEntry(
     val owner: Any,
@@ -47,34 +78,45 @@ internal fun DesktopMenuPortal(state: DesktopMenuPortalState) {
     val entry = state.entry.value ?: return
     val focusRequester = remember(entry.owner) { FocusRequester() }
     LaunchedEffect(entry.owner) { focusRequester.requestFocus() }
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        Modifier.fillMaxSize().focusRequester(focusRequester)
+            .onPreviewKeyEvent {
+                if (it.key == Key.Escape && it.type == KeyEventType.KeyDown) {
+                    entry.onDismiss()
+                    true
+                } else false
+            }.focusable(),
+    ) {
         val density = LocalDensity.current
         Box(
             Modifier.fillMaxSize()
-                .background(Color.Transparent)
-                .focusRequester(focusRequester)
-                .onPreviewKeyEvent {
-                    if (it.key == Key.Escape && it.type == KeyEventType.KeyDown) {
-                        entry.onDismiss()
-                        true
-                    } else if (it.key == Key.Spacebar) {
-                        // The backdrop is focusable for Escape but Space must not click it.
-                        true
-                    } else false
-                }
-                .focusable()
+                .focusProperties { canFocus = false }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                ) { entry.onDismiss() },
+                ) { entry.onDismiss() }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (event.type == PointerEventType.Scroll) event.changes.forEach { it.consume() }
+                        }
+                    }
+                },
         )
         val margin = with(density) { 12.dp.roundToPx() }
         Layout(content = entry.content, modifier = Modifier.fillMaxSize()) { measurables, constraints ->
-            val child = measurables.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
-            val below = entry.anchor.bottom.roundToInt() + margin
-            val above = entry.anchor.top.roundToInt() - child.height - margin
+            val child = measurables.first().measure(constraints.copy(
+                minWidth = 0,
+                minHeight = 0,
+                maxWidth = (constraints.maxWidth - 2 * margin).coerceAtLeast(0),
+                maxHeight = (constraints.maxHeight - 2 * margin).coerceAtLeast(0),
+            ))
+            val anchor = entry.anchor.translate(-state.originInRoot)
+            val below = anchor.bottom.roundToInt() + margin
+            val above = anchor.top.roundToInt() - child.height - margin
             val y = if (below + child.height + margin <= constraints.maxHeight || above < margin) below else above
-            val x = entry.anchor.left.roundToInt().coerceIn(
+            val x = anchor.left.roundToInt().coerceIn(
                 margin, (constraints.maxWidth - child.width - margin).coerceAtLeast(margin),
             )
             layout(constraints.maxWidth, constraints.maxHeight) {

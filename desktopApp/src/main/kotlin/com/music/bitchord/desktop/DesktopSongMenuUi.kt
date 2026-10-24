@@ -45,7 +45,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -315,23 +314,21 @@ private fun sleepTimerLabel(minutes: Int?, afterTrack: Boolean): String = when {
 
 /** The panel a menu is drawn in: a floating card in the app's own glass. */
 @Composable
-private fun DesktopMenuSurface(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+internal fun DesktopMenuSurface(onDismiss: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val menuScrollState = rememberScrollState()
     val portal = LocalDesktopMenuPortal.current
     val owner = remember { Any() }
-    var anchor by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    val pressAnchor = remember(owner) { portal?.recentPress() }
     val latestContent = rememberUpdatedState(content)
     val latestDismiss = rememberUpdatedState(onDismiss)
-    val menuContent: @Composable () -> Unit = remember(owner) { { MenuCard(menuScrollState) { latestContent.value() } } }
+    val menuContent: @Composable () -> Unit = remember(owner) { { MenuCard(menuScrollState, modifier) { latestContent.value() } } }
     if (portal != null) {
-        Spacer(Modifier.size(0.dp).onGloballyPositioned { anchor = it.boundsInRoot() })
-        SideEffect {
-            anchor?.let { bounds ->
-                if (portal.entry.value?.owner !== owner || portal.entry.value?.anchor != bounds) {
-                    portal.entry.value = DesktopMenuPortalEntry(owner, bounds, { latestDismiss.value() }, menuContent)
-                }
+        Spacer(Modifier.size(1.dp).onGloballyPositioned {
+            val bounds = pressAnchor ?: (it.parentLayoutCoordinates?.boundsInRoot() ?: it.boundsInRoot())
+            if (portal.entry.value?.owner !== owner || portal.entry.value?.anchor != bounds) {
+                portal.entry.value = DesktopMenuPortalEntry(owner, bounds, { latestDismiss.value() }, menuContent)
             }
-        }
+        })
         DisposableEffect(portal, owner) {
             onDispose {
                 if (portal.entry.value?.owner === owner) {
@@ -348,11 +345,11 @@ private fun DesktopMenuSurface(onDismiss: () -> Unit, content: @Composable () ->
 }
 
 @Composable
-private fun MenuCard(menuScrollState: androidx.compose.foundation.ScrollState, content: @Composable () -> Unit) {
-        val shape = RoundedCornerShape(12.dp)
-        Box(Modifier.widthIn(min = 232.dp, max = 300.dp).desktopMenuGlass(shape, tintAlpha = 0.58f)) {
-            Column(
-                Modifier
+private fun MenuCard(menuScrollState: androidx.compose.foundation.ScrollState, modifier: Modifier, content: @Composable () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Box(modifier.widthIn(min = 232.dp, max = 300.dp).desktopMenuGlass(shape, tintAlpha = 0.58f)) {
+        Column(
+            Modifier
                 .fillMaxWidth()
                 .padding(vertical = 6.dp)
                 // A menu with every optional row on it is taller than a small window; capped and
@@ -360,10 +357,10 @@ private fun MenuCard(menuScrollState: androidx.compose.foundation.ScrollState, c
                 .heightIn(max = 460.dp)
                 .desktopTopScrollFade(menuScrollState)
                 .verticalScroll(menuScrollState),
-            ) {
-                content()
-            }
+        ) {
+            content()
         }
+    }
 }
 
 /** Where a menu hangs relative to the button that opened it. */
