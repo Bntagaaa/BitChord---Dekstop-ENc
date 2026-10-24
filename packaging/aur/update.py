@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare an AUR version bump from a published BitChord GitHub Release.
+"""Prepare a DEB-backed AUR version bump from a published BitChord release.
 
 Updates the PKGBUILD only; run makepkg --printsrcinfo afterwards to update .SRCINFO.
 No AUR credentials or automatic AUR publication are involved.
@@ -42,13 +42,13 @@ def validated_release(release: dict) -> tuple[str, str]:
     if not match:
         raise ValueError(f"Unsupported release tag: {tag!r}")
     version = match.group(1)
-    expected_name = f"BitChord-{version}-linux-x86_64.AppImage"
+    expected_name = f"BitChord-{version}-linux-amd64.deb"
     assets = [asset for asset in release.get("assets", []) if asset.get("name") == expected_name]
     if len(assets) != 1:
         raise ValueError(f"Expected exactly one release asset named {expected_name}")
     digest = assets[0].get("digest", "")
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
-        raise ValueError(f"Missing or invalid GitHub-verified SHA-256 for {expected_name}")
+        raise ValueError(f"Missing or invalid published GitHub SHA-256 for {expected_name}")
     return version, digest.removeprefix("sha256:")
 
 
