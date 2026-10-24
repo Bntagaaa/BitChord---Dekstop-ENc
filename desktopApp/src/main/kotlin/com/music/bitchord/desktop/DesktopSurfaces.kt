@@ -35,8 +35,6 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
 
 // The look every modal card in the app shares.
 
@@ -202,11 +200,7 @@ internal fun DesktopFlyoutCard(
     content: @Composable BoxScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(20.dp)
-    val decoration = if (frosted) {
-        modifier.clip(shape).desktopBarGlass(shape)
-    } else {
-        modifier.desktopCard(shape)
-    }
+    val decoration = modifier.clip(shape).desktopPopoverGlass(shape)
     Box(decoration) {
         // A separate pointer-only sibling: clicking content cannot dismiss the backdrop or leave
         // keyboard focus on a decorative panel that will be removed when the flyout closes.
@@ -254,20 +248,13 @@ internal fun Modifier.desktopSearchGlass(
     shape: Shape,
     reduceBlur: Boolean,
 ): Modifier {
-    val fill = DesktopSearchFill
-    val surface = if (reduceBlur) {
-        Modifier.background(fill)
-    } else {
-        // Paint underneath the effect, so an unattached/unsupported source cannot flash clear.
-        // The effect still paints its blurred sibling sources over this base.
-        Modifier.background(fill).hazeEffect(state = haze) {
-            blurEnabled = true
-            backgroundColor = fill
-            blurRadius = 32.dp
-            tints = listOf(HazeTint(fill.copy(alpha = 0.82f)))
-            fallbackTint = HazeTint(fill)
-            noiseFactor = 0.02f
-        }
-    }
-    return clip(shape).then(surface).border(0.5.dp, DesktopBarEdge, shape)
+    return clip(shape).desktopLiquidGlass(
+        haze = haze,
+        shape = shape,
+        opaque = DesktopSearchFill,
+        material = DesktopGlassMaterial.SEARCH,
+        reduceBlur = reduceBlur,
+        // Keep the search field edge lightweight so it stays even at fractional scaling.
+        showRim = false,
+    ).border(0.5.dp, DesktopBarEdge, shape)
 }
