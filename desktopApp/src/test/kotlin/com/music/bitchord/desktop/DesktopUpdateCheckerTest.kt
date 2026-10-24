@@ -27,19 +27,19 @@ class DesktopUpdateCheckerTest {
         val cpu = "amd64"
         assertEquals(
             DesktopUpdateChecker.PackagePlatform.ARCH_X64,
-            checker.targetPlatform(linux, "NAME=CachyOS\\nID=cachyos\\nID_LIKE=arch", cpu),
+            checker.targetPlatform(linux, "NAME=CachyOS\nID=cachyos\nID_LIKE=arch", cpu),
         )
         assertEquals(
             DesktopUpdateChecker.PackagePlatform.ARCH_X64,
-            checker.targetPlatform(linux, "ID=endeavouros\\nID_LIKE=\"arch\"", "x86_64"),
+            checker.targetPlatform(linux, "ID=endeavouros\nID_LIKE=\"arch\"", "x86_64"),
         )
         assertEquals(
             DesktopUpdateChecker.PackagePlatform.LINUX_X64,
-            checker.targetPlatform(linux, "ID=ubuntu\\nID_LIKE=debian", cpu),
+            checker.targetPlatform(linux, "ID=ubuntu\nID_LIKE=debian", cpu),
         )
         assertEquals(
             DesktopUpdateChecker.PackagePlatform.UNSUPPORTED,
-            checker.targetPlatform(linux, "ID=cachyos\\nID_LIKE=arch", "aarch64"),
+            checker.targetPlatform(linux, "ID=cachyos\nID_LIKE=arch", "aarch64"),
         )
     }
 
