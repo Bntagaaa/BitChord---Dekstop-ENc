@@ -3279,7 +3279,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                     persistence.saveString("sidebar_collapsed", collapsed.toString())
                 },
                 onSidebarDrawerOpenChange = { sidebarDrawerOpen = it },
-                hasFloatingPlayer = selectedSong != null,
+                hasFloatingPlayer = !oldTopPlayerEnabled,
                 // Only Replay dresses itself; everywhere else the chrome sits on the plain surface.
                 backdrop = { transparentBase ->
                     Box(Modifier.fillMaxSize().then(
@@ -3571,10 +3571,19 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                 trailing = {
                     val current = selectedSong
                     DesktopSidePanelColumn(
-                        panel = overlays.sidePanel.takeIf { current != null },
+                        panel = overlays.sidePanel,
+                        blurBackground = destination == DesktopDestination.LISTEN_NOW,
                         onClose = { overlays.sidePanel = null },
                     ) { which ->
-                        if (current == null) return@DesktopSidePanelColumn
+                        if (current == null) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(
+                                    if (which == DesktopSidePanel.LYRICS) "Play a song to see its lyrics here." else "Nothing in Up Next",
+                                    color = DesktopSecondary,
+                                )
+                            }
+                            return@DesktopSidePanelColumn
+                        }
                         when (which) {
                             DesktopSidePanel.LYRICS -> LyricsSidePanel(
                                 song = current,
@@ -5390,7 +5399,7 @@ private fun DesktopBottomChrome(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (showPlayer && song != null) {
+        if (showPlayer) {
             DesktopMiniPlayer(
                 song = song,
                 isPlaying = isPlaying,
@@ -5476,7 +5485,7 @@ private fun DesktopFloatingNavigation(
 
 @Composable
 private fun DesktopMiniPlayer(
-    song: Song,
+    song: Song?,
     isPlaying: Boolean,
     isLoading: Boolean,
     previousEnabled: Boolean,
@@ -5519,7 +5528,7 @@ private fun DesktopMiniPlayer(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onExpand)
+                    .clickable(enabled = song != null, onClick = onExpand)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -5530,14 +5539,14 @@ private fun DesktopMiniPlayer(
                 DesktopToolbarButton(onClick = onPrevious, enabled = previousEnabled, size = 34.dp) {
                     Icon(painterResource(Res.drawable.player_transport_previous), "Previous", tint = if (previousEnabled) DesktopForeground else DesktopSecondary.copy(alpha = 0.4f), modifier = Modifier.size(20.dp))
                 }
-                DesktopToolbarButton(onClick = onPlayPause, size = 36.dp) {
+                DesktopToolbarButton(onClick = onPlayPause, enabled = song != null, size = 36.dp) {
                     if (isLoading) {
                         CircularProgressIndicator(Modifier.size(18.dp), color = DesktopForeground, strokeWidth = 2.dp)
                     } else {
                         Icon(painterResource(if (isPlaying) Res.drawable.player_transport_pause else Res.drawable.player_transport_play), if (isPlaying) "Pause" else "Play", tint = DesktopForeground, modifier = Modifier.size(23.dp))
                     }
                 }
-                DesktopToolbarButton(onClick = onNext, size = 34.dp) {
+                DesktopToolbarButton(onClick = onNext, enabled = song != null, size = 34.dp) {
                     Icon(painterResource(Res.drawable.player_transport_next), "Next", tint = DesktopForeground, modifier = Modifier.size(20.dp))
                 }
                 DesktopToolbarButton(onClick = { onRepeatModeChange(repeatMode.next()) }, size = 34.dp) {
@@ -5556,10 +5565,14 @@ private fun DesktopMiniPlayer(
                     )
                 }
                 Spacer(Modifier.width(8.dp))
-                DesktopArtwork(song.thumbnailUrl, Modifier.size(42.dp).clip(RoundedCornerShape(7.dp)), px = ROW_ART_PX)
+                if (song == null) {
+                    Icon(painterResource(Res.drawable.bitchord_logo_original), "BitChord", tint = DesktopSecondary, modifier = Modifier.size(42.dp))
+                } else {
+                    DesktopArtwork(song.thumbnailUrl, Modifier.size(42.dp).clip(RoundedCornerShape(7.dp)), px = ROW_ART_PX)
+                }
                 Column(Modifier.weight(1f).padding(start = 8.dp, end = 8.dp)) {
-                    Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
-                    Text(song.artist, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(song?.title ?: "BitChord", maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                    Text(song?.artist ?: "", color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
                     DesktopToolbarButton(onClick = onOpenLyrics, size = 32.dp) {

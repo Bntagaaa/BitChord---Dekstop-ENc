@@ -50,13 +50,13 @@ internal enum class DesktopSidePanel { LYRICS, QUEUE }
 internal fun DesktopSidePanelColumn(
     panel: DesktopSidePanel?,
     onClose: () -> Unit,
+    blurBackground: Boolean = false,
     content: @Composable (DesktopSidePanel) -> Unit,
 ) {
     // Held through the exit, so the column slides out with what it had in it rather than empty.
     var shown by remember { mutableStateOf(panel) }
     if (panel != null) shown = panel
-    // Keep a fully opaque theme surface behind the lyrics/queue crossfade too.
-    // This prevents the page backdrop from showing through between animated panels.
+    // Home opts into glass; other destinations retain a solid, inexpensive fill.
     val panelFill = if ((panel ?: shown) == DesktopSidePanel.LYRICS) {
         DesktopTheme.palette.lyricsSurface
     } else {
@@ -69,7 +69,9 @@ internal fun DesktopSidePanelColumn(
         exit = shrinkHorizontally(tween(SLIDE_MS, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Start) +
             fadeOut(tween(SLIDE_MS / 2)),
     ) {
-        Row(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight().background(panelFill)) {
+        Row(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight().then(
+            if (blurBackground) Modifier.desktopChromeGlass() else Modifier.background(panelFill),
+        )) {
             Box(Modifier.width(1.dp).fillMaxHeight().background(DesktopDivider))
             Crossfade(
                 targetState = shown ?: return@Row,
@@ -78,11 +80,11 @@ internal fun DesktopSidePanelColumn(
             ) { which ->
                 Box(
                     Modifier.fillMaxSize().background(
-                        if (which == DesktopSidePanel.LYRICS) DesktopTheme.palette.lyricsSurface
+                        if (blurBackground) Color.Transparent else if (which == DesktopSidePanel.LYRICS) DesktopTheme.palette.lyricsSurface
                         else DesktopTheme.palette.sidebarSurface,
                     ),
                 ) {
-                    // Both lyrics and queue use solid, theme-aware fills with no Haze overlay.
+                    // Keep the existing panel geometry independent from its background material.
                     Column(Modifier.fillMaxSize()) {
                         Row(
                             modifier = Modifier
