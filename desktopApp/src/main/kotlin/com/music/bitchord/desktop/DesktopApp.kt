@@ -3475,7 +3475,6 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                         accountAvatar = activeAccount?.avatar
                             ?: activeAccount?.profiles?.firstOrNull()?.avatar,
                         // Account switching belongs in the sidebar for both player layouts.
-                        showAccountInSidebar = true,
                         onOpenAccounts = {
                             dismissDrawer()
                             DesktopTrackLog.log("accounts: opening the switcher")
@@ -5129,7 +5128,6 @@ private fun DesktopSidebar(
     openedCollectionId: String?,
     accountName: String,
     accountAvatar: String?,
-    showAccountInSidebar: Boolean,
     onOpenAccounts: () -> Unit,
     onDestinationSelected: (DesktopDestination) -> Unit,
     onOpenAccountPlaylist: (ShelfItem) -> Unit,
@@ -5267,43 +5265,41 @@ private fun DesktopSidebar(
             }
             HorizontalDivider(color = desktopChromeDivider())
             Spacer(Modifier.height(8.dp))
-            if (showAccountInSidebar) {
-                if (collapsed) {
-                    Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.Center) {
-                        DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
-                    }
-                } else Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onOpenAccounts)
-                        .padding(horizontal = 4.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
-                    Spacer(Modifier.width(8.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            accountName,
-                            color = DesktopForeground,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            if (accountName == "Sign in") "Connect account" else "Account",
-                            color = DesktopSecondary,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
-            }
             DesktopSidebarItem(Icons.Rounded.Settings, "Settings", settingsOpen, collapsed = collapsed) {
                 onOpenSettings()
+            }
+            Spacer(Modifier.height(4.dp))
+            if (collapsed) {
+                Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.Center) {
+                    DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
+                }
+            } else Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onOpenAccounts)
+                    .padding(horizontal = 4.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        accountName,
+                        color = DesktopForeground,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        if (accountName == "Sign in") "Connect account" else "Account",
+                        color = DesktopSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
         }
