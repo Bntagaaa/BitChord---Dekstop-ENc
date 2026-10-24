@@ -19,7 +19,7 @@ class AurUpdaterTests(unittest.TestCase):
         self.assertIn(f"pkgver={NEXT_VERSION}", changed)
         self.assertIn("pkgrel=1", changed)
         self.assertIn(f"sha256sums=('{NEW_HASH}')", changed)
-        self.assertIn("BitChord-${pkgver}-linux-x86_64.AppImage", changed)
+        self.assertIn("BitChord-${pkgver}-linux-amd64.deb", changed)
 
     def test_same_release_is_idempotent(self):
         self.assertEqual(RECIPE, updated_pkgbuild(RECIPE, CURRENT_VERSION, CURRENT_HASH))
@@ -38,7 +38,7 @@ class AurUpdaterTests(unittest.TestCase):
             "prerelease": False,
             "assets": [
                 {
-                    "name": f"BitChord-{NEXT_VERSION}-linux-x86_64.AppImage",
+                    "name": f"BitChord-{NEXT_VERSION}-linux-amd64.deb",
                     "digest": "sha256:" + NEW_HASH,
                 }
             ],
