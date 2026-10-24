@@ -51,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -198,7 +199,7 @@ internal fun DesktopSongMenu(
     // playlist, fetch again, or share a link for.
     val isOffline = song.localUri != null
 
-    DesktopMenuSurface(onDismiss = onDismiss) {
+    DesktopMenuSurface(onDismiss = onDismiss, artworkUrl = song.thumbnailUrl) {
         if (pickingSleepTimer) {
             DesktopMenuHeader("Sleep timer") { pickingSleepTimer = false }
             DesktopMenuDivider()
@@ -310,7 +311,7 @@ private fun sleepTimerLabel(minutes: Int?, afterTrack: Boolean): String = when {
 
 /** The panel a menu is drawn in: a floating card in the app's own glass. */
 @Composable
-private fun DesktopMenuSurface(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+private fun DesktopMenuSurface(onDismiss: () -> Unit, artworkUrl: String?, content: @Composable () -> Unit) {
     val menuScrollState = rememberScrollState()
     Popup(
         popupPositionProvider = remember { DesktopMenuPosition() },
@@ -318,19 +319,23 @@ private fun DesktopMenuSurface(onDismiss: () -> Unit, content: @Composable () ->
         properties = PopupProperties(focusable = true),
     ) {
         val shape = RoundedCornerShape(12.dp)
-        Column(
-            Modifier
-                .widthIn(min = 232.dp, max = 300.dp)
-                .clip(shape)
-                .desktopMenuGlass(shape)
+        Box(Modifier.widthIn(min = 232.dp, max = 300.dp).clip(shape)) {
+            if (artworkUrl != null) {
+                DesktopArtwork(artworkUrl, Modifier.matchParentSize().blur(28.dp), px = 360)
+            }
+            Box(Modifier.matchParentSize().background(Color(0xDD151518)))
+            Column(
+                Modifier
+                .fillMaxWidth()
                 .padding(vertical = 6.dp)
                 // A menu with every optional row on it is taller than a small window; capped and
                 // scrolled rather than run off the screen.
                 .heightIn(max = 460.dp)
                 .desktopTopScrollFade(menuScrollState)
                 .verticalScroll(menuScrollState),
-        ) {
-            content()
+            ) {
+                content()
+            }
         }
     }
 }

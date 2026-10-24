@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.ui.draw.blur
 import androidx.compose.runtime.collectAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
@@ -53,7 +52,6 @@ internal fun DesktopSidePanelColumn(
     panel: DesktopSidePanel?,
     onClose: () -> Unit,
     blurBackground: Boolean = false,
-    backdropArtwork: List<String> = emptyList(),
     content: @Composable (DesktopSidePanel) -> Unit,
 ) {
     // Held through the exit, so the column slides out with what it had in it rather than empty.
@@ -65,8 +63,6 @@ internal fun DesktopSidePanelColumn(
     } else {
         DesktopTheme.palette.sidebarSurface
     }
-    val reduceBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
-    val showArtworkBlur = blurBackground && !reduceBlur && backdropArtwork.isNotEmpty()
     AnimatedVisibility(
         visible = panel != null,
         enter = expandHorizontally(tween(SLIDE_MS, easing = FastOutSlowInEasing), expandFrom = Alignment.Start) +
@@ -74,7 +70,9 @@ internal fun DesktopSidePanelColumn(
         exit = shrinkHorizontally(tween(SLIDE_MS, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Start) +
             fadeOut(tween(SLIDE_MS / 2)),
     ) {
-        Row(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight().background(panelFill)) {
+        Row(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight().then(
+            if (blurBackground) Modifier.desktopChromeGlass() else Modifier.background(panelFill),
+        )) {
             Box(Modifier.width(1.dp).fillMaxHeight().background(DesktopDivider))
             Crossfade(
                 targetState = shown ?: return@Row,
@@ -83,20 +81,10 @@ internal fun DesktopSidePanelColumn(
             ) { which ->
                 Box(
                     Modifier.fillMaxSize().background(
-                        if (showArtworkBlur) Color.Transparent else if (which == DesktopSidePanel.LYRICS) DesktopTheme.palette.lyricsSurface
+                        if (blurBackground) Color.Transparent else if (which == DesktopSidePanel.LYRICS) DesktopTheme.palette.lyricsSurface
                         else DesktopTheme.palette.sidebarSurface,
                     ),
                 ) {
-                    if (showArtworkBlur) {
-                        // The page is laid out beside this panel, so its Haze source has no pixels
-                        // under the panel. Reuse the actual Home artwork here without moving the page.
-                        Column(Modifier.fillMaxSize().blur(32.dp)) {
-                            backdropArtwork.forEach { artwork ->
-                                DesktopArtwork(artwork, Modifier.fillMaxWidth().weight(1f), px = 360)
-                            }
-                        }
-                        Box(Modifier.fillMaxSize().background(Color(0x991C1C1E)))
-                    }
                     // Keep the existing panel geometry independent from its background material.
                     Column(Modifier.fillMaxSize()) {
                         Row(

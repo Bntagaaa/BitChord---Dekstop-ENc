@@ -3280,6 +3280,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                 },
                 onSidebarDrawerOpenChange = { sidebarDrawerOpen = it },
                 hasFloatingPlayer = !oldTopPlayerEnabled,
+                homePanelOverlay = destination == DesktopDestination.LISTEN_NOW && overlays.sidePanel != null,
                 // Only Replay dresses itself; everywhere else the chrome sits on the plain surface.
                 backdrop = { transparentBase ->
                     Box(Modifier.fillMaxSize().then(
@@ -3573,9 +3574,6 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                     DesktopSidePanelColumn(
                         panel = overlays.sidePanel,
                         blurBackground = destination == DesktopDestination.LISTEN_NOW,
-                        backdropArtwork = (homeState as? UiState.Success)?.data.orEmpty()
-                            .asSequence().flatMap { it.items.asSequence() }
-                            .mapNotNull { it.thumbnailUrl }.distinct().take(6).toList(),
                         onClose = { overlays.sidePanel = null },
                     ) { which ->
                         if (current == null) {
@@ -5723,6 +5721,7 @@ internal fun DesktopSearchField(
 private fun DesktopFrame(
     containerColor: Color,
     hasFloatingPlayer: Boolean,
+    homePanelOverlay: Boolean,
     modifier: Modifier = Modifier,
     sidebarCollapsed: Boolean,
     sidebarDrawerOpen: Boolean,
@@ -5795,8 +5794,11 @@ private fun DesktopFrame(
                                         }
                                         // Navigation stays in the rail, never in the mobile bar.
                                         Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(false) }
+                                        if (homePanelOverlay) {
+                                            Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight()) { trailing() }
+                                        }
                                     }
-                                    Box(Modifier.fillMaxHeight()) { trailing() }
+                                    if (!homePanelOverlay) Box(Modifier.fillMaxHeight()) { trailing() }
                                 }
                             }
                         }

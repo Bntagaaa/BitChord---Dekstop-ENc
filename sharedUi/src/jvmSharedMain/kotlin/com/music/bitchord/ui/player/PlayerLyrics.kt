@@ -1734,7 +1734,7 @@ internal fun LyricsPanel(
             val visible = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == focusLine }
             when {
                 !placed -> {
-                    listState.scrollToItem(focusLine, scrollOffset = -centerOffset)
+                    listState.scrollToItem(focusLine, scrollOffset = 0)
                     placed = true
                 }
                 // Already on screen, which is the ordinary case of handing over
@@ -1795,7 +1795,7 @@ internal fun LyricsPanel(
         // list hands that much back — otherwise the lines would sit a glow's
         // width further apart and further in than they used to.
         contentPadding = PaddingValues(
-            top = if (centerActiveLine) with(LocalDensity.current) { viewportHeight.toDp() } / 2 else 40.dp - GLOW_ROOM,
+            top = 40.dp - GLOW_ROOM,
             bottom = with(LocalDensity.current) { viewportHeight.toDp() } * 0.8f,
             start = PLAYER_GUTTER - GLOW_ROOM,
             end = PLAYER_GUTTER - GLOW_ROOM,
