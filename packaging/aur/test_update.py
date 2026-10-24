@@ -5,8 +5,8 @@ import unittest
 
 from update import updated_pkgbuild, validated_release
 
-RECIPE = Path(__file__).with_name("PKGBUILD").read_text(encoding="utf-8")
-NEW_HASH = "a" * 64
+CURRENT_VERSION = re.search(r"(?m)^pkgver=([0-9]+[.][0-9]+[.][0-9]+)$", RECIPE).group(1)
+CURRENT_HASH = re.search(r"(?m)^sha256sums=[(]'([0-9a-f]{64})'[)]$", RECIPE).group(1)
 CURRENT_VERSION = re.search(r"(?m)^pkgver=(\\d+\\.\\d+\\.\\d+)$", RECIPE).group(1)
 CURRENT_HASH = re.search(r"(?m)^sha256sums=\\('([0-9a-f]{64})'\\)$", RECIPE).group(1)
 MAJOR, MINOR, PATCH = map(int, CURRENT_VERSION.split("."))
