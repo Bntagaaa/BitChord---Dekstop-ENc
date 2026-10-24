@@ -329,8 +329,6 @@ import com.music.bitchord.data.settings.TrackAnalysisState
 import com.music.bitchord.data.settings.TransitionWindow
 import com.music.bitchord.ui.icons.BitChordIcons
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.HazeMaterials
 import java.util.UUID
@@ -7937,8 +7935,29 @@ private fun Song.isNowPlaying(): Boolean = isSameTrackAs(LocalNowPlaying.current
 
 /** The frosted pane the floating bars are made of. */
 @Composable
-internal fun Modifier.desktopBarGlass(shape: Shape): Modifier =
-    desktopFrosted(DesktopBarGlass, tintAlpha = 0.55f).border(0.5.dp, DesktopBarEdge, shape)
+internal fun Modifier.desktopBarGlass(shape: Shape): Modifier {
+    val reduceBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+    return desktopLiquidGlass(
+        haze = LocalDesktopHaze.current,
+        shape = shape,
+        opaque = DesktopTheme.palette.floatingPlayerSurface,
+        material = DesktopGlassMaterial.FLOATING,
+        reduceBlur = reduceBlur,
+    )
+}
+
+/** Shared macOS-style glass for menus, dialogs, account selectors and search flyouts. */
+@Composable
+internal fun Modifier.desktopPopoverGlass(shape: Shape): Modifier {
+    val reduceBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+    return desktopLiquidGlass(
+        haze = LocalDesktopHaze.current,
+        shape = shape,
+        opaque = DesktopTheme.palette.cardFill,
+        material = DesktopGlassMaterial.POPOVER,
+        reduceBlur = reduceBlur,
+    )
+}
 
 /** The edge of a chrome pane that meets the page, and so has to dissolve into it. */
 internal enum class DesktopChromeEdge { NONE, BOTTOM, END }
@@ -7954,12 +7973,19 @@ internal enum class DesktopChromeEdge { NONE, BOTTOM, END }
 internal fun Modifier.desktopChromeGlass(
     edge: DesktopChromeEdge = DesktopChromeEdge.NONE,
     fade: Float = 0.2f,
-): Modifier = desktopFrosted(
-    opaque = DesktopTheme.palette.chromeSurface.copy(alpha = 0.88f),
-    tintAlpha = 0.46f,
-    edge = edge,
-    fade = fade,
-)
+): Modifier {
+    val reduceBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+    return desktopLiquidGlass(
+        haze = LocalDesktopHaze.current,
+        shape = RectangleShape,
+        opaque = DesktopTheme.palette.chromeSurface,
+        material = DesktopGlassMaterial.CHROME,
+        reduceBlur = reduceBlur,
+        // Dissolve only live glass; Reduce Blur must be fully opaque.
+        backdropMask = if (reduceBlur) null else edge.dissolve(DesktopTheme.palette.chromeSurface, fade),
+        showRim = false,
+    )
+}
 
 /**
  * The application toolbar and sidebar are opaque client content. DWM material, when accepted,
@@ -7976,35 +8002,6 @@ internal fun Modifier.desktopWindowGlass(
  */
 @Composable
 internal fun desktopChromeDivider(): Color = DesktopDivider
-
-@Composable
-private fun Modifier.desktopFrosted(
-    opaque: Color,
-    tintAlpha: Float,
-    edge: DesktopChromeEdge = DesktopChromeEdge.NONE,
-    fade: Float = 0f,
-): Modifier {
-    val haze = LocalDesktopHaze.current
-    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
-    if (haze == null || reduceDynamicBlur) {
-        return this.background(edge.dissolve(opaque, fade) ?: SolidColor(opaque))
-    }
-    val dissolve = edge.dissolve(DesktopTheme.palette.chromeSurface, fade)
-    return this.hazeEffect(state = haze) {
-        // Spelled out rather than taken from a preset.
-        blurEnabled = true
-        backgroundColor = DesktopTheme.palette.chromeSurface
-        blurRadius = 30.dp
-        // Dark enough that white text on the pane always wins, translucent enough that the
-        // colour of what is behind it still comes through.
-        tints = listOf(HazeTint(DesktopTheme.palette.chromeSurface.copy(alpha = tintAlpha)))
-        noiseFactor = 0.04f
-        // Assigned either way: the scope belongs to the node and outlives the draw, so a pane that
-        // stops dissolving — the leading stretch of the top bar, when the window grows back out of
-        // compact — would otherwise keep the mask it was given in the other layout.
-        mask = dissolve
-    }
-}
 
 /** The gradient that takes [colour] to nothing across the pane's last [fade]. */
 private fun DesktopChromeEdge.dissolve(colour: Color, fade: Float): Brush? {
