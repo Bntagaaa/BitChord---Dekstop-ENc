@@ -45,6 +45,9 @@ internal class DesktopOverlays {
     var shortcuts by mutableStateOf(false)
     var quickSearch by mutableStateOf(false)
 
+    /** The Desktop-only provider picker lives above the whole window, not inside the side column. */
+    var lyricsProviderPopup by mutableStateOf(false)
+
     /** The column beside the page with the lyrics or the queue in it, or none. */
     var sidePanel by mutableStateOf<DesktopSidePanel?>(null)
 

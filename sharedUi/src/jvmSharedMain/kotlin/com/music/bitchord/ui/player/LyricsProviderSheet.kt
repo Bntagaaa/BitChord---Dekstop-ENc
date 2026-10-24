@@ -59,8 +59,6 @@ import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
-import dev.chrisbanes.haze.materials.HazeMaterials
 
 /**
  * Presentation of the lyrics-provider chooser. Mobile keeps the familiar drawer;
@@ -77,7 +75,7 @@ enum class LyricsProviderPresentation { DRAWER, GLASS_POPUP }
  * entirely local: hits switch immediately and misses cannot be requested twice.
  */
 @Composable
-internal fun LyricsProviderSheet(
+fun LyricsProviderSheet(
     hazeState: HazeState,
     currentSource: LyricsSource?,
     states: Map<LyricsSource, LyricsProviderState>,
@@ -133,7 +131,6 @@ internal fun LyricsProviderSheet(
     }
 }
 
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 private fun LyricsProviderPopup(
     hazeState: HazeState,
@@ -147,11 +144,26 @@ private fun LyricsProviderPopup(
     LaunchedEffect(Unit) { shown = true }
     val shape = RoundedCornerShape(24.dp)
     val interaction = remember { MutableInteractionSource() }
+    // Blurring only the dialog card leaves the whole page crisp, which is not the
+    // requested Desktop presentation. Blur the captured player/page as a backdrop.
+    // The existing Reduce Blur preference removes the Haze effect entirely.
+    val backdropSurface = if (reduceDynamicBlur) {
+        Modifier.background(Color.Black.copy(alpha = 0.58f))
+    } else {
+        Modifier.optimizedHazeEffect(state = hazeState) {
+            blurEnabled = true
+            blurRadius = 44.dp
+            backgroundColor = Color(0xFF070707).copy(alpha = 0.08f)
+            tints = listOf(HazeTint(Color.Black.copy(alpha = 0.18f)))
+            fallbackTint = HazeTint(Color.Black.copy(alpha = 0.55f))
+            noiseFactor = 0.01f
+        }
+    }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = if (reduceDynamicBlur) 0.48f else 0.24f))
+            .then(backdropSurface)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -175,18 +187,14 @@ private fun LyricsProviderPopup(
                             Modifier.background(Color(0xFF171717))
                         } else {
                             Modifier
-                                .optimizedHazeEffect(
-                                    state = hazeState,
-                                    style = HazeMaterials.regular(Color(0xFF080808)),
-                                ) {
+                                .optimizedHazeEffect(state = hazeState) {
                                     blurEnabled = true
-                                    blurRadius = 48.dp
-                                    backgroundColor = Color(0xFF080808).copy(alpha = 0.12f)
-                                    tints = listOf(HazeTint(Color(0xFF101010).copy(alpha = 0.22f)))
-                                    fallbackTint = HazeTint(Color(0xFF171717))
-                                    noiseFactor = 0.02f
+                                    blurRadius = 52.dp
+                                    backgroundColor = Color(0xFF090909).copy(alpha = 0.08f)
+                                    tints = listOf(HazeTint(Color(0xFF101010).copy(alpha = 0.20f)))
+                                    fallbackTint = HazeTint(Color(0xFF191919))
+                                    noiseFactor = 0.015f
                                 }
-                                .background(Color(0xFF0A0A0A).copy(alpha = 0.34f))
                         },
                     )
                     .border(1.dp, Color.White.copy(alpha = 0.11f), shape)

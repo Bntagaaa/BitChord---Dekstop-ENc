@@ -44,6 +44,7 @@ import com.music.bitchord.data.listentogether.partyUpcomingAfter
 import com.music.bitchord.ui.LyricsProviderState
 import com.music.bitchord.ui.player.LyricsSidePanel
 import com.music.bitchord.ui.player.LyricsProviderPresentation
+import com.music.bitchord.ui.player.LyricsProviderSheet
 import com.music.bitchord.ui.player.NowPlayingScreen
 import com.music.bitchord.ui.player.QueueSidePanel
 import com.music.bitchord.ui.player.PlayerBack
@@ -3599,6 +3600,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                                 lyricsUnavailable = sharedLyricsUnavailable,
                                 enableUnfocusedBlur = destination == DesktopDestination.LISTEN_NOW,
                                 lyricsProviderPresentation = LyricsProviderPresentation.GLASS_POPUP,
+                                onOpenLyricsProviders = { overlays.lyricsProviderPopup = true },
                                 onSeek = ::seekPlayer,
                                 modifier = Modifier.fillMaxSize(),
                             )
@@ -3789,6 +3791,19 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                                     .padding(horizontal = 18.dp, vertical = 10.dp),
                             )
                         }
+                    }
+                    if (overlays.lyricsProviderPopup) {
+                        // The side panel is only 360dp wide. Rendering inside it clipped the
+                        // provider popup and left no page content beneath its blur effect.
+                        // This root overlay samples the app-wide Haze source instead.
+                        LyricsProviderSheet(
+                            hazeState = LocalDesktopHaze.current ?: remember { HazeState() },
+                            currentSource = sharedLyricsSource,
+                            states = providerStates,
+                            onSelect = { source -> lyricsOnly = source.label },
+                            onDismiss = { overlays.lyricsProviderPopup = false },
+                            presentation = LyricsProviderPresentation.GLASS_POPUP,
+                        )
                     }
                     if (overlays.accounts) {
                         DesktopAccountSelector(

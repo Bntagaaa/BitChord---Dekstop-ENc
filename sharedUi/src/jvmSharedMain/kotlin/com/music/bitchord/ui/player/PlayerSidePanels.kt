@@ -48,6 +48,8 @@ fun LyricsSidePanel(
     modifier: Modifier = Modifier,
     enableUnfocusedBlur: Boolean = false,
     lyricsProviderPresentation: LyricsProviderPresentation = LyricsProviderPresentation.DRAWER,
+    /** Desktop can host this popup at the window root so it isn't clipped to the 360dp panel. */
+    onOpenLyricsProviders: (() -> Unit)? = null,
 ) {
     val haptics = rememberHaptics()
     val lyricsOffsetMs by PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
@@ -81,7 +83,10 @@ fun LyricsSidePanel(
                     lyricsLoadingText
                 },
                 status = lyricsTranslation.status,
-                onStatusClick = { showLyricsProviders = true },
+                onStatusClick = {
+                    if (onOpenLyricsProviders != null) onOpenLyricsProviders()
+                    else showLyricsProviders = true
+                },
                 romanizationToggle = {
                     RomanizationToggleButton(
                         state = lyricsTranslation.romanizationState,
@@ -125,7 +130,7 @@ fun LyricsSidePanel(
                 }
             }
         }
-        if (showLyricsProviders) {
+        if (showLyricsProviders && onOpenLyricsProviders == null) {
             LyricsProviderSheet(
                 hazeState = haze,
                 currentSource = lyricsSource,
