@@ -1,0 +1,99 @@
+# Maintainer: BitChord Desktop Revived contributors
+# Arch/CachyOS package built from BitChord's official Linux .deb release.
+pkgname=bitchord-desktop-revived-bin
+pkgver=1.8.2
+pkgrel=1
+pkgdesc='Community-maintained BitChord desktop music player'
+arch=('x86_64')
+url='https://github.com/Bntagaaa/BitChord-Desktop-Revived'
+license=('GPL-3.0-only')
+depends=(
+  'alsa-lib' 'fontconfig' 'freetype2' 'gcc-libs' 'glibc' 'gtk3'
+  'libpulse' 'libx11' 'libxext' 'libxi' 'libxrandr' 'libxrender'
+  'libxtst' 'mesa' 'nss'
+)
+makedepends=('libarchive')
+optdepends=('libsecret: Secret Service credential storage, if available')
+provides=('bitchord-desktop-revived')
+conflicts=('bitchord-desktop-revived')
+options=('!strip' '!debug')
+
+_deb="BitChord-${pkgver}-linux-amd64.deb"
+_localdeb="${pkgname}-${pkgver}.deb"
+source=("${_localdeb}::${url}/releases/download/v${pkgver}/${_deb}")
+noextract=("${_localdeb}")
+sha256sums=('b2398ae77c21baa9e10c661f5683046c26ccc82d1002bdccde91f3e5bdd8c6b6')
+
+prepare() {
+  cd "${srcdir}"
+  # Extract the ar container, then its data.tar.* payload. Do not execute
+  # Debian maintainer scripts, and never install the Debian package via dpkg.
+  rm -rf _deb-archive _deb-root
+  install -dm755 _deb-archive _deb-root
+  bsdtar -xf "${_localdeb}" -C _deb-archive
+
+  local data_tar
+  data_tar="$(find _deb-archive -maxdepth 1 -type f -name 'data.tar*' -print -quit)"
+  [[ -n "${data_tar}" ]] || {
+    printf 'Missing data.tar payload in BitChord .deb.\n' >&2
+    return 1
+  }
+  bsdtar -xf "${data_tar}" -C _deb-root
+
+  local -a launchers
+  mapfile -t launchers < <(find _deb-root/opt -type f -path '*/bin/BitChord' -print 2>/dev/null)
+  [[ "${#launchers[@]}" -eq 1 && -x "${launchers[0]}" ]] || {
+    printf 'Expected exactly one executable /opt/.../bin/BitChord in .deb.\n' >&2
+    return 1
+  }
+  # Path is relative to srcdir; jpackage must remain in one intact bin/lib tree.
+  printf '%s\n' "${launchers[0]%/bin/BitChord}" > _bitchord-appdir
+
+  local icon
+  icon="$(find _deb-root -type f -iname '*bitchord*.png' -print -quit)"
+  [[ -n "${icon}" ]] || {
+    printf 'BitChord icon was not found in Debian package.\n' >&2
+    return 1
+  }
+  printf '%s\n' "${icon}" > _bitchord-icon
+}
+
+package() {
+  cd "${srcdir}"
+
+  local appdir icon
+  appdir="$(cat _bitchord-appdir)"
+  icon="$(cat _bitchord-icon)"
+  install -dm755 "${pkgdir}/opt/bitchord-desktop-revived"
+  cp -a "${appdir}/." "${pkgdir}/opt/bitchord-desktop-revived/"
+  chmod -R a+rX "${pkgdir}/opt/bitchord-desktop-revived"
+
+  install -dm755 "${pkgdir}/usr/bin"
+  cat > "${pkgdir}/usr/bin/bitchord-desktop-revived" <<'LAUNCHER'
+#!/bin/sh
+# Match the AppImage's niri workaround without altering KDE/GNOME behavior.
+desktop_hint="$(printf '%s:%s:%s' "${XDG_CURRENT_DESKTOP:-}" "${XDG_SESSION_DESKTOP:-}" "${NIRI_SOCKET:+niri}" | tr '[:upper:]' '[:lower:]')"
+case "$desktop_hint" in
+  *niri*) export _JAVA_AWT_WM_NONREPARENTING=1 ;;
+esac
+exec /opt/bitchord-desktop-revived/bin/BitChord "$@"
+LAUNCHER
+  chmod 755 "${pkgdir}/usr/bin/bitchord-desktop-revived"
+
+  install -dm755 "${pkgdir}/usr/share/applications"
+  cat > "${pkgdir}/usr/share/applications/bitchord-desktop-revived.desktop" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=BitChord Desktop Revived
+GenericName=Music Player
+Comment=Community-maintained BitChord desktop music player
+Exec=bitchord-desktop-revived
+Icon=bitchord-desktop-revived
+Categories=AudioVideo;Audio;Player;
+Terminal=false
+StartupWMClass=com-music-bitchord-desktop-MainKt
+DESKTOP
+
+  install -Dm644 "${icon}" \
+    "${pkgdir}/usr/share/pixmaps/bitchord-desktop-revived.png"
+}

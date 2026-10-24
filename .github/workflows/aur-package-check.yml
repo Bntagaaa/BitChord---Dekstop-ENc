@@ -1,0 +1,90 @@
+name: Arch / CachyOS Package
+
+on:
+  pull_request:
+    paths:
+      - 'packaging/aur/**'
+      - '.github/workflows/aur-package-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'packaging/aur/**'
+      - '.github/workflows/aur-package-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Validate and build PKGBUILD
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Arch build and test tooling
+        run: pacman -Syu --noconfirm --needed sudo python git
+
+      - name: Validate PKGBUILD syntax and updater tests
+        run: |
+          bash -n packaging/aur/PKGBUILD
+          python -m unittest discover -s packaging/aur -p 'test_*.py' -v
+
+      - name: Create unprivileged package builder
+        run: |
+          useradd --create-home aurbuilder
+          install -dm755 /etc/sudoers.d
+          printf '%s\n' 'aurbuilder ALL=(ALL) NOPASSWD: /usr/bin/pacman' > /etc/sudoers.d/aurbuilder
+          chmod 440 /etc/sudoers.d/aurbuilder
+          chown -R aurbuilder:aurbuilder packaging/aur
+
+      - name: Verify AUR metadata and signed-in-the-API release checksum
+        run: |
+          runuser -u aurbuilder -- bash -c '
+            set -e
+            cd packaging/aur
+            makepkg --printsrcinfo > .SRCINFO.generated
+            diff -u <(LC_ALL=C sort .SRCINFO) <(LC_ALL=C sort .SRCINFO.generated)
+            makepkg --verifysource
+          '
+
+      - name: Exercise release job's DEB reuse helper
+        run: |
+          runuser -u aurbuilder -- bash -c '
+            set -euo pipefail
+            cd packaging/aur
+            version=$(sed -n "s/^pkgver=//p" PKGBUILD)
+            test -n "$version"
+            cp "bitchord-desktop-revived-bin-$version.deb" "BitChord-$version-linux-amd64.deb"
+            python prepare_release.py --version "$version" --deb "BitChord-$version-linux-amd64.deb"
+            makepkg --verifysource
+          '
+      - name: Build Arch package without root privileges
+        run: |
+          runuser -u aurbuilder -- bash -c '
+            set -e
+            cd packaging/aur
+            makepkg --syncdeps --noconfirm --cleanbuild
+          '
+
+      - name: Inspect resulting package layout
+        run: |
+          pkg=$(find packaging/aur -maxdepth 1 -name '*.pkg.tar.zst' -print -quit)
+          test -n "$pkg"
+          bsdtar -tf "$pkg" > /tmp/bitchord-package-files.txt
+          grep -Fxq 'usr/bin/bitchord-desktop-revived' /tmp/bitchord-package-files.txt
+          grep -Fxq 'opt/bitchord-desktop-revived/bin/BitChord' /tmp/bitchord-package-files.txt
+          grep -Fxq 'usr/share/applications/bitchord-desktop-revived.desktop' /tmp/bitchord-package-files.txt
+          grep -Fxq 'usr/share/pixmaps/bitchord-desktop-revived.png' /tmp/bitchord-package-files.txt
+          pacman -Qip "$pkg"
+
+      - name: Upload installable Arch package for testers
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitchord-arch-package-preview
+          path: packaging/aur/*.pkg.tar.zst
+          if-no-files-found: error
+          retention-days: 7
