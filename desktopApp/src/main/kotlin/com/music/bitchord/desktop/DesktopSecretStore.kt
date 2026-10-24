@@ -14,10 +14,15 @@ internal object DesktopSecretStore {
 
     private const val DEFAULT_COLLECTION = "/org/freedesktop/secrets/aliases/default"
 
-    /** Runs [block] with an open Secret Service session, or returns null. */
+    /**
+     * Runs [block] with an open Secret Service session, or returns null.
+     *
+     * Secret Service is a Linux session-bus API. On other platforms, avoid a blocking D-Bus
+     * connection attempt during account switching or sign-out.
+     */
     private fun <T> withService(
         block: (DBusConnection, SecretServiceApi.Service, DBusPath) -> T?,
-    ): T? = runCatching {
+    ): T? = if (!DesktopPlatform.isLinux) null else runCatching {
         DBusConnectionBuilder.forSessionBus().withShared(false).build().use { connection ->
             val service = connection.getRemoteObject(
                 SecretServiceApi.BUS_NAME,
