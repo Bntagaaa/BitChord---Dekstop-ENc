@@ -3573,6 +3573,9 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                     DesktopSidePanelColumn(
                         panel = overlays.sidePanel,
                         blurBackground = destination == DesktopDestination.LISTEN_NOW,
+                        backdropArtwork = (homeState as? UiState.Success)?.data.orEmpty()
+                            .asSequence().flatMap { it.items.asSequence() }
+                            .mapNotNull { it.thumbnailUrl }.distinct().take(6).toList(),
                         onClose = { overlays.sidePanel = null },
                     ) { which ->
                         if (current == null) {
