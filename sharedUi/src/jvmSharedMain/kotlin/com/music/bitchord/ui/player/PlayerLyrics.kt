@@ -1574,7 +1574,7 @@ internal fun LyricsPanel(
     onPickLine: (Int) -> Unit = {},
     /** Tap while picking: add or drop that line. */
     onTogglePick: (Int) -> Unit = {},
-    enableUnfocusedBlur: Boolean = false,
+    enableUnfocusedBlur: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val panelPlaying = isPlaying && active
