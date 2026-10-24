@@ -227,6 +227,8 @@ jobs:
     needs: [linux, windows, arch]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Validate release version
         shell: bash
         env:
@@ -253,6 +255,18 @@ jobs:
 
       - run: ls -lh dist
 
+      - name: Select release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes="docs/releases/${RELEASE_TAG}.md"
+          if [ -f "$notes" ]; then
+            cp "$notes" "$RUNNER_TEMP/release-notes.md"
+          else
+            printf '# BitChord %s\n\nDownload the Windows, Linux, and Arch packages below.\n' "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"
+          fi
+          echo "RELEASE_NOTES_PATH=$RUNNER_TEMP/release-notes.md" >> "$GITHUB_ENV"
+
       - name: Draft the release
         uses: softprops/action-gh-release@v2
         with:
@@ -260,6 +274,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: BitChord ${{ env.RELEASE_TAG }}
           draft: true
+          body_path: ${{ env.RELEASE_NOTES_PATH }}
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
