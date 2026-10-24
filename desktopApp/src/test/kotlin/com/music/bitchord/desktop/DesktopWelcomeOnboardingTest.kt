@@ -67,6 +67,67 @@ class DesktopWelcomeOnboardingTest {
         }
     }
 
+    @Test fun `AppImage mount changes do not repeat welcome for the same file`() =
+        withPreferences { prefs ->
+            val appImage = Files.createTempFile("bitchord-appimage-", ".AppImage")
+            try {
+                Files.writeString(appImage, "portable image")
+                val firstIdentity = DesktopWelcomeOnboarding.installationIdentity(
+                    appImage.toString(),
+                    "/tmp/.mount_BitChord123/usr/bin/BitChord",
+                    "/tmp/.mount_BitChord123/usr/bin/BitChord",
+                    "/tmp/.mount_BitChord123/usr",
+                )
+                val secondIdentity = DesktopWelcomeOnboarding.installationIdentity(
+                    appImage.toString(),
+                    "/tmp/.mount_BitChord999/usr/bin/BitChord",
+                    "/tmp/.mount_BitChord999/usr/bin/BitChord",
+                    "/tmp/.mount_BitChord999/usr",
+                )
+                assertEquals(firstIdentity, secondIdentity)
+                val first = DesktopWelcomeOnboarding.inspect(prefs, firstIdentity)
+                assertTrue(first.showWelcome)
+                DesktopWelcomeOnboarding.complete(prefs, first)
+                assertFalse(DesktopWelcomeOnboarding.inspect(prefs, secondIdentity).showWelcome)
+            } finally {
+                Files.deleteIfExists(appImage)
+            }
+        }
+
+    @Test fun `AppImage upgrade is recognized but unrelated account data survives`() =
+        withPreferences { prefs ->
+            val appImage = Files.createTempFile("bitchord-appimage-update-", ".AppImage")
+            try {
+                Files.writeString(appImage, "old image")
+                val identityBefore = DesktopWelcomeOnboarding.installationIdentity(
+                    appImage.toString(), "/tmp/.mount_old/usr/bin/BitChord", null, null
+                )
+                prefs.put("spotify_spdc_token", "keep-me")
+                DesktopWelcomeOnboarding.complete(prefs, DesktopWelcomeOnboarding.inspect(prefs, identityBefore))
+                Files.writeString(appImage, "new larger AppImage binary")
+                val identityAfter = DesktopWelcomeOnboarding.installationIdentity(
+                    appImage.toString(), "/tmp/.mount_new/usr/bin/BitChord", null, null
+                )
+                assertNotEquals(identityBefore, identityAfter)
+                assertTrue(DesktopWelcomeOnboarding.inspect(prefs, identityAfter).showWelcome)
+                assertEquals("keep-me", prefs.get("spotify_spdc_token", ""))
+            } finally {
+                Files.deleteIfExists(appImage)
+            }
+        }
+
+    @Test fun `regular installed launcher ignores temporary AppImage metadata when absent`() {
+        val executable = Files.createTempFile("bitchord-jpackage-", ".exe")
+        try {
+            val identity = DesktopWelcomeOnboarding.installationIdentity(
+                null, executable.toString(), "/tmp/unrelated/BitChord", "/opt/jdk"
+            )
+            assertEquals(DesktopWelcomeOnboarding.fileIdentity(executable), identity)
+        } finally {
+            Files.deleteIfExists(executable)
+        }
+    }
+
     @Test fun `existing account state survives completing onboarding`() = withPreferences { prefs ->
         prefs.put("spotify_spdc_token", "still-signed-in")
         prefs.put("volume", "0.6")
