@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
 
 /** What the column beside the page is showing. */
 internal enum class DesktopSidePanel { LYRICS, QUEUE }
@@ -57,7 +59,12 @@ internal fun DesktopSidePanelColumn(
     // Held through the exit, so the column slides out with what it had in it rather than empty.
     var shown by remember { mutableStateOf(panel) }
     if (panel != null) shown = panel
-    // Home opts into glass; other destinations retain a solid, inexpensive fill.
+    val opacity by DesktopAppearanceSettings.sidePanelOpacity.collectAsState()
+    val blur by DesktopAppearanceSettings.sidePanelBlur.collectAsState()
+    val reduceBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+    val haze = LocalDesktopHaze.current
+    val glassActive = blurBackground && haze != null && !reduceBlur
+    // Keep the material stable while destinations change to avoid a glass/solid flash.
     val panelFill = if ((panel ?: shown) == DesktopSidePanel.LYRICS) {
         DesktopTheme.palette.lyricsSurface
     } else {
@@ -70,9 +77,15 @@ internal fun DesktopSidePanelColumn(
         exit = shrinkHorizontally(tween(SLIDE_MS, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Start) +
             fadeOut(tween(SLIDE_MS / 2)),
     ) {
-        Row(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight().then(
-            if (blurBackground) Modifier.desktopChromeGlass() else Modifier.background(panelFill),
-        )) {
+        val glass = if (glassActive) {
+            Modifier.hazeEffect(state = requireNotNull(haze)) {
+                blurEnabled = blur > 0f
+                blurRadius = blur.dp
+                backgroundColor = panelFill
+                tints = listOf(HazeTint(panelFill.copy(alpha = opacity)))
+            }
+        } else Modifier.background(panelFill)
+        Row(Modifier.width(SIDE_PANEL_WIDTH).fillMaxHeight().then(glass)) {
             Box(Modifier.width(1.dp).fillMaxHeight().background(DesktopDivider))
             Crossfade(
                 targetState = shown ?: return@Row,
@@ -81,7 +94,7 @@ internal fun DesktopSidePanelColumn(
             ) { which ->
                 Box(
                     Modifier.fillMaxSize().background(
-                        if (blurBackground) Color.Transparent else if (which == DesktopSidePanel.LYRICS) DesktopTheme.palette.lyricsSurface
+                        if (glassActive) Color.Transparent else if (which == DesktopSidePanel.LYRICS) DesktopTheme.palette.lyricsSurface
                         else DesktopTheme.palette.sidebarSurface,
                     ),
                 ) {

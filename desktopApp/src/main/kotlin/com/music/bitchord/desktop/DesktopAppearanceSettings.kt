@@ -23,6 +23,8 @@ internal object DesktopAppearanceSettings {
     private val _enableOldTopMusicPlayerStyle = flag(KEY_ENABLE_OLD_TOP_MUSIC_PLAYER_STYLE, false)
     // v1.8 Explore cards remain the default; the classic v1.7 sleeve can be opted into.
     private val _useOldExploreCards = flag(KEY_USE_OLD_EXPLORE_CARDS, false)
+    private val _sidePanelOpacity = MutableStateFlow(DesktopPersistence().float(KEY_SIDE_PANEL_OPACITY, 0.46f).coerceIn(0f, 1f))
+    private val _sidePanelBlur = MutableStateFlow(DesktopPersistence().float(KEY_SIDE_PANEL_BLUR, 30f).coerceIn(0f, 60f))
 
     /** Freezes the main player's gradient instead of drifting. */
     val reduceAnimation: StateFlow<Boolean> = _reduceAnimation
@@ -41,6 +43,9 @@ internal object DesktopAppearanceSettings {
 
     /** Switches Explore category artwork between current and classic v1.7 cards. */
     val useOldExploreCards: StateFlow<Boolean> = _useOldExploreCards
+    /** Temporary visual tuning for the lyrics and queue panes. */
+    val sidePanelOpacity: StateFlow<Float> = _sidePanelOpacity
+    val sidePanelBlur: StateFlow<Float> = _sidePanelBlur
 
     /** Whether the lyrics pane carries its own log console. */
 
@@ -58,6 +63,16 @@ internal object DesktopAppearanceSettings {
     fun setUseOldExploreCards(value: Boolean) =
         write(KEY_USE_OLD_EXPLORE_CARDS, value, _useOldExploreCards)
 
+    fun setSidePanelOpacity(value: Float) {
+        _sidePanelOpacity.value = value.coerceIn(0f, 1f)
+        DesktopPersistence().saveFloat(KEY_SIDE_PANEL_OPACITY, _sidePanelOpacity.value)
+    }
+
+    fun setSidePanelBlur(value: Float) {
+        _sidePanelBlur.value = value.coerceIn(0f, 60f)
+        DesktopPersistence().saveFloat(KEY_SIDE_PANEL_BLUR, _sidePanelBlur.value)
+    }
+
 
     private fun write(key: String, value: Boolean, into: MutableStateFlow<Boolean>) {
         DesktopPersistence().saveBoolean(key, value)
@@ -70,4 +85,6 @@ internal object DesktopAppearanceSettings {
     internal const val KEY_HIDE_VOLUME_BAR = "hide_volume_bar"
     internal const val KEY_ENABLE_OLD_TOP_MUSIC_PLAYER_STYLE = "enable_old_top_music_player_style"
     internal const val KEY_USE_OLD_EXPLORE_CARDS = "use_old_explore_cards"
+    internal const val KEY_SIDE_PANEL_OPACITY = "debug_side_panel_opacity"
+    internal const val KEY_SIDE_PANEL_BLUR = "debug_side_panel_blur"
 }

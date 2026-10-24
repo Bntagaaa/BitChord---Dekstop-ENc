@@ -1734,22 +1734,35 @@ internal fun LyricsPanel(
             val visible = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == focusLine }
             when {
                 !placed -> {
-                    listState.scrollToItem(focusLine, scrollOffset = 0)
+                    // Keep the opening lines at the top. A song that is resumed or seeked
+                    // well into its run still opens at the current line.
+                    listState.scrollToItem(if (centerActiveLine && focusLine < 3) 0 else focusLine, scrollOffset = 0)
                     placed = true
+                }
+                centerActiveLine && focusLine < 3 -> {
+                    // Centering one of the first lines makes the viewport jump on startup.
+                    // Once the song advances, the ordinary animated follow takes over.
+                    if (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0) {
+                        listState.scrollToItem(0)
+                    }
                 }
                 // Already on screen, which is the ordinary case of handing over
                 // to the next line: its distance is known, so the move can be
                 // given the run-up's own duration and curve instead of the
                 // list's default spring.
                 visible != null -> {
+                    val shift = (visible.offset - centerOffset + if (centerActiveLine) visible.size / 2 else 0).toFloat()
+                    // At the beginning the active line can still be above the center. A
+                    // negative request here tries to scroll beyond the top and causes bounce.
+                    if (centerActiveLine && shift <= 0f) return@LaunchedEffect
                     val span = scrollLead(lines, clock.longValue).toInt()
-                    run = ScrollRun(run.id + 1, (visible.offset - centerOffset + if (centerActiveLine) visible.size / 2 else 0).toFloat(), span)
+                    run = ScrollRun(run.id + 1, shift, span)
                     // The same curve the rows catch up on. Two different
                     // curves and a row with no delay at all still trails the
                     // list it is sitting in, which is most of the way to
                     // looking like the panel cannot keep up with itself.
                     listState.animateScrollBy(
-                        value = (visible.offset - centerOffset + if (centerActiveLine) visible.size / 2 else 0).toFloat(),
+                        value = shift,
                         animationSpec = tween(durationMillis = span, easing = LYRIC_EASING),
                     )
                 }

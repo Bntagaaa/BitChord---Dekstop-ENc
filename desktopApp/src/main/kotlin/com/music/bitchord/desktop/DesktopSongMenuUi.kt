@@ -44,14 +44,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.blur
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -199,7 +203,7 @@ internal fun DesktopSongMenu(
     // playlist, fetch again, or share a link for.
     val isOffline = song.localUri != null
 
-    DesktopMenuSurface(onDismiss = onDismiss, artworkUrl = song.thumbnailUrl) {
+    DesktopMenuSurface(onDismiss = onDismiss) {
         if (pickingSleepTimer) {
             DesktopMenuHeader("Sleep timer") { pickingSleepTimer = false }
             DesktopMenuDivider()
@@ -311,19 +315,42 @@ private fun sleepTimerLabel(minutes: Int?, afterTrack: Boolean): String = when {
 
 /** The panel a menu is drawn in: a floating card in the app's own glass. */
 @Composable
-private fun DesktopMenuSurface(onDismiss: () -> Unit, artworkUrl: String?, content: @Composable () -> Unit) {
+private fun DesktopMenuSurface(onDismiss: () -> Unit, content: @Composable () -> Unit) {
     val menuScrollState = rememberScrollState()
-    Popup(
+    val portal = LocalDesktopMenuPortal.current
+    val owner = remember { Any() }
+    var anchor by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    val latestContent = rememberUpdatedState(content)
+    val latestDismiss = rememberUpdatedState(onDismiss)
+    val menuContent: @Composable () -> Unit = remember(owner) { { MenuCard(menuScrollState) { latestContent.value() } } }
+    if (portal != null) {
+        Spacer(Modifier.size(0.dp).onGloballyPositioned { anchor = it.boundsInRoot() })
+        SideEffect {
+            anchor?.let { bounds ->
+                if (portal.entry.value?.owner !== owner || portal.entry.value?.anchor != bounds) {
+                    portal.entry.value = DesktopMenuPortalEntry(owner, bounds, { latestDismiss.value() }, menuContent)
+                }
+            }
+        }
+        DisposableEffect(portal, owner) {
+            onDispose {
+                if (portal.entry.value?.owner === owner) {
+                    portal.entry.value = null
+                    portal.onClosed()
+                }
+            }
+        }
+    } else Popup(
         popupPositionProvider = remember { DesktopMenuPosition() },
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true),
-    ) {
+    ) { menuContent() }
+}
+
+@Composable
+private fun MenuCard(menuScrollState: androidx.compose.foundation.ScrollState, content: @Composable () -> Unit) {
         val shape = RoundedCornerShape(12.dp)
-        Box(Modifier.widthIn(min = 232.dp, max = 300.dp).clip(shape)) {
-            if (artworkUrl != null) {
-                DesktopArtwork(artworkUrl, Modifier.matchParentSize().blur(28.dp), px = 360)
-            }
-            Box(Modifier.matchParentSize().background(Color(0xDD151518)))
+        Box(Modifier.widthIn(min = 232.dp, max = 300.dp).desktopMenuGlass(shape, tintAlpha = 0.58f)) {
             Column(
                 Modifier
                 .fillMaxWidth()
@@ -337,7 +364,6 @@ private fun DesktopMenuSurface(onDismiss: () -> Unit, artworkUrl: String?, conte
                 content()
             }
         }
-    }
 }
 
 /** Where a menu hangs relative to the button that opened it. */

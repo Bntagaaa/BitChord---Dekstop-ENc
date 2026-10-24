@@ -380,7 +380,7 @@ internal val DesktopSubtleFill: Color get() = DesktopTheme.palette.subtleFill
 private val DesktopBarGlass: Color get() = DesktopTheme.palette.barGlass
 
 /** The backdrop the floating bars blur. */
-private val LocalDesktopHaze = staticCompositionLocalOf<HazeState?> { null }
+internal val LocalDesktopHaze = staticCompositionLocalOf<HazeState?> { null }
 
 /** How much a page's scrollable should keep clear of the floating bars. */
 private val LocalDesktopBottomInset = staticCompositionLocalOf { 0.dp }
@@ -560,6 +560,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
     val searchRows by searchSession.rows
     var searchJob by remember { mutableStateOf<Job?>(null) }
     val fullSearchHaze = remember { HazeState() }
+    val menuPortal = remember { DesktopMenuPortalState() }
     // What has been searched before, and what YouTube thinks is being typed.
     val searchHistory by DesktopSearchHistory.recent.collectAsState()
     // Whether anything has been searched for since the field was last emptied: until then the
@@ -3280,7 +3281,8 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                 },
                 onSidebarDrawerOpenChange = { sidebarDrawerOpen = it },
                 hasFloatingPlayer = !oldTopPlayerEnabled,
-                homePanelOverlay = destination == DesktopDestination.LISTEN_NOW && overlays.sidePanel != null,
+                menuPortal = menuPortal,
+                onMenuClosed = { runCatching { shortcutRootFocusRequester.requestFocus() } },
                 // Only Replay dresses itself; everywhere else the chrome sits on the plain surface.
                 backdrop = { transparentBase ->
                     Box(Modifier.fillMaxSize().then(
@@ -3348,6 +3350,12 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                         if (overlays.quickSearch) {
                             // The opening Ctrl+K was captured by the normal dispatcher.
                             return@onPreviewKeyEvent !pressed && shortcutDispatcher.release(shortcutKey.keyCode)
+                        }
+                        if (menuPortal.entry.value != null) {
+                            // The in-window menu owns keys while open, just as the old focusable
+                            // Popup did. Keep dispatcher release bookkeeping in sync.
+                            if (!pressed) shortcutDispatcher.release(shortcutKey.keyCode)
+                            return@onPreviewKeyEvent false
                         }
 
                         // Release bookkeeping before looking at the current focus/modal state.
@@ -3573,7 +3581,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                     val current = selectedSong
                     DesktopSidePanelColumn(
                         panel = overlays.sidePanel,
-                        blurBackground = destination == DesktopDestination.LISTEN_NOW,
+                        blurBackground = true,
                         onClose = { overlays.sidePanel = null },
                     ) { which ->
                         if (current == null) {
@@ -5721,7 +5729,8 @@ internal fun DesktopSearchField(
 private fun DesktopFrame(
     containerColor: Color,
     hasFloatingPlayer: Boolean,
-    homePanelOverlay: Boolean,
+    menuPortal: DesktopMenuPortalState,
+    onMenuClosed: () -> Unit,
     modifier: Modifier = Modifier,
     sidebarCollapsed: Boolean,
     sidebarDrawerOpen: Boolean,
@@ -5744,8 +5753,9 @@ private fun DesktopFrame(
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val haze = remember { HazeState() }
+    menuPortal.onClosed = onMenuClosed
     val oldTopPlayerEnabled by DesktopAppearanceSettings.enableOldTopMusicPlayerStyle.collectAsState()
-    CompositionLocalProvider(LocalDesktopHaze provides haze) {
+    CompositionLocalProvider(LocalDesktopHaze provides haze, LocalDesktopMenuPortal provides menuPortal) {
         Box(modifier.fillMaxSize().background(containerColor)) {
             // Preserve blur for the floating player; the sidebar itself remains opaque.
             Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }
@@ -5794,11 +5804,8 @@ private fun DesktopFrame(
                                         }
                                         // Navigation stays in the rail, never in the mobile bar.
                                         Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(false) }
-                                        if (homePanelOverlay) {
-                                            Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight()) { trailing() }
-                                        }
                                     }
-                                    if (!homePanelOverlay) Box(Modifier.fillMaxHeight()) { trailing() }
+                                    Box(Modifier.fillMaxHeight()) { trailing() }
                                 }
                             }
                         }
@@ -5847,6 +5854,7 @@ private fun DesktopFrame(
                     }
                     overlay()
                 }
+                DesktopMenuPortal(menuPortal)
             }
         }
     }
@@ -6962,6 +6970,17 @@ private fun DesktopSettingsScreen(
                         reduceDynamicBlur,
                         DesktopAppearanceSettings::setReduceDynamicBlur,
                     )
+                    val sidePanelOpacity by DesktopAppearanceSettings.sidePanelOpacity.collectAsState()
+                    val sidePanelBlur by DesktopAppearanceSettings.sidePanelBlur.collectAsState()
+                    if (settingsRowVisible("Lyrics and Queue glass (debug)")) {
+                        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                            Text("Lyrics and Queue glass (debug)", fontWeight = FontWeight.Medium)
+                            Text("Panel opacity: ${(sidePanelOpacity * 100).roundToInt()}%", color = DesktopSecondary)
+                            DesktopBareSlider(sidePanelOpacity, DesktopAppearanceSettings::setSidePanelOpacity, valueRange = 0f..1f)
+                            Text("Panel blur: ${sidePanelBlur.roundToInt()} dp", color = DesktopSecondary)
+                            DesktopBareSlider(sidePanelBlur, DesktopAppearanceSettings::setSidePanelBlur, valueRange = 0f..60f)
+                        }
+                    }
                     if (DesktopSidebarMica.isSupported) {
                         val micaSidebar by DesktopAppearanceSettings.micaSidebar.collectAsState()
                         SettingsToggle(
@@ -7960,8 +7979,8 @@ internal fun Modifier.desktopBarGlass(shape: Shape): Modifier =
 
 /** Dense glass shared by desktop context menus and the account selector. */
 @Composable
-internal fun Modifier.desktopMenuGlass(shape: Shape): Modifier =
-    clip(shape).desktopFrosted(DesktopCardFill, tintAlpha = 0.82f)
+internal fun Modifier.desktopMenuGlass(shape: Shape, tintAlpha: Float = 0.82f): Modifier =
+    clip(shape).desktopFrosted(DesktopCardFill, tintAlpha = tintAlpha)
         .border(0.5.dp, DesktopCardEdge, shape)
 
 /** The edge of a chrome pane that meets the page, and so has to dissolve into it. */
