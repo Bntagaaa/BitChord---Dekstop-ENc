@@ -69,3 +69,11 @@ jobs:
           grep -Fxq 'usr/share/applications/bitchord-desktop-revived.desktop' /tmp/bitchord-package-files.txt
           grep -Fxq 'usr/share/pixmaps/bitchord-desktop-revived.png' /tmp/bitchord-package-files.txt
           pacman -Qip "$pkg"
+
+      - name: Upload installable Arch package for testers
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitchord-arch-package-preview
+          path: packaging/aur/*.pkg.tar.zst
+          if-no-files-found: error
+          retention-days: 7
