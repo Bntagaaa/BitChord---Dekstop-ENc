@@ -53,7 +53,8 @@ import com.music.bitchord.playback.PlaybackPosition
  *
  * Artist facts come from YouTube Music's artist header, and unavailable fields are
  * omitted rather than guessed (in particular there is no Spotify-only follower count).
- * All surfaces are solid: Reduce Blur never has a blur effect to disable here.
+ * The surrounding Astra side-panel host owns the frosted material and its per-area
+ * blur policy; this content adds no independent blur effect.
  */
 @Composable
 internal fun DesktopNowPlayingDetailsPanel(
