@@ -3636,6 +3636,7 @@ internal fun BitChordDesktopApp(welcomeLaunch: DesktopWelcomeOnboarding.Launch) 
                             )
                             DesktopSidePanel.DETAILS -> DesktopNowPlayingDetailsPanel(
                                 song = current,
+                                isPlaying = playback.isPlaying,
                                 lyrics = sharedLyrics,
                                 lyricsLoading = lyricsLoading,
                                 position = playerPosition,
